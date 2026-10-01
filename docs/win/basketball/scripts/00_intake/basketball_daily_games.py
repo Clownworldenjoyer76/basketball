@@ -97,7 +97,13 @@ def clean(v) -> str:
 
 def unresolved_team(value) -> bool:
     team = clean(value).casefold()
-    return not team or team in UNRESOLVED_TEAM_NAMES
+
+    if not team or team in UNRESOLVED_TEAM_NAMES:
+        return True
+
+    # ESPN playoff placeholders can expose unresolved matchup labels such as
+    # "Dream/Mystics" before the participating team is known.
+    return "/" in team
 
 
 def build_row(row: dict) -> dict:
@@ -111,16 +117,6 @@ def identity_key(row: dict) -> tuple[str, str, str, str]:
     away_team = clean(row.get("away_team"))
 
     if unresolved_team(home_team) or unresolved_team(away_team):
-        game_id = clean(row.get("game_id"))
-
-        if game_id:
-            return (
-                league,
-                game_date,
-                "__game_id__",
-                game_id.casefold(),
-            )
-
         return league, game_date, "", ""
 
     return (
@@ -203,6 +199,49 @@ def write_aliases(rows: list[dict]) -> None:
         writer.writerows(unique.values())
 
 
+def remove_unresolved_only_output_files(
+    output_dir: Path,
+    league_label: str,
+    active_dates: set[str],
+) -> int:
+    removed = 0
+
+    for path in sorted(
+        output_dir.glob(f"*_{league_label}.csv")
+    ):
+        game_date = path.name.removesuffix(
+            f"_{league_label}.csv"
+        )
+
+        if game_date in active_dates:
+            continue
+
+        with path.open(
+            newline="",
+            encoding="utf-8-sig",
+        ) as f:
+            rows = list(csv.DictReader(f))
+
+        if not rows:
+            continue
+
+        if all(
+            unresolved_team(row.get("home_team"))
+            or unresolved_team(row.get("away_team"))
+            for row in rows
+        ):
+            path.unlink()
+            removed += 1
+            log(
+                "REMOVED stale unresolved-only daily-games file | "
+                f"league={league_label} | "
+                f"path={path} | "
+                f"rows={len(rows)}"
+            )
+
+    return removed
+
+
 def load_source_files(
     *,
     league_label: str,
@@ -247,16 +286,28 @@ def load_source_files(
                     )
                     continue
 
+                if (
+                    unresolved_team(row["home_team"])
+                    or unresolved_team(row["away_team"])
+                ):
+                    log(
+                        "SKIPPED unresolved "
+                        f"{source_kind} identity row "
+                        f"in {csv_path.name} | "
+                        f"game_date={row['game_date']} | "
+                        f"game_id={row['game_id']} | "
+                        f"home_team={row['home_team']!r} | "
+                        f"away_team={row['away_team']!r}"
+                    )
+                    continue
+
                 key = identity_key(row)
 
                 if not all(key):
-                    passthrough_key = (
-                        clean(row.get("league")).upper(),
-                        clean(row.get("game_date")),
-                        f"__unresolved__:{source_kind}",
-                        f"{csv_path}:{rows_read}",
+                    log(
+                        f"SKIPPED malformed {source_kind} identity key "
+                        f"in {csv_path.name}"
                     )
-                    canonical[passthrough_key] = row
                     continue
 
                 if key in canonical:
@@ -335,6 +386,12 @@ def main() -> None:
             by_date: dict[str, list[dict]] = {}
             for row in canonical.values():
                 by_date.setdefault(row["game_date"], []).append(row)
+
+            remove_unresolved_only_output_files(
+                cfg["output_dir"],
+                league_label,
+                set(by_date),
+            )
 
             for game_date, rows in sorted(by_date.items()):
                 rows = sorted(rows, key=sort_key)

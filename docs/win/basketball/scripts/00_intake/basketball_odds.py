@@ -225,7 +225,13 @@ def clean(value) -> str:
 
 def unresolved_team(value) -> bool:
     team = clean(value).casefold()
-    return not team or team in UNRESOLVED_TEAM_NAMES
+
+    if not team or team in UNRESOLVED_TEAM_NAMES:
+        return True
+
+    # ESPN playoff placeholders can expose unresolved matchup labels such as
+    # "Dream/Mystics" before the participating team is known.
+    return "/" in team
 
 
 def matchup_key(row: dict) -> tuple[str, str, str]:
@@ -289,14 +295,14 @@ def atomic_write_csv(
 def collapse_file(
     path: Path,
     league: str,
-) -> tuple[int, list[dict]]:
+) -> tuple[int, int, list[dict]]:
     with open(path, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         fieldnames = list(reader.fieldnames or [])
         rows = list(reader)
 
     if not rows or not fieldnames:
-        return 0, []
+        return 0, 0, []
 
     grouped: dict[
         tuple[str, str, str],
@@ -304,8 +310,16 @@ def collapse_file(
     ] = {}
 
     passthrough: list[tuple[int, dict]] = []
+    placeholder_removed = 0
 
     for index, row in enumerate(rows):
+        home_team = clean(row.get("home_team"))
+        away_team = clean(row.get("away_team"))
+
+        if unresolved_team(home_team) or unresolved_team(away_team):
+            placeholder_removed += 1
+            continue
+
         key = matchup_key(row)
 
         if not all(key):
@@ -414,7 +428,7 @@ def collapse_file(
                         "canonical_game_id": canonical_id,
                     })
 
-    if removed:
+    if removed or placeholder_removed:
         output.sort(
             key=lambda item: item[0]
         )
@@ -428,7 +442,7 @@ def collapse_file(
             ],
         )
 
-    return removed, aliases
+    return removed, placeholder_removed, aliases
 
 
 def cleanup_sportsbook_aliases(core) -> tuple[int, int]:
@@ -439,7 +453,8 @@ def cleanup_sportsbook_aliases(core) -> tuple[int, int]:
 
     alias_rows: list[dict] = []
     changed_files = 0
-    removed_rows = 0
+    removed_alias_rows = 0
+    removed_placeholder_rows = 0
 
     for league in LEAGUE_LABELS:
         folder = SPORTSBOOK_BASE / league
@@ -448,14 +463,27 @@ def cleanup_sportsbook_aliases(core) -> tuple[int, int]:
             continue
 
         for path in sorted(folder.glob("*.csv")):
-            removed, aliases = collapse_file(
+            (
+                removed,
+                placeholder_removed,
+                aliases,
+            ) = collapse_file(
                 path,
                 league,
             )
 
-            if removed:
+            if removed or placeholder_removed:
                 changed_files += 1
-                removed_rows += removed
+                removed_alias_rows += removed
+                removed_placeholder_rows += placeholder_removed
+
+            if placeholder_removed:
+                core.log(
+                    "SPORTSBOOK PLACEHOLDER REMOVAL | "
+                    f"league={league.upper()} | "
+                    f"file={path} | "
+                    f"rows={placeholder_removed}"
+                )
 
             alias_rows.extend(aliases)
 
@@ -465,15 +493,21 @@ def cleanup_sportsbook_aliases(core) -> tuple[int, int]:
         alias_rows,
     )
 
+    total_removed_rows = (
+        removed_alias_rows
+        + removed_placeholder_rows
+    )
+
     core.log(
         "SPORTSBOOK ALIAS CLEANUP | "
         f"changed_files={changed_files} | "
-        f"removed_alias_rows={removed_rows} | "
+        f"removed_alias_rows={removed_alias_rows} | "
+        f"removed_placeholder_rows={removed_placeholder_rows} | "
         f"aliases={len(alias_rows)} | "
         f"report={ALIAS_REPORT}"
     )
 
-    return changed_files, removed_rows
+    return changed_files, total_removed_rows
 
 
 def main() -> None:
