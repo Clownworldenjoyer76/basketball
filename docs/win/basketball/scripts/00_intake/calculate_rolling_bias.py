@@ -1339,283 +1339,166 @@ def production_prediction_source(
     return source
 
 
-def resolve_bias_rule(
-    league_cfg: dict[str, Any],
-    component: str,
-) -> dict[str, Any]:
-    bias_cfg = (
-        league_cfg.get(
-            "bias"
-        )
-        or {}
-    )
+def resolve_bias_rule(league_cfg: dict[str, Any], component: str) -> dict[str, Any]:
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    rule = bias_cfg.get(
-        component
-    )
+    def _py_r1000_impl():
+        nonlocal component, league_cfg
+        bias_cfg: object
+        index: object
+        method: object
+        method_raw: object
+        parsed_window: object
+        raw_weight: object
+        raw_weights: object
+        raw_window: object
+        raw_windows: object
+        rule: object
+        shrink_raw: object
+        sign_conflict_shrink: object
+        value: object
+        value_raw: object
+        weight: object
+        weight_sum: object
+        weights: object
+        window: object
+        windows: object
 
-    if rule is None:
-        return {
-            "method": None,
-            "window_games": None,
-            "windows_games": None,
-            "weights": None,
-            "sign_conflict_shrink": None,
-            "value": None,
-        }
+        def _py_r1000_if_1():
+            nonlocal index, parsed_window, raw_weight, raw_weights, raw_window, raw_windows, shrink_raw, sign_conflict_shrink, weight, weight_sum, weights, windows
 
-    if not isinstance(
-        rule,
-        dict,
-    ):
-        raise ValueError(
-            f"bias.{component} "
-            f"must be a mapping "
-            f"or null"
-        )
+            def _py_r1000_loop_2():
+                nonlocal parsed_window
+                parsed_window = positive_int_or_none(raw_window, f'bias.{component}.windows_games[{index}]')
+                if parsed_window is None or parsed_window <= 0:
+                    raise ValueError(f'bias.{component}.windows_games[{index}] must be > 0')
+                windows.append(parsed_window)
+                return (_py_r1000_NONE, None)
 
-    method_raw = rule.get(
-        "method"
-    )
+            def _py_r1000_loop_4():
+                nonlocal weight
+                weight = to_float(raw_weight)
+                if weight is None or weight < 0:
+                    raise ValueError(f'bias.{component}.weights[{index}] must be a finite number >= 0')
+                weights.append(float(weight))
+                return (_py_r1000_NONE, None)
 
-    method = (
-        None
-        if method_raw is None
-        else str(
-            method_raw
-        ).strip().lower()
-    )
+            def _py_r1000_chunk_6():
+                nonlocal index, raw_weights, raw_window, raw_windows, windows
 
-    if method in {
-        "",
-        "null",
-    }:
-        method = None
+                def _py_r1000_loop_7():
+                    _py_r1000_result_3 = _py_r1000_loop_2()
+                    if _py_r1000_result_3[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_3
+                    if _py_r1000_result_3[0] == _py_r1000_BREAK:
+                        return (_py_r1000_BREAK, None)
+                    if _py_r1000_result_3[0] == _py_r1000_CONTINUE:
+                        return (_py_r1000_CONTINUE, None)
+                    return (_py_r1000_NONE, None)
+                raw_windows = rule.get('windows_games')
+                raw_weights = rule.get('weights')
+                if not isinstance(raw_windows, list) or not raw_windows:
+                    raise ValueError(f"bias.{component}.windows_games must be a non-empty list for method='regime_aware'")
+                windows = []
+                for index, raw_window in enumerate(raw_windows):
+                    _py_r1000_result_8 = _py_r1000_loop_7()
+                    if _py_r1000_result_8[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_8
+                    if _py_r1000_result_8[0] == _py_r1000_BREAK:
+                        break
+                    if _py_r1000_result_8[0] == _py_r1000_CONTINUE:
+                        continue
+                if len(set(windows)) != len(windows):
+                    raise ValueError(f'bias.{component}.windows_games must contain unique windows')
+                return (_py_r1000_NONE, None)
 
-    window = positive_int_or_none(
-        rule.get(
-            "window_games"
-        ),
-        (
-            f"bias.{component}."
-            f"window_games"
-        ),
-    )
+            def _py_r1000_chunk_9():
+                nonlocal index, raw_weight, weight_sum, weights
 
-    windows: list[int] | None = None
-    weights: list[float] | None = None
-    sign_conflict_shrink: float | None = None
+                def _py_r1000_loop_10():
+                    _py_r1000_result_5 = _py_r1000_loop_4()
+                    if _py_r1000_result_5[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_5
+                    if _py_r1000_result_5[0] == _py_r1000_BREAK:
+                        return (_py_r1000_BREAK, None)
+                    if _py_r1000_result_5[0] == _py_r1000_CONTINUE:
+                        return (_py_r1000_CONTINUE, None)
+                    return (_py_r1000_NONE, None)
+                if windows != sorted(windows):
+                    raise ValueError(f'bias.{component}.windows_games must be sorted ascending')
+                if not isinstance(raw_weights, list) or len(raw_weights) != len(windows):
+                    raise ValueError(f'bias.{component}.weights must contain exactly one weight for each configured window')
+                weights = []
+                for index, raw_weight in enumerate(raw_weights):
+                    _py_r1000_result_11 = _py_r1000_loop_10()
+                    if _py_r1000_result_11[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_11
+                    if _py_r1000_result_11[0] == _py_r1000_BREAK:
+                        break
+                    if _py_r1000_result_11[0] == _py_r1000_CONTINUE:
+                        continue
+                weight_sum = sum(weights)
+                return (_py_r1000_NONE, None)
 
-    if method == "regime_aware":
-        raw_windows = rule.get(
-            "windows_games"
-        )
+            def _py_r1000_chunk_12():
+                nonlocal shrink_raw, sign_conflict_shrink, weights
+                if weight_sum <= 0:
+                    raise ValueError(f'bias.{component}.weights must sum to > 0')
+                weights = [weight / weight_sum for weight in weights]
+                shrink_raw = rule.get('sign_conflict_shrink')
+                sign_conflict_shrink = to_float(shrink_raw)
+                if sign_conflict_shrink is None or sign_conflict_shrink < 0 or sign_conflict_shrink > 1:
+                    raise ValueError(f'bias.{component}.sign_conflict_shrink must be between 0 and 1')
+                if window is not None:
+                    raise ValueError(f"bias.{component}.window_games must be null/omitted for method='regime_aware'")
+                return (_py_r1000_NONE, None)
+            for _py_r1000_block_13 in (_py_r1000_chunk_6, _py_r1000_chunk_9, _py_r1000_chunk_12):
+                _py_r1000_result_14 = _py_r1000_block_13()
+                if _py_r1000_result_14[0] != _py_r1000_NONE:
+                    return _py_r1000_result_14
+            return (_py_r1000_NONE, None)
 
-        raw_weights = rule.get(
-            "weights"
-        )
-
-        if (
-            not isinstance(
-                raw_windows,
-                list,
-            )
-            or not raw_windows
-        ):
-            raise ValueError(
-                f"bias.{component}.windows_games "
-                f"must be a non-empty list for "
-                f"method='regime_aware'"
-            )
-
-        windows = []
-
-        for index, raw_window in enumerate(
-            raw_windows
-        ):
-            parsed_window = positive_int_or_none(
-                raw_window,
-                (
-                    f"bias.{component}."
-                    f"windows_games[{index}]"
-                ),
-            )
-
-            if (
-                parsed_window is None
-                or parsed_window <= 0
-            ):
-                raise ValueError(
-                    f"bias.{component}."
-                    f"windows_games[{index}] "
-                    f"must be > 0"
-                )
-
-            windows.append(
-                parsed_window
-            )
-
-        if len(
-            set(
-                windows
-            )
-        ) != len(
-            windows
-        ):
-            raise ValueError(
-                f"bias.{component}.windows_games "
-                f"must contain unique windows"
-            )
-
-        if windows != sorted(
-            windows
-        ):
-            raise ValueError(
-                f"bias.{component}.windows_games "
-                f"must be sorted ascending"
-            )
-
-        if (
-            not isinstance(
-                raw_weights,
-                list,
-            )
-            or len(
-                raw_weights
-            ) != len(
-                windows
-            )
-        ):
-            raise ValueError(
-                f"bias.{component}.weights "
-                f"must contain exactly one weight "
-                f"for each configured window"
-            )
-
-        weights = []
-
-        for index, raw_weight in enumerate(
-            raw_weights
-        ):
-            weight = to_float(
-                raw_weight
-            )
-
-            if (
-                weight is None
-                or weight < 0
-            ):
-                raise ValueError(
-                    f"bias.{component}."
-                    f"weights[{index}] "
-                    f"must be a finite number >= 0"
-                )
-
-            weights.append(
-                float(
-                    weight
-                )
-            )
-
-        weight_sum = sum(
-            weights
-        )
-
-        if weight_sum <= 0:
-            raise ValueError(
-                f"bias.{component}.weights "
-                f"must sum to > 0"
-            )
-
-        weights = [
-            weight
-            / weight_sum
-            for weight
-            in weights
-        ]
-
-        shrink_raw = rule.get(
-            "sign_conflict_shrink"
-        )
-
-        sign_conflict_shrink = to_float(
-            shrink_raw
-        )
-
-        if (
-            sign_conflict_shrink is None
-            or sign_conflict_shrink < 0
-            or sign_conflict_shrink > 1
-        ):
-            raise ValueError(
-                f"bias.{component}."
-                f"sign_conflict_shrink "
-                f"must be between 0 and 1"
-            )
-
-        if window is not None:
-            raise ValueError(
-                f"bias.{component}.window_games "
-                f"must be null/omitted for "
-                f"method='regime_aware'"
-            )
-
-    value_raw = rule.get(
-        "value"
-    )
-
-    value = None
-
-    if value_raw not in (
-        None,
-        "",
-    ):
-        value = to_float(
-            value_raw
-        )
-
-        if value is None:
-            raise ValueError(
-                f"bias.{component}.value "
-                f"must be numeric; "
-                f"got {value_raw!r}"
-            )
-
-    if (
-        method
-        in {
-            "rolling",
-            "regime_aware",
-            "none",
-        }
-        and value is not None
-    ):
-        raise ValueError(
-            f"bias.{component}.value "
-            f"must be null for "
-            f"method={method!r}"
-        )
-
-    if (
-        method == "fixed"
-        and window is not None
-    ):
-        raise ValueError(
-            f"bias.{component}.window_games "
-            f"must be null/omitted for "
-            f"method='fixed'"
-        )
-
-    return {
-        "method": method,
-        "window_games": window,
-        "windows_games": windows,
-        "weights": weights,
-        "sign_conflict_shrink": (
-            sign_conflict_shrink
-        ),
-        "value": value,
-    }
+        def _py_r1000_if_16():
+            nonlocal value
+            value = to_float(value_raw)
+            if value is None:
+                raise ValueError(f'bias.{component}.value must be numeric; got {value_raw!r}')
+            return (_py_r1000_NONE, None)
+        bias_cfg = league_cfg.get('bias') or {}
+        rule = bias_cfg.get(component)
+        if rule is None:
+            return (_py_r1000_RETURN, {'method': None, 'window_games': None, 'windows_games': None, 'weights': None, 'sign_conflict_shrink': None, 'value': None})
+        if not isinstance(rule, dict):
+            raise ValueError(f'bias.{component} must be a mapping or null')
+        method_raw = rule.get('method')
+        method = None if method_raw is None else str(method_raw).strip().lower()
+        if method in {'', 'null'}:
+            method = None
+        window = positive_int_or_none(rule.get('window_games'), f'bias.{component}.window_games')
+        windows: list[int] | None = None
+        weights: list[float] | None = None
+        sign_conflict_shrink: float | None = None
+        if method == 'regime_aware':
+            _py_r1000_result_15 = _py_r1000_if_1()
+            if _py_r1000_result_15[0] != _py_r1000_NONE:
+                return _py_r1000_result_15
+        value_raw = rule.get('value')
+        value = None
+        if value_raw not in (None, ''):
+            _py_r1000_result_17 = _py_r1000_if_16()
+            if _py_r1000_result_17[0] != _py_r1000_NONE:
+                return _py_r1000_result_17
+        if method in {'rolling', 'regime_aware', 'none'} and value is not None:
+            raise ValueError(f'bias.{component}.value must be null for method={method!r}')
+        if method == 'fixed' and window is not None:
+            raise ValueError(f"bias.{component}.window_games must be null/omitted for method='fixed'")
+        return (_py_r1000_RETURN, {'method': method, 'window_games': window, 'windows_games': windows, 'weights': weights, 'sign_conflict_shrink': sign_conflict_shrink, 'value': value})
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 # ============================================================================
@@ -1688,323 +1571,161 @@ def reverse_adjusted_projection(
     )
 
 
-def load_historical_completed_games(
-    league: str,
-) -> tuple[
-    list[CompletedGame],
-    dict[str, int],
-    list[str],
-]:
-    games: list[
-        CompletedGame
-    ] = []
+def load_historical_completed_games(league: str) -> tuple[list[CompletedGame], dict[str, int], list[str]]:
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    stats = (
-        historical_stats_template()
-    )
+    def _py_r1000_impl():
+        nonlocal league
+        away_proj: object
+        away_score: object
+        away_team: object
+        bias_flag: object
+        fatal_errors: object
+        fieldnames: object
+        game_date: object
+        games: object
+        home_proj: object
+        home_score: object
+        home_team: object
+        legacy: object
+        message: object
+        path: object
+        per_game_margin: object
+        per_game_total: object
+        raw_away: object
+        raw_home: object
+        raw_total: object
+        reversal_margin: object
+        reversal_total: object
+        row: object
+        row_number: object
+        rows: object
+        season: object
+        stats: object
+        total_proj: object
 
-    fatal_errors: list[
-        str
-    ] = []
+        def _py_r1000_loop_1():
+            nonlocal away_proj, away_score, away_team, bias_flag, fieldnames, game_date, home_proj, home_score, home_team, legacy, message, per_game_margin, per_game_total, raw_away, raw_home, raw_total, reversal_margin, reversal_total, row, row_number, rows, total_proj
 
-    for (
-        season,
-        path,
-    ) in historical_files_for_league(
-        league
-    ):
-        stats[
-            "historical_files_scanned"
-        ] += 1
+            def _py_r1000_loop_2():
+                nonlocal away_proj, away_score, away_team, bias_flag, game_date, home_proj, home_score, home_team, legacy, message, per_game_margin, per_game_total, raw_away, raw_home, raw_total, reversal_margin, reversal_total, total_proj
 
-        (
-            fieldnames,
-            rows,
-        ) = read_csv_rows(
-            path
-        )
+                def _py_r1000_else_3():
+                    nonlocal legacy, message, per_game_margin, per_game_total, raw_away, raw_home, raw_total, reversal_margin, reversal_total
 
-        require_columns(
-            path,
-            fieldnames,
-            HISTORICAL_REQUIRED,
-        )
+                    def _py_r1000_else_4():
+                        nonlocal legacy, message, reversal_margin, reversal_total
+                        legacy = LEGACY_HISTORICAL_BIAS.get((league.lower(), season))
+                        if legacy is None:
+                            stats['historical_unreversible_bias_rows'] += 1
+                            message = f'{league_upper(league)} historical {path.name} row {row_number} has bias_applied=1 but does not contain valid per-game margin_bias and total_bias, and no legacy fallback exists for this league/season'
+                            fatal_errors.append(message)
+                            log(message, 'ERROR')
+                            return (_py_r1000_CONTINUE, None)
+                        reversal_margin = float(legacy['margin'])
+                        reversal_total = float(legacy['total'])
+                        stats['historical_rows_bias_reversed_legacy'] += 1
+                        return (_py_r1000_NONE, None)
+                    per_game_margin = to_float(row.get('margin_bias'))
+                    per_game_total = to_float(row.get('total_bias'))
+                    if per_game_margin is not None and per_game_total is not None:
+                        reversal_margin = per_game_margin
+                        reversal_total = per_game_total
+                        stats['historical_rows_bias_reversed_per_game'] += 1
+                    else:
+                        _py_r1000_result_5 = _py_r1000_else_4()
+                        if _py_r1000_result_5[0] != _py_r1000_NONE:
+                            return _py_r1000_result_5
+                    raw_home, raw_away, raw_total = reverse_adjusted_projection(home_proj, away_proj, total_proj, reversal_margin, reversal_total)
+                    stats['historical_rows_bias_reversed'] += 1
+                    return (_py_r1000_NONE, None)
 
-        for (
-            row_number,
-            row,
-        ) in enumerate(
-            rows,
-            start=2,
-        ):
-            stats[
-                "historical_rows"
-            ] += 1
+                def _py_r1000_chunk_7():
+                    nonlocal away_proj, away_score, away_team, game_date, home_proj, home_score, home_team, total_proj
+                    stats['historical_rows'] += 1
+                    game_date = normalize_date(row.get('game_date'))
+                    if not game_date:
+                        stats['historical_rows_invalid_date'] += 1
+                        return (_py_r1000_CONTINUE, None)
+                    home_team = str(row.get('home_team') or '').strip()
+                    away_team = str(row.get('away_team') or '').strip()
+                    home_proj = to_float(row.get('home_projected_points'))
+                    away_proj = to_float(row.get('away_projected_points'))
+                    total_proj = to_float(row.get('total_projected_points'))
+                    home_score = to_float(row.get('home_score'))
+                    away_score = to_float(row.get('away_score'))
+                    if total_proj is None and home_proj is not None and (away_proj is not None):
+                        total_proj = home_proj + away_proj
+                    return (_py_r1000_NONE, None)
 
-            game_date = normalize_date(
-                row.get(
-                    "game_date"
-                )
-            )
+                def _py_r1000_chunk_8():
+                    nonlocal bias_flag
+                    if not home_team or not away_team or home_proj is None or (away_proj is None) or (total_proj is None) or (home_score is None) or (away_score is None):
+                        stats['historical_incomplete_rows'] += 1
+                        return (_py_r1000_CONTINUE, None)
+                    bias_flag = parse_bias_flag(row.get('bias_applied'))
+                    return (_py_r1000_NONE, None)
 
-            if not game_date:
-                stats[
-                    "historical_rows_invalid_date"
-                ] += 1
+                def _py_r1000_chunk_9():
+                    nonlocal raw_away, raw_home, raw_total
 
+                    def _py_r1000_else_10():
+                        _py_r1000_result_6 = _py_r1000_else_3()
+                        if _py_r1000_result_6[0] != _py_r1000_NONE:
+                            return _py_r1000_result_6
+                        return (_py_r1000_NONE, None)
+                    if bias_flag is None:
+                        stats['historical_invalid_bias_flag_rows'] += 1
+                        log(f"{league_upper(league)} | HISTORICAL INVALID BIAS FLAG | file={path.name} row={row_number} value={row.get('bias_applied')!r}", 'WARN')
+                        return (_py_r1000_CONTINUE, None)
+                    raw_home = home_proj
+                    raw_away = away_proj
+                    raw_total = total_proj
+                    if bias_flag == 0:
+                        stats['historical_rows_raw_unadjusted'] += 1
+                    else:
+                        _py_r1000_result_11 = _py_r1000_else_10()
+                        if _py_r1000_result_11[0] != _py_r1000_NONE:
+                            return _py_r1000_result_11
+                    games.append(CompletedGame(league=league, game_id=canonical_game_id(row.get('game_id')), game_date=game_date, game_time=str(row.get('game_time') or '').strip(), home_team=home_team, away_team=away_team, home_projected_points=raw_home, away_projected_points=raw_away, total_projected_points=raw_total, home_score=home_score, away_score=away_score, source=repo_relative(path), source_priority=1))
+                    stats['historical_usable_games'] += 1
+                    return (_py_r1000_NONE, None)
+                for _py_r1000_block_12 in (_py_r1000_chunk_7, _py_r1000_chunk_8, _py_r1000_chunk_9):
+                    _py_r1000_result_13 = _py_r1000_block_12()
+                    if _py_r1000_result_13[0] != _py_r1000_NONE:
+                        return _py_r1000_result_13
+                return (_py_r1000_NONE, None)
+            stats['historical_files_scanned'] += 1
+            fieldnames, rows = read_csv_rows(path)
+            require_columns(path, fieldnames, HISTORICAL_REQUIRED)
+            for row_number, row in enumerate(rows, start=2):
+                _py_r1000_result_14 = _py_r1000_loop_2()
+                if _py_r1000_result_14[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_14
+                if _py_r1000_result_14[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_14[0] == _py_r1000_CONTINUE:
+                    continue
+            log(f'{league_upper(league)} | HISTORICAL | {path.name} | rows={len(rows)}')
+            return (_py_r1000_NONE, None)
+        games: list[CompletedGame] = []
+        stats = historical_stats_template()
+        fatal_errors: list[str] = []
+        for season, path in historical_files_for_league(league):
+            _py_r1000_result_15 = _py_r1000_loop_1()
+            if _py_r1000_result_15[0] == _py_r1000_RETURN:
+                return _py_r1000_result_15
+            if _py_r1000_result_15[0] == _py_r1000_BREAK:
+                break
+            if _py_r1000_result_15[0] == _py_r1000_CONTINUE:
                 continue
-
-            home_team = str(
-                row.get(
-                    "home_team"
-                )
-                or ""
-            ).strip()
-
-            away_team = str(
-                row.get(
-                    "away_team"
-                )
-                or ""
-            ).strip()
-
-            home_proj = to_float(
-                row.get(
-                    "home_projected_points"
-                )
-            )
-
-            away_proj = to_float(
-                row.get(
-                    "away_projected_points"
-                )
-            )
-
-            total_proj = to_float(
-                row.get(
-                    "total_projected_points"
-                )
-            )
-
-            home_score = to_float(
-                row.get(
-                    "home_score"
-                )
-            )
-
-            away_score = to_float(
-                row.get(
-                    "away_score"
-                )
-            )
-
-            if (
-                total_proj is None
-                and home_proj is not None
-                and away_proj is not None
-            ):
-                total_proj = (
-                    home_proj
-                    + away_proj
-                )
-
-            if (
-                not home_team
-                or not away_team
-                or home_proj is None
-                or away_proj is None
-                or total_proj is None
-                or home_score is None
-                or away_score is None
-            ):
-                stats[
-                    "historical_incomplete_rows"
-                ] += 1
-
-                continue
-
-            bias_flag = parse_bias_flag(
-                row.get(
-                    "bias_applied"
-                )
-            )
-
-            if bias_flag is None:
-                stats[
-                    "historical_invalid_bias_flag_rows"
-                ] += 1
-
-                log(
-                    (
-                        f"{league_upper(league)} | "
-                        f"HISTORICAL INVALID BIAS FLAG | "
-                        f"file={path.name} "
-                        f"row={row_number} "
-                        f"value="
-                        f"{row.get('bias_applied')!r}"
-                    ),
-                    "WARN",
-                )
-
-                continue
-
-            raw_home = home_proj
-            raw_away = away_proj
-            raw_total = total_proj
-
-            if bias_flag == 0:
-                stats[
-                    "historical_rows_raw_unadjusted"
-                ] += 1
-
-            else:
-                per_game_margin = to_float(
-                    row.get(
-                        "margin_bias"
-                    )
-                )
-
-                per_game_total = to_float(
-                    row.get(
-                        "total_bias"
-                    )
-                )
-
-                if (
-                    per_game_margin is not None
-                    and per_game_total is not None
-                ):
-                    reversal_margin = (
-                        per_game_margin
-                    )
-
-                    reversal_total = (
-                        per_game_total
-                    )
-
-                    stats[
-                        "historical_rows_bias_reversed_per_game"
-                    ] += 1
-
-                else:
-                    legacy = (
-                        LEGACY_HISTORICAL_BIAS
-                        .get(
-                            (
-                                league.lower(),
-                                season,
-                            )
-                        )
-                    )
-
-                    if legacy is None:
-                        stats[
-                            "historical_unreversible_bias_rows"
-                        ] += 1
-
-                        message = (
-                            f"{league_upper(league)} "
-                            f"historical "
-                            f"{path.name} "
-                            f"row {row_number} "
-                            f"has bias_applied=1 "
-                            f"but does not contain "
-                            f"valid per-game margin_bias "
-                            f"and total_bias, and no "
-                            f"legacy fallback exists "
-                            f"for this league/season"
-                        )
-
-                        fatal_errors.append(
-                            message
-                        )
-
-                        log(
-                            message,
-                            "ERROR",
-                        )
-
-                        continue
-
-                    reversal_margin = float(
-                        legacy[
-                            "margin"
-                        ]
-                    )
-
-                    reversal_total = float(
-                        legacy[
-                            "total"
-                        ]
-                    )
-
-                    stats[
-                        "historical_rows_bias_reversed_legacy"
-                    ] += 1
-
-                (
-                    raw_home,
-                    raw_away,
-                    raw_total,
-                ) = reverse_adjusted_projection(
-                    home_proj,
-                    away_proj,
-                    total_proj,
-                    reversal_margin,
-                    reversal_total,
-                )
-
-                stats[
-                    "historical_rows_bias_reversed"
-                ] += 1
-
-            games.append(
-                CompletedGame(
-                    league=league,
-                    game_id=canonical_game_id(
-                        row.get(
-                            "game_id"
-                        )
-                    ),
-                    game_date=game_date,
-                    game_time=str(
-                        row.get(
-                            "game_time"
-                        )
-                        or ""
-                    ).strip(),
-                    home_team=home_team,
-                    away_team=away_team,
-                    home_projected_points=raw_home,
-                    away_projected_points=raw_away,
-                    total_projected_points=raw_total,
-                    home_score=home_score,
-                    away_score=away_score,
-                    source=repo_relative(
-                        path
-                    ),
-                    source_priority=1,
-                )
-            )
-
-            stats[
-                "historical_usable_games"
-            ] += 1
-
-        log(
-            (
-                f"{league_upper(league)} | "
-                f"HISTORICAL | "
-                f"{path.name} | "
-                f"rows={len(rows)}"
-            )
-        )
-
-    return (
-        games,
-        stats,
-        fatal_errors,
-    )
+        return (_py_r1000_RETURN, (games, stats, fatal_errors))
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 # ============================================================================
@@ -2453,330 +2174,233 @@ def build_prediction_indexes(
 # FINAL-SCORE DUPLICATE HANDLING
 # ============================================================================
 
-def deduplicate_final_rows(
-    rows: list[
-        dict[str, str]
-    ],
-) -> tuple[
-    list[
-        dict[str, str]
-    ],
-    dict[str, int],
-]:
-    stats = {
-        "duplicate_final_game_ids": 0,
-        "duplicate_final_composites": 0,
-        "conflicting_final_game_ids": 0,
-        "conflicting_final_composites": 0,
-        "final_duplicate_rows_removed": 0,
-        "final_conflicting_rows_excluded": 0,
-    }
+def deduplicate_final_rows(rows: list[dict[str, str]]) -> tuple[list[dict[str, str]], dict[str, int]]:
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    excluded: set[
-        str
-    ] = set()
+    def _py_r1000_impl():
+        nonlocal rows
+        comp: object
+        composite_groups: object
+        deduped: object
+        excluded: object
+        gid: object
+        group: object
+        grouped_remaining: object
+        id_groups: object
+        key: object
+        preferred: object
+        remaining: object
+        row: object
+        score_signatures: object
+        signatures: object
+        stats: object
 
-    # ------------------------------------------------------------
-    # GAME_ID DUPLICATES
-    # ------------------------------------------------------------
+        def _py_r1000_loop_1():
+            nonlocal gid
+            gid = canonical_game_id(row.get('game_id'))
+            if gid:
+                id_groups.setdefault(gid, []).append(row)
+            return (_py_r1000_NONE, None)
 
-    id_groups: dict[
-        str,
-        list[
-            dict[str, str]
-        ],
-    ] = {}
+        def _py_r1000_loop_3():
+            nonlocal signatures
 
-    for row in rows:
-        gid = canonical_game_id(
-            row.get(
-                "game_id"
-            )
-        )
+            def _py_r1000_else_4():
+                stats['conflicting_final_game_ids'] += 1
+                excluded.update((row['_uid'] for row in group))
+                log(f'FINAL CONFLICTING GAME_ID | game_id={gid} rows={len(group)}', 'WARN')
+                return (_py_r1000_NONE, None)
+            if len(group) <= 1:
+                return (_py_r1000_CONTINUE, None)
+            signatures = {final_identity_score_signature(row) for row in group}
+            if len(signatures) == 1:
+                stats['duplicate_final_game_ids'] += len(group) - 1
+            else:
+                _py_r1000_result_5 = _py_r1000_else_4()
+                if _py_r1000_result_5[0] != _py_r1000_NONE:
+                    return _py_r1000_result_5
+            return (_py_r1000_NONE, None)
 
-        if gid:
-            id_groups.setdefault(
-                gid,
-                [],
-            ).append(
-                row
-            )
+        def _py_r1000_loop_7():
+            nonlocal comp
+            comp = composite_key(row.get('game_date'), row.get('home_team'), row.get('away_team'))
+            if comp:
+                composite_groups.setdefault(comp, []).append(row)
+            return (_py_r1000_NONE, None)
 
-    for (
-        gid,
-        group,
-    ) in id_groups.items():
-        if len(
-            group
-        ) <= 1:
-            continue
+        def _py_r1000_loop_9():
+            nonlocal score_signatures
 
-        signatures = {
-            final_identity_score_signature(
-                row
-            )
-            for row in group
-        }
+            def _py_r1000_else_10():
+                stats['conflicting_final_composites'] += 1
+                excluded.update((row['_uid'] for row in group))
+                log(f'FINAL CONFLICTING COMPOSITE | key={comp} rows={len(group)}', 'WARN')
+                return (_py_r1000_NONE, None)
+            if len(group) <= 1:
+                return (_py_r1000_CONTINUE, None)
+            score_signatures = {(to_float(row.get('home_score')), to_float(row.get('away_score'))) for row in group}
+            if len(score_signatures) == 1:
+                stats['duplicate_final_composites'] += len(group) - 1
+            else:
+                _py_r1000_result_11 = _py_r1000_else_10()
+                if _py_r1000_result_11[0] != _py_r1000_NONE:
+                    return _py_r1000_result_11
+            return (_py_r1000_NONE, None)
 
-        if len(
-            signatures
-        ) == 1:
-            stats[
-                "duplicate_final_game_ids"
-            ] += (
-                len(group)
-                - 1
-            )
+        def _py_r1000_loop_13():
+            nonlocal comp, gid, key
 
-        else:
-            stats[
-                "conflicting_final_game_ids"
-            ] += 1
+            def _py_r1000_else_14():
+                nonlocal key
+                if gid:
+                    key = ('game_id', gid)
+                else:
+                    key = ('row', row['_uid'])
+                return (_py_r1000_NONE, None)
+            comp = composite_key(row.get('game_date'), row.get('home_team'), row.get('away_team'))
+            gid = canonical_game_id(row.get('game_id'))
+            if comp:
+                key = ('composite', comp)
+            else:
+                _py_r1000_result_15 = _py_r1000_else_14()
+                if _py_r1000_result_15[0] != _py_r1000_NONE:
+                    return _py_r1000_result_15
+            grouped_remaining.setdefault(key, []).append(row)
+            return (_py_r1000_NONE, None)
 
-            excluded.update(
-                row[
-                    "_uid"
-                ]
-                for row in group
-            )
+        def _py_r1000_chunk_17():
+            nonlocal excluded, id_groups, row, stats
 
-            log(
-                (
-                    f"FINAL CONFLICTING GAME_ID | "
-                    f"game_id={gid} "
-                    f"rows={len(group)}"
-                ),
-                "WARN",
-            )
+            def _py_r1000_loop_18():
+                _py_r1000_result_2 = _py_r1000_loop_1()
+                if _py_r1000_result_2[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_2
+                if _py_r1000_result_2[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            stats = {'duplicate_final_game_ids': 0, 'duplicate_final_composites': 0, 'conflicting_final_game_ids': 0, 'conflicting_final_composites': 0, 'final_duplicate_rows_removed': 0, 'final_conflicting_rows_excluded': 0}
+            excluded = set()
+            id_groups = {}
+            for row in rows:
+                _py_r1000_result_19 = _py_r1000_loop_18()
+                if _py_r1000_result_19[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_19
+                if _py_r1000_result_19[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_19[0] == _py_r1000_CONTINUE:
+                    continue
+            return (_py_r1000_NONE, None)
 
-    # ------------------------------------------------------------
-    # COMPOSITE DUPLICATES
-    # ------------------------------------------------------------
+        def _py_r1000_chunk_20():
+            nonlocal composite_groups, gid, group
 
-    composite_groups: dict[
-        str,
-        list[
-            dict[str, str]
-        ],
-    ] = {}
+            def _py_r1000_loop_21():
+                _py_r1000_result_6 = _py_r1000_loop_3()
+                if _py_r1000_result_6[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_6
+                if _py_r1000_result_6[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_6[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            for gid, group in id_groups.items():
+                _py_r1000_result_22 = _py_r1000_loop_21()
+                if _py_r1000_result_22[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_22
+                if _py_r1000_result_22[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_22[0] == _py_r1000_CONTINUE:
+                    continue
+            composite_groups = {}
+            return (_py_r1000_NONE, None)
 
-    for row in rows:
-        comp = composite_key(
-            row.get(
-                "game_date"
-            ),
-            row.get(
-                "home_team"
-            ),
-            row.get(
-                "away_team"
-            ),
-        )
+        def _py_r1000_chunk_23():
+            nonlocal row
 
-        if comp:
-            composite_groups.setdefault(
-                comp,
-                [],
-            ).append(
-                row
-            )
+            def _py_r1000_loop_24():
+                _py_r1000_result_8 = _py_r1000_loop_7()
+                if _py_r1000_result_8[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_8
+                if _py_r1000_result_8[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_8[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            for row in rows:
+                _py_r1000_result_25 = _py_r1000_loop_24()
+                if _py_r1000_result_25[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_25
+                if _py_r1000_result_25[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_25[0] == _py_r1000_CONTINUE:
+                    continue
+            return (_py_r1000_NONE, None)
 
-    for (
-        comp,
-        group,
-    ) in composite_groups.items():
-        if len(
-            group
-        ) <= 1:
-            continue
+        def _py_r1000_chunk_26():
+            nonlocal comp, group, grouped_remaining, remaining
 
-        score_signatures = {
-            (
-                to_float(
-                    row.get(
-                        "home_score"
-                    )
-                ),
-                to_float(
-                    row.get(
-                        "away_score"
-                    )
-                ),
-            )
-            for row in group
-        }
+            def _py_r1000_loop_27():
+                _py_r1000_result_12 = _py_r1000_loop_9()
+                if _py_r1000_result_12[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_12
+                if _py_r1000_result_12[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_12[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            for comp, group in composite_groups.items():
+                _py_r1000_result_28 = _py_r1000_loop_27()
+                if _py_r1000_result_28[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_28
+                if _py_r1000_result_28[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_28[0] == _py_r1000_CONTINUE:
+                    continue
+            stats['final_conflicting_rows_excluded'] = len(excluded)
+            remaining = [row for row in rows if row['_uid'] not in excluded]
+            grouped_remaining = {}
+            return (_py_r1000_NONE, None)
 
-        if len(
-            score_signatures
-        ) == 1:
-            stats[
-                "duplicate_final_composites"
-            ] += (
-                len(group)
-                - 1
-            )
+        def _py_r1000_chunk_29():
+            nonlocal deduped, group, preferred, row
 
-        else:
-            stats[
-                "conflicting_final_composites"
-            ] += 1
-
-            excluded.update(
-                row[
-                    "_uid"
-                ]
-                for row in group
-            )
-
-            log(
-                (
-                    f"FINAL CONFLICTING COMPOSITE | "
-                    f"key={comp} "
-                    f"rows={len(group)}"
-                ),
-                "WARN",
-            )
-
-    stats[
-        "final_conflicting_rows_excluded"
-    ] = len(
-        excluded
-    )
-
-    remaining = [
-        row
-        for row in rows
-        if row[
-            "_uid"
-        ] not in excluded
-    ]
-
-    # ------------------------------------------------------------
-    # REMOVE IDENTICAL DUPLICATES
-    # ------------------------------------------------------------
-
-    grouped_remaining: dict[
-        tuple[str, str],
-        list[
-            dict[str, str]
-        ],
-    ] = {}
-
-    for row in remaining:
-        comp = composite_key(
-            row.get(
-                "game_date"
-            ),
-            row.get(
-                "home_team"
-            ),
-            row.get(
-                "away_team"
-            ),
-        )
-
-        gid = canonical_game_id(
-            row.get(
-                "game_id"
-            )
-        )
-
-        if comp:
-            key = (
-                "composite",
-                comp,
-            )
-
-        elif gid:
-            key = (
-                "game_id",
-                gid,
-            )
-
-        else:
-            key = (
-                "row",
-                row[
-                    "_uid"
-                ],
-            )
-
-        grouped_remaining.setdefault(
-            key,
-            [],
-        ).append(
-            row
-        )
-
-    deduped: list[
-        dict[str, str]
-    ] = []
-
-    for group in grouped_remaining.values():
-        preferred = sorted(
-            group,
-            key=lambda sort_row: (
-                (
-                    0
-                    if canonical_game_id(
-                        sort_row.get(
-                            "game_id"
-                        )
-                    )
-                    else 1
-                ),
-                sort_row.get(
-                    "_source_file",
-                    "",
-                ),
-                sort_row.get(
-                    "_source_row",
-                    "",
-                ),
-            ),
-        )[0]
-
-        deduped.append(
-            preferred
-        )
-
-        stats[
-            "final_duplicate_rows_removed"
-        ] += (
-            len(group)
-            - 1
-        )
-
-    deduped.sort(
-        key=lambda sort_row: (
-            parse_game_datetime(
-                sort_row.get(
-                    "game_date"
-                ),
-                "",
-            ),
-            normalize_text(
-                sort_row.get(
-                    "home_team"
-                )
-            ),
-            normalize_text(
-                sort_row.get(
-                    "away_team"
-                )
-            ),
-            canonical_game_id(
-                sort_row.get(
-                    "game_id"
-                )
-            ),
-        )
-    )
-
-    return (
-        deduped,
-        stats,
-    )
+            def _py_r1000_loop_30():
+                _py_r1000_result_16 = _py_r1000_loop_13()
+                if _py_r1000_result_16[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_16
+                if _py_r1000_result_16[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_16[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            for row in remaining:
+                _py_r1000_result_31 = _py_r1000_loop_30()
+                if _py_r1000_result_31[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_31
+                if _py_r1000_result_31[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_31[0] == _py_r1000_CONTINUE:
+                    continue
+            deduped = []
+            for group in grouped_remaining.values():
+                preferred = sorted(group, key=lambda sort_row: (0 if canonical_game_id(sort_row.get('game_id')) else 1, sort_row.get('_source_file', ''), sort_row.get('_source_row', '')))[0]
+                deduped.append(preferred)
+                stats['final_duplicate_rows_removed'] += len(group) - 1
+            deduped.sort(key=lambda sort_row: (parse_game_datetime(sort_row.get('game_date'), ''), normalize_text(sort_row.get('home_team')), normalize_text(sort_row.get('away_team')), canonical_game_id(sort_row.get('game_id'))))
+            return (_py_r1000_RETURN, (deduped, stats))
+        for _py_r1000_block_32 in (_py_r1000_chunk_17, _py_r1000_chunk_20, _py_r1000_chunk_23, _py_r1000_chunk_26, _py_r1000_chunk_29):
+            _py_r1000_result_33 = _py_r1000_block_32()
+            if _py_r1000_result_33[0] != _py_r1000_NONE:
+                return _py_r1000_result_33
+        return (_py_r1000_NONE, None)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 # ============================================================================
@@ -2878,400 +2502,202 @@ def identities_agree(
     )
 
 
-def load_current_completed_games(
-    league: str,
-    current_season: int | None,
-    historical_games: list[
-        CompletedGame
-    ],
-) -> tuple[
-    list[
-        CompletedGame
-    ],
-    dict[str, Any],
-]:
-    (
-        predictions,
-        prediction_load_stats,
-    ) = load_current_prediction_rows(
-        league,
-        current_season,
-    )
+def load_current_completed_games(league: str, current_season: int | None, historical_games: list[CompletedGame]) -> tuple[list[CompletedGame], dict[str, Any]]:
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    (
-        finals_raw,
-        final_load_stats,
-    ) = load_current_final_rows(
-        league,
-        current_season,
-    )
+    def _py_r1000_impl():
+        nonlocal current_season, historical_games, league
+        ambiguous_composites: object
+        ambiguous_ids: object
+        away_proj: object
+        away_score: object
+        away_team: object
+        blocked_by_ambiguity: object
+        candidate: object
+        comp: object
+        final: object
+        final_duplicate_stats: object
+        final_load_stats: object
+        finals: object
+        finals_raw: object
+        game_date: object
+        games: object
+        gid: object
+        historical_composites: object
+        historical_ids: object
+        home_proj: object
+        home_score: object
+        home_team: object
+        identity_result: object
+        match_method: object
+        pred_by_composite: object
+        pred_by_id: object
+        prediction: object
+        prediction_duplicate_stats: object
+        prediction_load_stats: object
+        predictions: object
+        stats: object
+        total_proj: object
 
-    (
-        finals,
-        final_duplicate_stats,
-    ) = deduplicate_final_rows(
-        finals_raw
-    )
+        def _py_r1000_loop_1():
+            nonlocal away_proj, away_score, away_team, blocked_by_ambiguity, candidate, comp, game_date, gid, home_proj, home_score, home_team, identity_result, match_method, prediction, total_proj
 
-    (
-        pred_by_id,
-        pred_by_composite,
-        ambiguous_ids,
-        ambiguous_composites,
-        prediction_duplicate_stats,
-    ) = build_prediction_indexes(
-        predictions
-    )
+            def _py_r1000_if_2():
+                nonlocal candidate, identity_result, match_method, prediction
+                candidate = pred_by_id[gid]
+                identity_result = identities_agree(candidate, final)
+                if identity_result is None:
+                    stats['invalid_current_matches'] += 1
+                    return (_py_r1000_CONTINUE, None)
+                if not identity_result:
+                    stats['game_id_identity_mismatches'] += 1
+                    log(f"{league_upper(league)} | GAME_ID IDENTITY MISMATCH | game_id={gid} | final={final.get('game_date')} {final.get('home_team')} vs {final.get('away_team')} | prediction={candidate.get('game_date')} {candidate.get('home_team')} vs {candidate.get('away_team')}", 'WARN')
+                    return (_py_r1000_CONTINUE, None)
+                prediction = candidate
+                match_method = 'game_id'
+                return (_py_r1000_NONE, None)
 
-    (
-        historical_ids,
-        historical_composites,
-    ) = historical_coverage_sets(
-        historical_games
-    )
+            def _py_r1000_else_4():
+                nonlocal blocked_by_ambiguity
+                if gid and gid in ambiguous_ids:
+                    blocked_by_ambiguity = True
+                return (_py_r1000_NONE, None)
 
-    stats: dict[
-        str,
-        Any,
-    ] = {
-        "current_season": current_season,
-        "season_status": season_status_for_league(
-            current_season,
-        ),
-        **prediction_load_stats,
-        **final_load_stats,
-        **prediction_duplicate_stats,
-        **final_duplicate_stats,
-        "finals_already_covered_by_historical": 0,
-        "matched_by_game_id": 0,
-        "matched_by_composite": 0,
-        "game_id_identity_mismatches": 0,
-        "ambiguous_prediction_matches": 0,
-        "true_unmatched_current_finals": 0,
-        "invalid_current_matches": 0,
-        "current_matched_games": 0,
-    }
+            def _py_r1000_if_6():
+                nonlocal blocked_by_ambiguity, match_method, prediction
 
-    games: list[
-        CompletedGame
-    ] = []
+                def _py_r1000_else_7():
+                    nonlocal blocked_by_ambiguity
+                    if comp in ambiguous_composites:
+                        blocked_by_ambiguity = True
+                    return (_py_r1000_NONE, None)
+                if comp in pred_by_composite:
+                    prediction = pred_by_composite[comp]
+                    match_method = 'composite'
+                else:
+                    _py_r1000_result_8 = _py_r1000_else_7()
+                    if _py_r1000_result_8[0] != _py_r1000_NONE:
+                        return _py_r1000_result_8
+                return (_py_r1000_NONE, None)
 
-    for final in finals:
-        gid = canonical_game_id(
-            final.get(
-                "game_id"
-            )
-        )
+            def _py_r1000_if_10():
+                if blocked_by_ambiguity:
+                    stats['ambiguous_prediction_matches'] += 1
+                else:
+                    stats['true_unmatched_current_finals'] += 1
+                return (_py_r1000_CONTINUE, None)
 
-        comp = composite_key(
-            final.get(
-                "game_date"
-            ),
-            final.get(
-                "home_team"
-            ),
-            final.get(
-                "away_team"
-            ),
-        )
+            def _py_r1000_chunk_12():
+                nonlocal away_score, blocked_by_ambiguity, comp, gid, home_score, match_method, prediction
+                gid = canonical_game_id(final.get('game_id'))
+                comp = composite_key(final.get('game_date'), final.get('home_team'), final.get('away_team'))
+                if gid and gid in historical_ids or (comp and comp in historical_composites):
+                    stats['finals_already_covered_by_historical'] += 1
+                    return (_py_r1000_CONTINUE, None)
+                home_score = to_float(final.get('home_score'))
+                away_score = to_float(final.get('away_score'))
+                if home_score is None or away_score is None:
+                    stats['invalid_current_matches'] += 1
+                    return (_py_r1000_CONTINUE, None)
+                prediction = None
+                match_method = None
+                blocked_by_ambiguity = False
+                return (_py_r1000_NONE, None)
 
-        # --------------------------------------------------------
-        # HISTORICAL COVERAGE
-        # --------------------------------------------------------
+            def _py_r1000_chunk_13():
 
-        if (
-            (
-                gid
-                and gid
-                in historical_ids
-            )
-            or (
-                comp
-                and comp
-                in historical_composites
-            )
-        ):
-            stats[
-                "finals_already_covered_by_historical"
-            ] += 1
+                def _py_r1000_if_14():
+                    _py_r1000_result_3 = _py_r1000_if_2()
+                    if _py_r1000_result_3[0] != _py_r1000_NONE:
+                        return _py_r1000_result_3
+                    return (_py_r1000_NONE, None)
 
-            continue
+                def _py_r1000_else_16():
+                    _py_r1000_result_5 = _py_r1000_else_4()
+                    if _py_r1000_result_5[0] != _py_r1000_NONE:
+                        return _py_r1000_result_5
+                    return (_py_r1000_NONE, None)
 
-        # --------------------------------------------------------
-        # VALID FINAL SCORE
-        # --------------------------------------------------------
+                def _py_r1000_if_18():
+                    _py_r1000_result_9 = _py_r1000_if_6()
+                    if _py_r1000_result_9[0] != _py_r1000_NONE:
+                        return _py_r1000_result_9
+                    return (_py_r1000_NONE, None)
+                if gid and gid in pred_by_id:
+                    _py_r1000_result_15 = _py_r1000_if_14()
+                    if _py_r1000_result_15[0] != _py_r1000_NONE:
+                        return _py_r1000_result_15
+                else:
+                    _py_r1000_result_17 = _py_r1000_else_16()
+                    if _py_r1000_result_17[0] != _py_r1000_NONE:
+                        return _py_r1000_result_17
+                if prediction is None and comp:
+                    _py_r1000_result_19 = _py_r1000_if_18()
+                    if _py_r1000_result_19[0] != _py_r1000_NONE:
+                        return _py_r1000_result_19
+                return (_py_r1000_NONE, None)
 
-        home_score = to_float(
-            final.get(
-                "home_score"
-            )
-        )
+            def _py_r1000_chunk_20():
+                nonlocal away_proj, away_team, game_date, home_proj, home_team, total_proj
 
-        away_score = to_float(
-            final.get(
-                "away_score"
-            )
-        )
+                def _py_r1000_if_21():
+                    _py_r1000_result_11 = _py_r1000_if_10()
+                    if _py_r1000_result_11[0] != _py_r1000_NONE:
+                        return _py_r1000_result_11
+                    return (_py_r1000_NONE, None)
+                if prediction is None:
+                    _py_r1000_result_22 = _py_r1000_if_21()
+                    if _py_r1000_result_22[0] != _py_r1000_NONE:
+                        return _py_r1000_result_22
+                home_proj = to_float(prediction.get('home_projected_points'))
+                away_proj = to_float(prediction.get('away_projected_points'))
+                total_proj = normalized_prediction_total(prediction)
+                if home_proj is None or away_proj is None or total_proj is None:
+                    stats['invalid_current_matches'] += 1
+                    return (_py_r1000_CONTINUE, None)
+                game_date = normalize_date(final.get('game_date'))
+                home_team = str(final.get('home_team') or '').strip()
+                away_team = str(final.get('away_team') or '').strip()
+                return (_py_r1000_NONE, None)
 
-        if (
-            home_score is None
-            or away_score is None
-        ):
-            stats[
-                "invalid_current_matches"
-            ] += 1
-
-            continue
-
-        prediction: (
-            dict[str, str]
-            | None
-        ) = None
-
-        match_method: (
-            str
-            | None
-        ) = None
-
-        blocked_by_ambiguity = False
-
-        # --------------------------------------------------------
-        # PRIMARY MATCH: GAME_ID
-        # --------------------------------------------------------
-
-        if (
-            gid
-            and gid in pred_by_id
-        ):
-            candidate = (
-                pred_by_id[
-                    gid
-                ]
-            )
-
-            identity_result = (
-                identities_agree(
-                    candidate,
-                    final,
-                )
-            )
-
-            if identity_result is None:
-                stats[
-                    "invalid_current_matches"
-                ] += 1
-
+            def _py_r1000_chunk_23():
+                if not game_date or not home_team or (not away_team):
+                    stats['invalid_current_matches'] += 1
+                    return (_py_r1000_CONTINUE, None)
+                games.append(CompletedGame(league=league, game_id=gid or canonical_game_id(prediction.get('game_id')), game_date=game_date, game_time=str(prediction.get('game_time') or '').strip(), home_team=home_team, away_team=away_team, home_projected_points=home_proj, away_projected_points=away_proj, total_projected_points=total_proj, home_score=home_score, away_score=away_score, source=f"{prediction.get('_source_file', '')} + {final.get('_source_file', '')}", source_priority=2))
+                if match_method == 'game_id':
+                    stats['matched_by_game_id'] += 1
+                else:
+                    stats['matched_by_composite'] += 1
+                return (_py_r1000_NONE, None)
+            for _py_r1000_block_24 in (_py_r1000_chunk_12, _py_r1000_chunk_13, _py_r1000_chunk_20, _py_r1000_chunk_23):
+                _py_r1000_result_25 = _py_r1000_block_24()
+                if _py_r1000_result_25[0] != _py_r1000_NONE:
+                    return _py_r1000_result_25
+            return (_py_r1000_NONE, None)
+        predictions, prediction_load_stats = load_current_prediction_rows(league, current_season)
+        finals_raw, final_load_stats = load_current_final_rows(league, current_season)
+        finals, final_duplicate_stats = deduplicate_final_rows(finals_raw)
+        pred_by_id, pred_by_composite, ambiguous_ids, ambiguous_composites, prediction_duplicate_stats = build_prediction_indexes(predictions)
+        historical_ids, historical_composites = historical_coverage_sets(historical_games)
+        stats: dict[str, Any] = {'current_season': current_season, 'season_status': season_status_for_league(current_season), **prediction_load_stats, **final_load_stats, **prediction_duplicate_stats, **final_duplicate_stats, 'finals_already_covered_by_historical': 0, 'matched_by_game_id': 0, 'matched_by_composite': 0, 'game_id_identity_mismatches': 0, 'ambiguous_prediction_matches': 0, 'true_unmatched_current_finals': 0, 'invalid_current_matches': 0, 'current_matched_games': 0}
+        games: list[CompletedGame] = []
+        for final in finals:
+            _py_r1000_result_26 = _py_r1000_loop_1()
+            if _py_r1000_result_26[0] == _py_r1000_RETURN:
+                return _py_r1000_result_26
+            if _py_r1000_result_26[0] == _py_r1000_BREAK:
+                break
+            if _py_r1000_result_26[0] == _py_r1000_CONTINUE:
                 continue
-
-            if not identity_result:
-                stats[
-                    "game_id_identity_mismatches"
-                ] += 1
-
-                log(
-                    (
-                        f"{league_upper(league)} | "
-                        f"GAME_ID IDENTITY MISMATCH | "
-                        f"game_id={gid} | "
-                        f"final="
-                        f"{final.get('game_date')} "
-                        f"{final.get('home_team')} vs "
-                        f"{final.get('away_team')} | "
-                        f"prediction="
-                        f"{candidate.get('game_date')} "
-                        f"{candidate.get('home_team')} vs "
-                        f"{candidate.get('away_team')}"
-                    ),
-                    "WARN",
-                )
-
-                # Important:
-                # If the ID actually matched but the identities conflict,
-                # do not silently fall back to composite.
-                continue
-
-            prediction = candidate
-            match_method = (
-                "game_id"
-            )
-
-        elif (
-            gid
-            and gid
-            in ambiguous_ids
-        ):
-            blocked_by_ambiguity = (
-                True
-            )
-
-        # --------------------------------------------------------
-        # FALLBACK MATCH: DATE + HOME + AWAY
-        # --------------------------------------------------------
-
-        if (
-            prediction is None
-            and comp
-        ):
-            if (
-                comp
-                in pred_by_composite
-            ):
-                prediction = (
-                    pred_by_composite[
-                        comp
-                    ]
-                )
-
-                match_method = (
-                    "composite"
-                )
-
-            elif (
-                comp
-                in ambiguous_composites
-            ):
-                blocked_by_ambiguity = (
-                    True
-                )
-
-        # --------------------------------------------------------
-        # NO USABLE MATCH
-        # --------------------------------------------------------
-
-        if prediction is None:
-            if blocked_by_ambiguity:
-                stats[
-                    "ambiguous_prediction_matches"
-                ] += 1
-
-            else:
-                stats[
-                    "true_unmatched_current_finals"
-                ] += 1
-
-            continue
-
-        # --------------------------------------------------------
-        # RAW PROJECTION VALUES
-        # --------------------------------------------------------
-
-        home_proj = to_float(
-            prediction.get(
-                "home_projected_points"
-            )
-        )
-
-        away_proj = to_float(
-            prediction.get(
-                "away_projected_points"
-            )
-        )
-
-        total_proj = (
-            normalized_prediction_total(
-                prediction
-            )
-        )
-
-        if (
-            home_proj is None
-            or away_proj is None
-            or total_proj is None
-        ):
-            stats[
-                "invalid_current_matches"
-            ] += 1
-
-            continue
-
-        game_date = normalize_date(
-            final.get(
-                "game_date"
-            )
-        )
-
-        home_team = str(
-            final.get(
-                "home_team"
-            )
-            or ""
-        ).strip()
-
-        away_team = str(
-            final.get(
-                "away_team"
-            )
-            or ""
-        ).strip()
-
-        if (
-            not game_date
-            or not home_team
-            or not away_team
-        ):
-            stats[
-                "invalid_current_matches"
-            ] += 1
-
-            continue
-
-        games.append(
-            CompletedGame(
-                league=league,
-                game_id=(
-                    gid
-                    or canonical_game_id(
-                        prediction.get(
-                            "game_id"
-                        )
-                    )
-                ),
-                game_date=game_date,
-                game_time=str(
-                    prediction.get(
-                        "game_time"
-                    )
-                    or ""
-                ).strip(),
-                home_team=home_team,
-                away_team=away_team,
-                home_projected_points=home_proj,
-                away_projected_points=away_proj,
-                total_projected_points=total_proj,
-                home_score=home_score,
-                away_score=away_score,
-                source=(
-                    f"{prediction.get('_source_file', '')}"
-                    f" + "
-                    f"{final.get('_source_file', '')}"
-                ),
-                source_priority=2,
-            )
-        )
-
-        if (
-            match_method
-            == "game_id"
-        ):
-            stats[
-                "matched_by_game_id"
-            ] += 1
-
-        else:
-            stats[
-                "matched_by_composite"
-            ] += 1
-
-    stats[
-        "current_matched_games"
-    ] = len(
-        games
-    )
-
-    return (
-        games,
-        stats,
-    )
+        stats['current_matched_games'] = len(games)
+        return (_py_r1000_RETURN, (games, stats))
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 # ============================================================================
@@ -3560,421 +2986,189 @@ def component_stub(
     }
 
 
-def calculate_component_bias(
-    league: str,
-    component: str,
-    rule: dict[str, Any],
-    history: list[
-        CompletedGame
-    ],
-) -> dict[str, Any]:
-    method = rule.get(
-        "method"
-    )
+def calculate_component_bias(league: str, component: str, rule: dict[str, Any], history: list[CompletedGame]) -> dict[str, Any]:
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    # ------------------------------------------------------------
-    # NULL / MISSING
-    # ------------------------------------------------------------
+    def _py_r1000_impl():
+        nonlocal component, history, league, rule
+        effective_value: object
+        errors: object
+        largest_selected: object
+        largest_window: object
+        method: object
+        negative_present: object
+        positive_present: object
+        result: object
+        selected: object
+        shrink: object
+        sign_conflict: object
+        value: object
+        weighted_unshrunk: object
+        weights: object
+        window: object
+        window_int: object
+        window_means: object
+        windows: object
 
-    if method is None:
-        return component_stub(
-            "skipped_no_rule",
-            None,
-            None,
-        )
+        def _py_r1000_if_1():
+            nonlocal result, value
+            value = rule.get('value')
+            if value is None:
+                raise ValueError(f'{league_upper(league)} {component} fixed bias requires bias.{component}.value')
+            result = component_stub('ready', 'fixed', None)
+            result['value'] = round(float(value), 3)
+            return (_py_r1000_RETURN, result)
 
-    # ------------------------------------------------------------
-    # NONE
-    # ------------------------------------------------------------
+        def _py_r1000_if_3():
+            nonlocal effective_value, errors, largest_selected, largest_window, negative_present, positive_present, selected, shrink, sign_conflict, weighted_unshrunk, weights, window, window_int, window_means, windows
 
-    if method == "none":
-        result = component_stub(
-            "disabled",
-            "none",
-            None,
-        )
+            def _py_r1000_loop_4():
+                nonlocal errors, selected, window_int
 
-        # Explicitly disabled.
-        # Zero is stored so downstream consumers can safely interpret
-        # the component as applying no adjustment.
-        result[
-            "value"
-        ] = 0.0
+                def _py_r1000_if_5():
+                    nonlocal errors
+                    errors = [game.margin_error for game in selected]
+                    return (_py_r1000_NONE, None)
 
-        return result
+                def _py_r1000_else_7():
+                    nonlocal errors
 
-    # ------------------------------------------------------------
-    # FIXED
-    # ------------------------------------------------------------
+                    def _py_r1000_if_8():
+                        nonlocal errors
+                        errors = [game.total_error for game in selected]
+                        return (_py_r1000_NONE, None)
+                    if component == 'total':
+                        _py_r1000_result_9 = _py_r1000_if_8()
+                        if _py_r1000_result_9[0] != _py_r1000_NONE:
+                            return _py_r1000_result_9
+                    else:
+                        raise ValueError(f'Unsupported bias component: {component}')
+                    return (_py_r1000_NONE, None)
+                window_int = int(window)
+                selected = history[-window_int:]
+                if component == 'margin':
+                    _py_r1000_result_6 = _py_r1000_if_5()
+                    if _py_r1000_result_6[0] != _py_r1000_NONE:
+                        return _py_r1000_result_6
+                else:
+                    _py_r1000_result_10 = _py_r1000_else_7()
+                    if _py_r1000_result_10[0] != _py_r1000_NONE:
+                        return _py_r1000_result_10
+                window_means[window_int] = sum(errors) / len(errors)
+                return (_py_r1000_NONE, None)
 
-    if method == "fixed":
-        value = rule.get(
-            "value"
-        )
+            def _py_r1000_chunk_12():
+                nonlocal largest_window, shrink, weights, window_means, windows
+                windows = rule.get('windows_games')
+                weights = rule.get('weights')
+                shrink = rule.get('sign_conflict_shrink')
+                if not isinstance(windows, list) or not windows:
+                    raise ValueError(f'{league_upper(league)} {component} regime_aware bias requires windows_games')
+                if not isinstance(weights, list) or len(weights) != len(windows):
+                    raise ValueError(f'{league_upper(league)} {component} regime_aware bias requires one weight per window')
+                if shrink is None:
+                    raise ValueError(f'{league_upper(league)} {component} regime_aware bias requires sign_conflict_shrink')
+                largest_window = max((int(window) for window in windows))
+                if len(history) < largest_window:
+                    raise ValueError(f'{league_upper(league)} {component} regime_aware bias requires {largest_window} completed games; only {len(history)} unique completed games are available')
+                window_means = {}
+                return (_py_r1000_NONE, None)
 
-        if value is None:
-            raise ValueError(
-                f"{league_upper(league)} "
-                f"{component} fixed bias "
-                f"requires "
-                f"bias.{component}.value"
-            )
+            def _py_r1000_chunk_13():
+                nonlocal negative_present, positive_present, weighted_unshrunk, window
 
-        result = component_stub(
-            "ready",
-            "fixed",
-            None,
-        )
+                def _py_r1000_loop_14():
+                    _py_r1000_result_11 = _py_r1000_loop_4()
+                    if _py_r1000_result_11[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_11
+                    if _py_r1000_result_11[0] == _py_r1000_BREAK:
+                        return (_py_r1000_BREAK, None)
+                    if _py_r1000_result_11[0] == _py_r1000_CONTINUE:
+                        return (_py_r1000_CONTINUE, None)
+                    return (_py_r1000_NONE, None)
+                for window in windows:
+                    _py_r1000_result_15 = _py_r1000_loop_14()
+                    if _py_r1000_result_15[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_15
+                    if _py_r1000_result_15[0] == _py_r1000_BREAK:
+                        break
+                    if _py_r1000_result_15[0] == _py_r1000_CONTINUE:
+                        continue
+                weighted_unshrunk = sum((float(weight) * window_means[int(window)] for window, weight in zip(windows, weights)))
+                positive_present = any((value > 1e-12 for value in window_means.values()))
+                negative_present = any((value < -1e-12 for value in window_means.values()))
+                return (_py_r1000_NONE, None)
 
-        result[
-            "value"
-        ] = round(
-            float(value),
-            3,
-        )
+            def _py_r1000_chunk_16():
+                nonlocal effective_value, largest_selected, sign_conflict
+                sign_conflict = positive_present and negative_present
+                effective_value = weighted_unshrunk * float(shrink) if sign_conflict else weighted_unshrunk
+                largest_selected = history[-largest_window:]
+                return (_py_r1000_RETURN, {'status': 'ready', 'method': 'regime_aware', 'value': round(effective_value, 3), 'window_games': largest_window, 'windows_games': [int(window) for window in windows], 'weights': [round(float(weight), 6) for weight in weights], 'window_mean_residuals': {str(int(window)): round(window_means[int(window)], 4) for window in windows}, 'unshrunk_weighted_value': round(weighted_unshrunk, 4), 'sign_conflict': sign_conflict, 'sign_conflict_shrink': round(float(shrink), 6), 'regime_status': 'sign_conflict_shrunk' if sign_conflict else 'aligned', 'games_used': largest_window, 'first_game_date': largest_selected[0].game_date, 'last_game_date': largest_selected[-1].game_date, 'mean_error_definition': 'projected_minus_actual'})
+            for _py_r1000_block_17 in (_py_r1000_chunk_12, _py_r1000_chunk_13, _py_r1000_chunk_16):
+                _py_r1000_result_18 = _py_r1000_block_17()
+                if _py_r1000_result_18[0] != _py_r1000_NONE:
+                    return _py_r1000_result_18
+            return (_py_r1000_NONE, None)
 
-        return result
+        def _py_r1000_if_20():
+            nonlocal errors
+            errors = [game.margin_error for game in selected]
+            return (_py_r1000_NONE, None)
 
-    # ------------------------------------------------------------
-    # REGIME-AWARE MULTI-WINDOW
-    # ------------------------------------------------------------
+        def _py_r1000_else_22():
+            nonlocal errors
 
-    if method == "regime_aware":
-        windows = rule.get(
-            "windows_games"
-        )
-
-        weights = rule.get(
-            "weights"
-        )
-
-        shrink = rule.get(
-            "sign_conflict_shrink"
-        )
-
-        if (
-            not isinstance(
-                windows,
-                list,
-            )
-            or not windows
-        ):
-            raise ValueError(
-                f"{league_upper(league)} "
-                f"{component} regime_aware bias "
-                f"requires windows_games"
-            )
-
-        if (
-            not isinstance(
-                weights,
-                list,
-            )
-            or len(
-                weights
-            ) != len(
-                windows
-            )
-        ):
-            raise ValueError(
-                f"{league_upper(league)} "
-                f"{component} regime_aware bias "
-                f"requires one weight per window"
-            )
-
-        if shrink is None:
-            raise ValueError(
-                f"{league_upper(league)} "
-                f"{component} regime_aware bias "
-                f"requires sign_conflict_shrink"
-            )
-
-        largest_window = max(
-            int(window)
-            for window
-            in windows
-        )
-
-        if (
-            len(history)
-            < largest_window
-        ):
-            raise ValueError(
-                f"{league_upper(league)} "
-                f"{component} regime_aware bias "
-                f"requires {largest_window} "
-                f"completed games; only "
-                f"{len(history)} unique "
-                f"completed games are "
-                f"available"
-            )
-
-        window_means: dict[
-            int,
-            float,
-        ] = {}
-
-        for window in windows:
-            window_int = int(
-                window
-            )
-
-            selected = history[
-                -window_int:
-            ]
-
-            if component == "margin":
-                errors = [
-                    game.margin_error
-                    for game in selected
-                ]
-
-            elif component == "total":
-                errors = [
-                    game.total_error
-                    for game in selected
-                ]
-
+            def _py_r1000_if_23():
+                nonlocal errors
+                errors = [game.total_error for game in selected]
+                return (_py_r1000_NONE, None)
+            if component == 'total':
+                _py_r1000_result_24 = _py_r1000_if_23()
+                if _py_r1000_result_24[0] != _py_r1000_NONE:
+                    return _py_r1000_result_24
             else:
-                raise ValueError(
-                    f"Unsupported bias component: "
-                    f"{component}"
-                )
-
-            window_means[
-                window_int
-            ] = (
-                sum(
-                    errors
-                )
-                / len(
-                    errors
-                )
-            )
-
-        weighted_unshrunk = sum(
-            float(weight)
-            * window_means[
-                int(window)
-            ]
-            for (
-                window,
-                weight,
-            )
-            in zip(
-                windows,
-                weights,
-            )
-        )
-
-        positive_present = any(
-            value > 1e-12
-            for value
-            in window_means.values()
-        )
-
-        negative_present = any(
-            value < -1e-12
-            for value
-            in window_means.values()
-        )
-
-        sign_conflict = (
-            positive_present
-            and negative_present
-        )
-
-        effective_value = (
-            weighted_unshrunk
-            * float(
-                shrink
-            )
-            if sign_conflict
-            else weighted_unshrunk
-        )
-
-        largest_selected = history[
-            -largest_window:
-        ]
-
-        return {
-            "status": "ready",
-            "method": (
-                "regime_aware"
-            ),
-            "value": round(
-                effective_value,
-                3,
-            ),
-            # window_games remains populated with the largest lookback for
-            # compatibility with consumers that expect a scalar window field.
-            "window_games": (
-                largest_window
-            ),
-            "windows_games": [
-                int(
-                    window
-                )
-                for window
-                in windows
-            ],
-            "weights": [
-                round(
-                    float(
-                        weight
-                    ),
-                    6,
-                )
-                for weight
-                in weights
-            ],
-            "window_mean_residuals": {
-                str(
-                    int(
-                        window
-                    )
-                ): round(
-                    window_means[
-                        int(
-                            window
-                        )
-                    ],
-                    4,
-                )
-                for window
-                in windows
-            },
-            "unshrunk_weighted_value": round(
-                weighted_unshrunk,
-                4,
-            ),
-            "sign_conflict": (
-                sign_conflict
-            ),
-            "sign_conflict_shrink": round(
-                float(
-                    shrink
-                ),
-                6,
-            ),
-            "regime_status": (
-                "sign_conflict_shrunk"
-                if sign_conflict
-                else "aligned"
-            ),
-            "games_used": (
-                largest_window
-            ),
-            "first_game_date": (
-                largest_selected[0]
-                .game_date
-            ),
-            "last_game_date": (
-                largest_selected[-1]
-                .game_date
-            ),
-            "mean_error_definition": (
-                "projected_minus_actual"
-            ),
-        }
-
-    # ------------------------------------------------------------
-    # ROLLING
-    # ------------------------------------------------------------
-
-    if method != "rolling":
-        raise ValueError(
-            f"Unsupported "
-            f"{league_upper(league)} "
-            f"{component} bias method "
-            f"{method!r}; supported "
-            f"methods are rolling, "
-            f"regime_aware, fixed, "
-            f"none, or null/missing"
-        )
-
-    window = rule.get(
-        "window_games"
-    )
-
-    if (
-        window is None
-        or window <= 0
-    ):
-        raise ValueError(
-            f"{league_upper(league)} "
-            f"{component} rolling bias "
-            f"requires window_games > 0"
-        )
-
-    if (
-        len(history)
-        < window
-    ):
-        raise ValueError(
-            f"{league_upper(league)} "
-            f"{component} rolling bias "
-            f"requires {window} "
-            f"completed games; only "
-            f"{len(history)} unique "
-            f"completed games are "
-            f"available"
-        )
-
-    selected = (
-        history[
-            -window:
-        ]
-    )
-
-    if component == "margin":
-        errors = [
-            game.margin_error
-            for game in selected
-        ]
-
-    elif component == "total":
-        errors = [
-            game.total_error
-            for game in selected
-        ]
-
-    else:
-        raise ValueError(
-            f"Unsupported bias component: "
-            f"{component}"
-        )
-
-    value = (
-        sum(errors)
-        / len(errors)
-    )
-
-    return {
-        "status": "ready",
-        "method": "rolling",
-        "value": round(
-            value,
-            3,
-        ),
-        "window_games": int(
-            window
-        ),
-        "games_used": len(
-            selected
-        ),
-        "first_game_date": (
-            selected[0]
-            .game_date
-        ),
-        "last_game_date": (
-            selected[-1]
-            .game_date
-        ),
-        "mean_error_definition": (
-            "projected_minus_actual"
-        ),
-    }
+                raise ValueError(f'Unsupported bias component: {component}')
+            return (_py_r1000_NONE, None)
+        method = rule.get('method')
+        if method is None:
+            return (_py_r1000_RETURN, component_stub('skipped_no_rule', None, None))
+        if method == 'none':
+            result = component_stub('disabled', 'none', None)
+            result['value'] = 0.0
+            return (_py_r1000_RETURN, result)
+        if method == 'fixed':
+            _py_r1000_result_2 = _py_r1000_if_1()
+            if _py_r1000_result_2[0] != _py_r1000_NONE:
+                return _py_r1000_result_2
+        if method == 'regime_aware':
+            _py_r1000_result_19 = _py_r1000_if_3()
+            if _py_r1000_result_19[0] != _py_r1000_NONE:
+                return _py_r1000_result_19
+        if method != 'rolling':
+            raise ValueError(f'Unsupported {league_upper(league)} {component} bias method {method!r}; supported methods are rolling, regime_aware, fixed, none, or null/missing')
+        window = rule.get('window_games')
+        if window is None or window <= 0:
+            raise ValueError(f'{league_upper(league)} {component} rolling bias requires window_games > 0')
+        if len(history) < window:
+            raise ValueError(f'{league_upper(league)} {component} rolling bias requires {window} completed games; only {len(history)} unique completed games are available')
+        selected = history[-window:]
+        if component == 'margin':
+            _py_r1000_result_21 = _py_r1000_if_20()
+            if _py_r1000_result_21[0] != _py_r1000_NONE:
+                return _py_r1000_result_21
+        else:
+            _py_r1000_result_25 = _py_r1000_else_22()
+            if _py_r1000_result_25[0] != _py_r1000_NONE:
+                return _py_r1000_result_25
+        value = sum(errors) / len(errors)
+        return (_py_r1000_RETURN, {'status': 'ready', 'method': 'rolling', 'value': round(value, 3), 'window_games': int(window), 'games_used': len(selected), 'first_game_date': selected[0].game_date, 'last_game_date': selected[-1].game_date, 'mean_error_definition': 'projected_minus_actual'})
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 def calculate_component_safely(
@@ -4137,386 +3331,83 @@ def unsafe_history_component(
         ),
     }
 
-def process_league(
-    league: str,
-    league_cfg: dict[str, Any],
-) -> tuple[
-    dict[str, Any],
-    bool,
-    bool,
-]:
-    config_status_raw = (
-        league_cfg.get(
-            "status"
-        )
-    )
+def process_league(league: str, league_cfg: dict[str, Any]) -> tuple[dict[str, Any], bool, bool]:
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    config_status = (
-        None
-        if config_status_raw is None
-        else str(
-            config_status_raw
-        ).strip().lower()
-    )
+    def _py_r1000_impl():
+        nonlocal league, league_cfg
+        _: object
+        config_status: object
+        config_status_raw: object
+        configured_component_errors: object
+        error_text: object
+        exc: object
+        fatal_history_errors: object
+        history: object
+        history_meta: object
+        history_required: object
+        league_state: object
+        league_status: object
+        margin: object
+        margin_ok: object
+        margin_rule: object
+        total: object
+        total_ok: object
+        total_rule: object
+        warning_count: object
 
-    # ------------------------------------------------------------
-    # LOAD BIAS RULES
-    # ------------------------------------------------------------
-
-    try:
-        margin_rule = (
-            resolve_bias_rule(
-                league_cfg,
-                "margin",
-            )
-        )
-
-        total_rule = (
-            resolve_bias_rule(
-                league_cfg,
-                "total",
-            )
-        )
-
-    except Exception as exc:
-        return (
-            {
-                "status": "error",
-                "config_status": (
-                    config_status
-                ),
-                "error": str(
-                    exc
-                ),
-            },
-            False,
-            False,
-        )
-
-    # ------------------------------------------------------------
-    # NO CONFIGURED BIAS RULES
-    # ------------------------------------------------------------
-
-    if (
-        margin_rule.get(
-            "method"
-        ) is None
-        and total_rule.get(
-            "method"
-        ) is None
-    ):
-        log(
-            (
-                f"{league_upper(league)} | "
-                f"SKIPPED | "
-                f"no configured bias rules"
-            )
-        )
-
-        return (
-            skipped_league_state(
-                config_status
-            ),
-            True,
-            False,
-        )
-
-    # ------------------------------------------------------------
-    # BUILD HISTORY
-    # ------------------------------------------------------------
-
-    try:
-        (
-            history,
-            history_meta,
-            fatal_history_errors,
-        ) = build_completed_history(
-            league
-        )
-
-    except Exception as exc:
-        log(
-            (
-                f"{league_upper(league)} | "
-                f"HISTORY BUILD FAILED | "
-                f"{exc}"
-            ),
-            "ERROR",
-        )
-
-        return (
-            {
-                "status": "error",
-                "config_status": (
-                    config_status
-                ),
-                "error": str(
-                    exc
-                ),
-                "margin_bias": (
-                    component_stub(
-                        "error",
-                        margin_rule.get(
-                            "method"
-                        ),
-                        margin_rule.get(
-                            "window_games"
-                        ),
-                    )
-                ),
-                "total_bias": (
-                    component_stub(
-                        "error",
-                        total_rule.get(
-                            "method"
-                        ),
-                        total_rule.get(
-                            "window_games"
-                        ),
-                    )
-                ),
-            },
-            False,
-            False,
-        )
-
-    # ------------------------------------------------------------
-    # UNSAFE HISTORICAL ROWS
-    # ------------------------------------------------------------
-
-    history_required = any(
-        rule.get(
-            "method"
-        )
-        in {
-            "rolling",
-            "regime_aware",
-        }
-        for rule in (
-            margin_rule,
-            total_rule,
-        )
-    )
-
-    if (
-        history_required
-        and fatal_history_errors
-    ):
-        error_text = "; ".join(
-            fatal_history_errors[
-                :5
-            ]
-        )
-
-        if (
-            len(
-                fatal_history_errors
-            )
-            > 5
-        ):
-            error_text += (
-                f"; and "
-                f"{len(fatal_history_errors) - 5} "
-                f"more"
-            )
-
-        if (
-            margin_rule.get(
-                "method"
-            )
-            in {
-                "rolling",
-                "regime_aware",
-            }
-        ):
-            margin = unsafe_history_component(
-                margin_rule
-            )
-
-        else:
-            (
-                margin,
-                _,
-            ) = calculate_component_safely(
-                league,
-                "margin",
-                margin_rule,
-                history,
-            )
-
-        if (
-            total_rule.get(
-                "method"
-            )
-            in {
-                "rolling",
-                "regime_aware",
-            }
-        ):
-            total = unsafe_history_component(
-                total_rule
-            )
-
-        else:
-            (
-                total,
-                _,
-            ) = calculate_component_safely(
-                league,
-                "total",
-                total_rule,
-                history,
-            )
-
-        return (
-            {
-                "status": "error",
-                "config_status": (
-                    config_status
-                ),
-                "error": (
-                    error_text
-                ),
-                "margin_bias": (
-                    margin
-                ),
-                "total_bias": (
-                    total
-                ),
-                "history": (
-                    history_meta
-                ),
-            },
-            False,
-            False,
-        )
-
-    # ------------------------------------------------------------
-    # CALCULATE COMPONENTS
-    # ------------------------------------------------------------
-
-    (
-        margin,
-        margin_ok,
-    ) = calculate_component_safely(
-        league,
-        "margin",
-        margin_rule,
-        history,
-    )
-
-    (
-        total,
-        total_ok,
-    ) = calculate_component_safely(
-        league,
-        "total",
-        total_rule,
-        history,
-    )
-
-    configured_component_errors = (
-        (
-            margin_rule.get(
-                "method"
-            ) is not None
-            and not margin_ok
-        )
-        or
-        (
-            total_rule.get(
-                "method"
-            ) is not None
-            and not total_ok
-        )
-    )
-
-    if configured_component_errors:
-        league_state = {
-            "status": "error",
-            "config_status": (
-                config_status
-            ),
-            "margin_bias": (
-                margin
-            ),
-            "total_bias": (
-                total
-            ),
-            "history": (
-                history_meta
-            ),
-        }
-
-        log(
-            (
-                f"{league_upper(league)} | "
-                f"ERROR | component "
-                f"calculation failed"
-            ),
-            "ERROR",
-        )
-
-        return (
-            league_state,
-            False,
-            False,
-        )
-
-    # ------------------------------------------------------------
-    # WARNING STATUS
-    # ------------------------------------------------------------
-
-    warning_count = (
-        warning_count_from_history(
-            history_meta
-        )
-    )
-
-    league_status = (
-        "ready_with_warnings"
-        if warning_count
-        else "ready"
-    )
-
-    league_state = {
-        "status": (
-            league_status
-        ),
-        "config_status": (
-            config_status
-        ),
-        "margin_bias": (
-            margin
-        ),
-        "total_bias": (
-            total
-        ),
-        "history": (
-            history_meta
-        ),
-    }
-
-    log(
-        (
-            f"{league_upper(league)} | "
-            f"{league_status.upper()} | "
-            f"margin="
-            f"{margin.get('value')} "
-            f"total="
-            f"{total.get('value')} "
-            f"warnings="
-            f"{warning_count}"
-        )
-    )
-
-    return (
-        league_state,
-        True,
-        bool(
-            warning_count
-        ),
-    )
+        def _py_r1000_if_1():
+            nonlocal _, error_text, margin, total
+            error_text = '; '.join(fatal_history_errors[:5])
+            if len(fatal_history_errors) > 5:
+                error_text += f'; and {len(fatal_history_errors) - 5} more'
+            if margin_rule.get('method') in {'rolling', 'regime_aware'}:
+                margin = unsafe_history_component(margin_rule)
+            else:
+                margin, _ = calculate_component_safely(league, 'margin', margin_rule, history)
+            if total_rule.get('method') in {'rolling', 'regime_aware'}:
+                total = unsafe_history_component(total_rule)
+            else:
+                total, _ = calculate_component_safely(league, 'total', total_rule, history)
+            return (_py_r1000_RETURN, ({'status': 'error', 'config_status': config_status, 'error': error_text, 'margin_bias': margin, 'total_bias': total, 'history': history_meta}, False, False))
+        config_status_raw = league_cfg.get('status')
+        config_status = None if config_status_raw is None else str(config_status_raw).strip().lower()
+        try:
+            margin_rule = resolve_bias_rule(league_cfg, 'margin')
+            total_rule = resolve_bias_rule(league_cfg, 'total')
+        except Exception as exc:
+            return (_py_r1000_RETURN, ({'status': 'error', 'config_status': config_status, 'error': str(exc)}, False, False))
+        if margin_rule.get('method') is None and total_rule.get('method') is None:
+            log(f'{league_upper(league)} | SKIPPED | no configured bias rules')
+            return (_py_r1000_RETURN, (skipped_league_state(config_status), True, False))
+        try:
+            history, history_meta, fatal_history_errors = build_completed_history(league)
+        except Exception as exc:
+            log(f'{league_upper(league)} | HISTORY BUILD FAILED | {exc}', 'ERROR')
+            return (_py_r1000_RETURN, ({'status': 'error', 'config_status': config_status, 'error': str(exc), 'margin_bias': component_stub('error', margin_rule.get('method'), margin_rule.get('window_games')), 'total_bias': component_stub('error', total_rule.get('method'), total_rule.get('window_games'))}, False, False))
+        history_required = any((rule.get('method') in {'rolling', 'regime_aware'} for rule in (margin_rule, total_rule)))
+        if history_required and fatal_history_errors:
+            _py_r1000_result_2 = _py_r1000_if_1()
+            if _py_r1000_result_2[0] != _py_r1000_NONE:
+                return _py_r1000_result_2
+        margin, margin_ok = calculate_component_safely(league, 'margin', margin_rule, history)
+        total, total_ok = calculate_component_safely(league, 'total', total_rule, history)
+        configured_component_errors = margin_rule.get('method') is not None and (not margin_ok) or (total_rule.get('method') is not None and (not total_ok))
+        if configured_component_errors:
+            league_state = {'status': 'error', 'config_status': config_status, 'margin_bias': margin, 'total_bias': total, 'history': history_meta}
+            log(f'{league_upper(league)} | ERROR | component calculation failed', 'ERROR')
+            return (_py_r1000_RETURN, (league_state, False, False))
+        warning_count = warning_count_from_history(history_meta)
+        league_status = 'ready_with_warnings' if warning_count else 'ready'
+        league_state = {'status': league_status, 'config_status': config_status, 'margin_bias': margin, 'total_bias': total, 'history': history_meta}
+        log(f"{league_upper(league)} | {league_status.upper()} | margin={margin.get('value')} total={total.get('value')} warnings={warning_count}")
+        return (_py_r1000_RETURN, (league_state, True, bool(warning_count)))
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 # ============================================================================
