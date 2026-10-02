@@ -199,7 +199,7 @@ def consolidate() -> tuple[int, int, int]:
 
         canonical_copies = [item for item in ordered if clean(item[3].get("game_id")) == canonical_id]
         target = canonical_copies[-1] if canonical_copies else ordered[-1]
-        _, target_path, target_index, target_row = target
+        _, target_path, target_index, _ = target
         file_rows[target_path][target_index] = consolidated
         changed_paths.add(target_path)
 

@@ -142,7 +142,7 @@ CURRENT_SETTINGS = {
 
 
 def _complete_direct_settings() -> None:
-    for league, cfg in CURRENT_SETTINGS.items():
+    for cfg in CURRENT_SETTINGS.values():
         cfg.setdefault(
             'MODEL_SOURCE',
             DEFAULT_MODEL_SOURCE,
@@ -6815,10 +6815,7 @@ def oos_std_acceptance_for_caches(
     rows = []
     grouped = {}
 
-    for (
-        key,
-        cache,
-    ) in caches.items():
+    for cache in caches.values():
         bias = cache[
             'bias_strategy'
         ]

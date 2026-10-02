@@ -377,7 +377,7 @@ def collapse_file(
             )
         )
 
-        best_index, best = max(
+        _, best = max(
             items,
             key=lambda item: (
                 id_rank(

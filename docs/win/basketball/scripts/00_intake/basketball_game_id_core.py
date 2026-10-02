@@ -334,13 +334,13 @@ def main():
     duplicate_key_rows = []
 
     try:
-        for league_key, cfg in LEAGUES.items():
+        for cfg in LEAGUES.values():
             league_label = cfg["league_label"]
             log(f"--- LEAGUE {league_label} ---")
 
             (
                 daily_map,
-                daily_keys_by_date,
+                _,
                 daily_duplicate_rows,
                 daily_files_found,
                 daily_rows_loaded,

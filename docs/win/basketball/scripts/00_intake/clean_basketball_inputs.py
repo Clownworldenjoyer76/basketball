@@ -694,7 +694,7 @@ def build_pred_index(pred_files):
     index = {}
 
     for league, files in pred_files.items():
-        for path, (fieldnames, rows) in files.items():
+        for path, (_, rows) in files.items():
             for row in rows:
                 key = row_key(row)
                 if key:

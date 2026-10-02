@@ -2344,8 +2344,8 @@ def run_oos(
         (
             _,
             _,
-            margin_coefficients,
-            total_coefficients,
+            _,
+            _,
             predicted_margin,
             predicted_total,
         ) = fit_target_pair(

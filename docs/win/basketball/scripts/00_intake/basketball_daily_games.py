@@ -345,7 +345,7 @@ def main() -> None:
         refreshed = build_current_canonical_games()
         log(f"SDV CANONICAL REFRESHED: {len(refreshed)} season files")
 
-        for league_key, cfg in LEAGUES.items():
+        for cfg in LEAGUES.values():
             league_label = cfg["league_label"]
             canonical: dict[tuple[str, str, str, str], dict] = {}
 
