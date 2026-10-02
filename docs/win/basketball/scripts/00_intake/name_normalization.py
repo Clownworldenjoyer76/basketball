@@ -11,6 +11,43 @@ from datetime import datetime, timezone
 # LOGGER UTILITY
 # =========================
 
+def _write_signal_summary(summary_dir, ts, df):
+    play_cols = [
+        column
+        for column in (
+            "home_play",
+            "away_play",
+            "over_play",
+            "under_play",
+        )
+        if column in df.columns
+    ]
+    if not play_cols:
+        return
+
+    signals = df[df[play_cols].any(axis=1)].copy()
+    if signals.empty:
+        return
+
+    base_cols = ["game_date", "home_team", "away_team"]
+    edge_cols = [
+        column
+        for column in df.columns
+        if "edge_pct" in column
+    ]
+    final_cols = [
+        column
+        for column in base_cols + edge_cols
+        if column in signals.columns
+    ]
+
+    summary_path = summary_dir / "condensed_summary.txt"
+    with summary_path.open("a", encoding="utf-8") as audit_handle:
+        audit_handle.write(f"\n--- BETTING SIGNALS: {ts} ---\n")
+        audit_handle.write(signals[final_cols].to_string(index=False))
+        audit_handle.write("\n" + "=" * 30 + "\n")
+
+
 def audit(log_path, stage, status, msg="", df=None):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_path = Path(log_path)
@@ -26,74 +63,20 @@ def audit(log_path, stage, status, msg="", df=None):
 
     with safe_path.open("a", encoding="utf-8") as audit_handle:
         audit_handle.write(f"\n[{ts}] [{stage}] {status}\n")
-
         if msg:
             audit_handle.write(f"  MSG: {msg}\n")
-
         if df is not None and isinstance(df, pd.DataFrame):
-            audit_handle.write(f"  STATS: {len(df)} rows | {len(df.columns)} cols\n")
+            audit_handle.write(
+                f"  STATS: {len(df)} rows | {len(df.columns)} cols\n"
+            )
             audit_handle.write(f"  NULLS: {df.isnull().sum().sum()} total\n")
             audit_handle.write(
-                f"  SAMPLE:\n"
-                f"{df.head(3).to_string(index=False)}\n"
+                f"  SAMPLE:\n{df.head(3).to_string(index=False)}\n"
             )
-
         audit_handle.write("-" * 40 + "\n")
 
     if df is not None and isinstance(df, pd.DataFrame):
-        summary_path = log_path.parent / "condensed_summary.txt"
-
-        play_cols = [
-            c
-            for c in [
-                "home_play",
-                "away_play",
-                "over_play",
-                "under_play",
-            ]
-            if c in df.columns
-        ]
-
-        if play_cols:
-            signals = df[df[play_cols].any(axis=1)].copy()
-
-            if not signals.empty:
-                with open(
-                    summary_path,
-                    "a",
-                    encoding="utf-8",
-                ) as audit_handle:
-                    audit_handle.write(
-                        f"\n--- BETTING SIGNALS: {ts} ---\n"
-                    )
-
-                    base_cols = [
-                        "game_date",
-                        "home_team",
-                        "away_team",
-                    ]
-
-                    edge_cols = [
-                        c
-                        for c in df.columns
-                        if "edge_pct" in c
-                    ]
-
-                    final_cols = [
-                        c
-                        for c in base_cols + edge_cols
-                        if c in signals.columns
-                    ]
-
-                    audit_handle.write(
-                        signals[
-                            final_cols
-                        ].to_string(index=False)
-                    )
-
-                    audit_handle.write(
-                        "\n" + "=" * 30 + "\n"
-                    )
+        _write_signal_summary(safe_path.parent, ts, df)
 
 
 # =========================

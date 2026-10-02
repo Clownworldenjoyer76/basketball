@@ -194,51 +194,55 @@ def date_ok(game_date, months, exclude_dow):
     return True
 
 
-def passes_filters(values: dict, scfg: dict, game_date: str) -> bool:
-    if (
-        "odds_bands" in scfg
-        and not in_any_band(values.get("odds"), scfg["odds_bands"])
-    ):
-        DEBUG_COUNTS["fail_odds"] += 1
+def _fails_band(
+    values,
+    scfg,
+    config_key,
+    value_key,
+    debug_key,
+    *,
+    require_value=False,
+):
+    if config_key not in scfg:
         return False
-    if (
-        "line_bands" in scfg
-        and values.get("line") is not None
-        and not in_any_band(values.get("line"), scfg["line_bands"])
-    ):
-        DEBUG_COUNTS["fail_line"] += 1
+    value = values.get(value_key)
+    if require_value and value is None:
         return False
-    if (
-        "ev_bands" in scfg
-        and not in_any_band(values.get("ev"), scfg["ev_bands"])
-    ):
-        DEBUG_COUNTS["fail_ev"] += 1
+    if in_any_band(value, scfg[config_key]):
         return False
-    if (
-        "kelly_bands" in scfg
-        and not in_any_band(values.get("kelly"), scfg["kelly_bands"])
-    ):
-        DEBUG_COUNTS["fail_kelly"] += 1
-        return False
-    if (
-        "model_prob_bands" in scfg
-        and not in_any_band(values.get("model_prob"), scfg["model_prob_bands"])
-    ):
-        DEBUG_COUNTS["fail_model_prob"] += 1
-        return False
-    if (
-        "edge_vs_market_bands" in scfg
-        and not in_any_band(
-            values.get("edge_vs_market_pct"),
-            scfg["edge_vs_market_bands"],
-        )
-    ):
-        DEBUG_COUNTS["fail_edge_vs_market"] += 1
-        return False
-    if not date_ok(game_date, scfg.get("months", []) or [],
-                   scfg.get("exclude_days_of_week", []) or []):
-        return False
+    DEBUG_COUNTS[debug_key] += 1
     return True
+
+
+def passes_filters(values: dict, scfg: dict, game_date: str) -> bool:
+    checks = (
+        ("odds_bands", "odds", "fail_odds", False),
+        ("line_bands", "line", "fail_line", True),
+        ("ev_bands", "ev", "fail_ev", False),
+        ("kelly_bands", "kelly", "fail_kelly", False),
+        ("model_prob_bands", "model_prob", "fail_model_prob", False),
+        (
+            "edge_vs_market_bands",
+            "edge_vs_market_pct",
+            "fail_edge_vs_market",
+            False,
+        ),
+    )
+    for config_key, value_key, debug_key, require_value in checks:
+        if _fails_band(
+            values,
+            scfg,
+            config_key,
+            value_key,
+            debug_key,
+            require_value=require_value,
+        ):
+            return False
+    return date_ok(
+        game_date,
+        scfg.get("months", []) or [],
+        scfg.get("exclude_days_of_week", []) or [],
+    )
 
 
 def passes_model_edge(ev, league: str, market: str) -> bool:
@@ -574,17 +578,121 @@ def process_file(file: Path, league: str, market_type: str):
 # MAIN
 # =========================
 
+def _collect_candidate_frames(summary, per_file):
+    league_dfs = {league: [] for league in LEAGUES}
+
+    for league in LEAGUES:
+        for market in MARKETS:
+            folder = INPUT_DIR / league / market
+            if not folder.exists():
+                _log(f"INPUT FOLDER MISSING: {folder}", "WARN")
+                continue
+
+            files = sorted(folder.glob("*.csv"))
+            if not files:
+                _log(
+                    f"NO FILES: league={league} market={market}",
+                    "WARN",
+                )
+                continue
+
+            for path in files:
+                per_file_row = {
+                    "name": path.name,
+                    "market": market,
+                    "league": league.upper(),
+                    "selected": 0,
+                    "status": "ok",
+                }
+                try:
+                    df, selected = process_file(path, league, market)
+                    per_file_row["selected"] = selected
+                    summary["files_processed"] += 1
+                    summary["total_candidates"] += selected
+                    if not df.empty:
+                        league_dfs[league].append(df)
+                except KeyError as exc:
+                    _log(
+                        f"{path.name} CONFIG ERROR: {exc}",
+                        "ERROR",
+                    )
+                    per_file_row["status"] = "config_error"
+                    summary["errors"] += 1
+                except Exception as exc:
+                    _log(
+                        f"{path.name} FAILED: {exc}\n"
+                        f"{traceback.format_exc()}",
+                        "ERROR",
+                    )
+                    per_file_row["status"] = "error"
+                    summary["errors"] += 1
+                per_file.append(per_file_row)
+
+    return league_dfs
+
+
+def _combine_candidate_frames(league_dfs, summary):
+    candidate_frames = [
+        pd.concat(league_dfs[league], ignore_index=True)
+        for league in LEAGUES
+        if league_dfs[league]
+    ]
+    all_candidates = (
+        pd.concat(candidate_frames, ignore_index=True)
+        if candidate_frames
+        else pd.DataFrame()
+    )
+    if not all_candidates.empty:
+        all_candidates, dropped = reconcile_ml_vs_spread(all_candidates)
+        summary["ml_vs_spread_dropped"] = dropped
+    return all_candidates
+
+
+def _write_final_pick_files(all_candidates, summary):
+    final_picks = all_candidates.copy()
+    summary["total_candidates"] = (
+        len(all_candidates) + summary["ml_vs_spread_dropped"]
+    )
+    summary["total_selected"] = len(final_picks)
+
+    for league in LEAGUES:
+        if final_picks.empty:
+            out_df = pd.DataFrame()
+        else:
+            league_mask = (
+                final_picks["league_lower"].astype(str).str.lower()
+                == league
+            )
+            out_df = final_picks[league_mask].copy()
+
+        summary[f"{league}_bets"] = len(out_df)
+        if out_df.empty:
+            _log(
+                "NO FINAL SELECTED ROWS FOR LEAGUE: "
+                f"{league}; daily pick files not written"
+            )
+            continue
+        write_daily_pick_files(league, out_df)
+
+
 def main():
-    with open(LOG_FILE, "w", encoding="utf-8") as f:
-        f.write(f"=== basketball select_bets RUN {_now()} ===\n")
+    with open(LOG_FILE, "w", encoding="utf-8") as log_handle:
+        log_handle.write(
+            f"=== basketball select_bets RUN {_now()} ===\n"
+        )
 
     clear_old_select_outputs()
 
     summary = {
-        "files_processed": 0, "total_candidates": 0, "total_selected": 0,
-        "nba_bets": 0, "ncaam_bets": 0, "wnba_bets": 0,
+        "files_processed": 0,
+        "total_candidates": 0,
+        "total_selected": 0,
+        "nba_bets": 0,
+        "ncaam_bets": 0,
+        "wnba_bets": 0,
         "ml_vs_spread_dropped": 0,
-        "skipped": 0, "errors": 0,
+        "skipped": 0,
+        "errors": 0,
     }
     per_file = []
 
@@ -598,6 +706,7 @@ def main():
         "exposure-based selection filtering disabled"
     )
     _log(f"ml_vs_spread_tiebreak: {ML_VS_SPREAD_TIEBREAK}")
+
     for league in LEAGUES:
         _log(
             f"{league.upper()} model edges: "
@@ -606,73 +715,18 @@ def main():
             f"total={model_edge(league, 'total')}"
         )
 
-    league_dfs = {lg: [] for lg in LEAGUES}
-
     try:
-        for league in LEAGUES:
-            for market in MARKETS:
-                folder = INPUT_DIR / league / market
-                if not folder.exists():
-                    _log(f"INPUT FOLDER MISSING: {folder}", "WARN")
-                    continue
-
-                files = sorted(folder.glob("*.csv"))
-                if not files:
-                    _log(f"NO FILES: league={league} market={market}", "WARN")
-                    continue
-
-                for f in files:
-                    pf = {"name": f.name, "market": market, "league": league.upper(),
-                          "selected": 0, "status": "ok"}
-                    try:
-                        df, n = process_file(f, league, market)
-                        pf["selected"] = n
-                        summary["files_processed"] += 1
-                        summary["total_candidates"] += n
-                        if not df.empty:
-                            league_dfs[league].append(df)
-                    except KeyError as e:
-                        _log(f"{f.name} CONFIG ERROR: {e}", "ERROR")
-                        pf["status"] = "config_error"
-                        summary["errors"] += 1
-                    except Exception as e:
-                        _log(f"{f.name} FAILED: {e}\n{traceback.format_exc()}", "ERROR")
-                        pf["status"] = "error"
-                        summary["errors"] += 1
-                    per_file.append(pf)
-
-        candidate_frames = [
-            pd.concat(league_dfs[league], ignore_index=True)
-            for league in LEAGUES
-            if league_dfs[league]
-        ]
-        all_candidates = (
-            pd.concat(candidate_frames, ignore_index=True)
-            if candidate_frames
-            else pd.DataFrame()
+        league_dfs = _collect_candidate_frames(summary, per_file)
+        all_candidates = _combine_candidate_frames(
+            league_dfs,
+            summary,
         )
-        if not all_candidates.empty:
-            all_candidates, n_dropped = reconcile_ml_vs_spread(all_candidates)
-            summary["ml_vs_spread_dropped"] = n_dropped
-
-        final_picks = all_candidates.copy()
-        summary["total_candidates"] = len(all_candidates) + summary["ml_vs_spread_dropped"]
-        summary["total_selected"] = len(final_picks)
-
-        for league in LEAGUES:
-            out_df = (
-                final_picks[final_picks["league_lower"].astype(str).str.lower() == league].copy()
-                if not final_picks.empty
-                else pd.DataFrame()
-            )
-            summary[f"{league}_bets"] = len(out_df)
-            if out_df.empty:
-                _log(f"NO FINAL SELECTED ROWS FOR LEAGUE: {league}; daily pick files not written")
-                continue
-            write_daily_pick_files(league, out_df)
-
-    except Exception as e:
-        _log(f"FATAL: {e}\n{traceback.format_exc()}", "ERROR")
+        _write_final_pick_files(all_candidates, summary)
+    except Exception as exc:
+        _log(
+            f"FATAL: {exc}\n{traceback.format_exc()}",
+            "ERROR",
+        )
         summary["errors"] += 1
 
     _write_summary(summary, per_file)

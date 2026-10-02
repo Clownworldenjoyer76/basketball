@@ -92,71 +92,140 @@ def current_mismatches() -> tuple[str, list[dict], list[dict], list[dict]]:
     return game_date, daily_missing, prediction_missing, duplicates
 
 
+def _rewrite_mismatch_counts(
+    lines,
+    daily_missing_count,
+    prediction_missing_count,
+    duplicate_count,
+):
+    replacements = (
+        (
+            "Sportsbook rows with no prediction match:",
+            "Current-date daily games with no prediction match:",
+            daily_missing_count,
+        ),
+        (
+            "Prediction rows with no sportsbook match:",
+            "Current-date prediction rows with no daily-game match:",
+            prediction_missing_count,
+        ),
+        (
+            "Duplicate key rows:",
+            "Current-date duplicate key rows:",
+            duplicate_count,
+        ),
+    )
+
+    for idx, line in enumerate(lines):
+        if " | " not in line:
+            continue
+        for old_label, new_label, count in replacements:
+            if old_label in line:
+                prefix = line.split(old_label, 1)[0]
+                lines[idx] = f"{prefix}{new_label} {count}"
+                break
+
+
+def _find_mismatch_status(lines):
+    marker_index = next(
+        (
+            index
+            for index, line in enumerate(lines)
+            if "--- SMALL MISMATCH REPORT ---" in line
+        ),
+        None,
+    )
+    if marker_index is None:
+        raise RuntimeError(
+            "Unable to locate mismatch report/status markers "
+            "in basketball_game_id log"
+        )
+
+    status_index = next(
+        (
+            index
+            for index in range(len(lines) - 1, marker_index, -1)
+            if "STATUS:" in lines[index]
+        ),
+        None,
+    )
+    if status_index is None:
+        raise RuntimeError(
+            "Unable to locate mismatch report/status markers "
+            "in basketball_game_id log"
+        )
+    return marker_index, status_index
+
+
+def _append_mismatch_section(report, title, rows, formatter):
+    report.append(f"{datetime.now().isoformat()} | {title}")
+    if not rows:
+        report.append(f"{datetime.now().isoformat()} |   none")
+        return
+    for row in rows:
+        report.append(
+            f"{datetime.now().isoformat()} |   {formatter(row)}"
+        )
+
+
 def rewrite_operational_log(log_path: Path, original_text: str) -> None:
     game_date, daily_missing, prediction_missing, duplicates = current_mismatches()
     lines = original_text.splitlines()
 
-    for idx, line in enumerate(lines):
-        if "Sportsbook rows with no prediction match:" in line and " | " in line:
-            prefix = line.split("Sportsbook rows with no prediction match:", 1)[0]
-            lines[idx] = f"{prefix}Current-date daily games with no prediction match: {len(daily_missing)}"
-        elif "Prediction rows with no sportsbook match:" in line and " | " in line:
-            prefix = line.split("Prediction rows with no sportsbook match:", 1)[0]
-            lines[idx] = f"{prefix}Current-date prediction rows with no daily-game match: {len(prediction_missing)}"
-        elif "Duplicate key rows:" in line and " | " in line:
-            prefix = line.split("Duplicate key rows:", 1)[0]
-            lines[idx] = f"{prefix}Current-date duplicate key rows: {len(duplicates)}"
-
-    marker_index = next((i for i, line in enumerate(lines) if "--- SMALL MISMATCH REPORT ---" in line), None)
-    status_index = None
-    if marker_index is not None:
-        for i in range(len(lines) - 1, marker_index, -1):
-            if "STATUS:" in lines[i]:
-                status_index = i
-                break
-
-    if marker_index is None or status_index is None:
-        raise RuntimeError("Unable to locate mismatch report/status markers in basketball_game_id log")
-
+    _rewrite_mismatch_counts(
+        lines,
+        len(daily_missing),
+        len(prediction_missing),
+        len(duplicates),
+    )
+    marker_index, status_index = _find_mismatch_status(lines)
     prefix_lines = lines[:marker_index]
     status_line = lines[status_index]
+
     report = [
         f"{datetime.now().isoformat()} | --- CURRENT-DATE MISMATCH REPORT ---",
-        f"{datetime.now().isoformat()} | Operational mismatch date: {game_date} (America/New_York)",
-        f"{datetime.now().isoformat()} | Current-date daily games with no prediction match:",
+        f"{datetime.now().isoformat()} | "
+        f"Operational mismatch date: {game_date} (America/New_York)",
     ]
-    if daily_missing:
-        for row in daily_missing:
-            report.append(
-                f"{datetime.now().isoformat()} |   {row['league']} | {clean(row.get('game_date'))} | "
-                f"{clean(row.get('home_team'))} | {clean(row.get('away_team'))} | "
-                f"game_id={clean(row.get('game_id'))}"
-            )
-    else:
-        report.append(f"{datetime.now().isoformat()} |   none")
 
-    report.append(f"{datetime.now().isoformat()} | Current-date prediction rows with no daily-game match:")
-    if prediction_missing:
-        for row in prediction_missing:
-            report.append(
-                f"{datetime.now().isoformat()} |   {row['league']} | {clean(row.get('game_date'))} | "
-                f"{clean(row.get('home_team'))} | {clean(row.get('away_team'))} | "
-                f"file={row['source_file']}"
-            )
-    else:
-        report.append(f"{datetime.now().isoformat()} |   none")
+    _append_mismatch_section(
+        report,
+        "Current-date daily games with no prediction match:",
+        daily_missing,
+        lambda row: (
+            f"{row['league']} | {clean(row.get('game_date'))} | "
+            f"{clean(row.get('home_team'))} | "
+            f"{clean(row.get('away_team'))} | "
+            f"game_id={clean(row.get('game_id'))}"
+        ),
+    )
+    _append_mismatch_section(
+        report,
+        "Current-date prediction rows with no daily-game match:",
+        prediction_missing,
+        lambda row: (
+            f"{row['league']} | {clean(row.get('game_date'))} | "
+            f"{clean(row.get('home_team'))} | "
+            f"{clean(row.get('away_team'))} | "
+            f"file={row['source_file']}"
+        ),
+    )
+    _append_mismatch_section(
+        report,
+        "Current-date duplicate key rows:",
+        duplicates,
+        lambda row: (
+            f"{row['league']} | {clean(row.get('game_date'))} | "
+            f"{clean(row.get('home_team'))} | "
+            f"{clean(row.get('away_team'))} | "
+            f"source={row['source']}"
+        ),
+    )
 
-    report.append(f"{datetime.now().isoformat()} | Current-date duplicate key rows:")
-    if duplicates:
-        for row in duplicates:
-            report.append(
-                f"{datetime.now().isoformat()} |   {row['league']} | {clean(row.get('game_date'))} | "
-                f"{clean(row.get('home_team'))} | {clean(row.get('away_team'))} | source={row['source']}"
-            )
-    else:
-        report.append(f"{datetime.now().isoformat()} |   none")
-
-    log_path.write_text("\n".join(prefix_lines + report + [status_line]) + "\n", encoding="utf-8")
+    log_path.write_text(
+        "\n".join(prefix_lines + report + [status_line]) + "\n",
+        encoding="utf-8",
+    )
 
 
 def main() -> None:

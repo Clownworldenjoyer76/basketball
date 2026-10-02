@@ -292,6 +292,100 @@ def atomic_write_csv(
     tmp.replace(path)
 
 
+def _partition_sportsbook_rows(rows):
+    grouped: dict[
+        tuple[str, str, str],
+        list[tuple[int, dict]],
+    ] = {}
+    passthrough: list[tuple[int, dict]] = []
+    placeholder_removed = 0
+
+    for index, row in enumerate(rows):
+        home_team = clean(row.get("home_team"))
+        away_team = clean(row.get("away_team"))
+        if unresolved_team(home_team) or unresolved_team(away_team):
+            placeholder_removed += 1
+            continue
+
+        key = matchup_key(row)
+        if all(key):
+            grouped.setdefault(key, []).append((index, row))
+        else:
+            passthrough.append((index, row))
+
+    return grouped, passthrough, placeholder_removed
+
+
+def _collapse_sportsbook_group(path, league, key, items, fieldnames):
+    group_rows = [row for _, row in items]
+    numeric_ids = sorted({
+        clean(row.get("game_id"))
+        for row in group_rows
+        if clean(row.get("game_id")).isdigit()
+    })
+
+    if len(numeric_ids) > 1:
+        raise RuntimeError(
+            f"Conflicting numeric sportsbook game IDs for "
+            f"{league.upper()} {key[0]} "
+            f"{group_rows[0].get('away_team')} at "
+            f"{group_rows[0].get('home_team')}: "
+            + ", ".join(numeric_ids)
+        )
+
+    canonical_id = (
+        numeric_ids[0]
+        if numeric_ids
+        else max(
+            (clean(row.get("game_id")) for row in group_rows),
+            key=lambda gid: (id_rank(gid), gid),
+            default="",
+        )
+    )
+
+    _, best = max(
+        items,
+        key=lambda item: (
+            id_rank(clean(item[1].get("game_id"))),
+            row_score(item[1]),
+        ),
+    )
+    merged = dict(best)
+    merged["game_id"] = canonical_id
+
+    for _, row in sorted(
+        items,
+        key=lambda item: row_score(item[1]),
+        reverse=True,
+    ):
+        for field in fieldnames:
+            if not clean(merged.get(field)) and clean(row.get(field)):
+                merged[field] = row[field]
+
+    merged["game_id"] = canonical_id
+
+    aliases = []
+    if len(items) > 1:
+        for _, row in items:
+            alias_id = clean(row.get("game_id"))
+            if alias_id != canonical_id:
+                aliases.append({
+                    "league": league,
+                    "source_file": str(path),
+                    "game_date": clean(row.get("game_date")),
+                    "home_team": clean(row.get("home_team")),
+                    "away_team": clean(row.get("away_team")),
+                    "alias_game_id": alias_id,
+                    "canonical_game_id": canonical_id,
+                })
+
+    return (
+        (min(index for index, _ in items), merged),
+        max(len(items) - 1, 0),
+        aliases,
+    )
+
+
 def collapse_file(
     path: Path,
     league: str,
@@ -304,150 +398,37 @@ def collapse_file(
     except ValueError as exc:
         raise ValueError(f"Path escapes repository root: {path}") from exc
 
-    with safe_path.open(newline="", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
+    with safe_path.open(newline="", encoding="utf-8-sig") as source:
+        reader = csv.DictReader(source)
         fieldnames = list(reader.fieldnames or [])
         rows = list(reader)
 
     if not rows or not fieldnames:
         return 0, 0, []
 
-    grouped: dict[
-        tuple[str, str, str],
-        list[tuple[int, dict]],
-    ] = {}
-
-    passthrough: list[tuple[int, dict]] = []
-    placeholder_removed = 0
-
-    for index, row in enumerate(rows):
-        home_team = clean(row.get("home_team"))
-        away_team = clean(row.get("away_team"))
-
-        if unresolved_team(home_team) or unresolved_team(away_team):
-            placeholder_removed += 1
-            continue
-
-        key = matchup_key(row)
-
-        if not all(key):
-            passthrough.append((index, row))
-            continue
-
-        grouped.setdefault(key, []).append((index, row))
-
+    grouped, passthrough, placeholder_removed = _partition_sportsbook_rows(rows)
     output: list[tuple[int, dict]] = list(passthrough)
     aliases: list[dict] = []
     removed = 0
 
     for key, items in grouped.items():
-        group_rows = [
-            row
-            for _, row in items
-        ]
-
-        numeric_ids = sorted({
-            clean(row.get("game_id"))
-            for row in group_rows
-            if clean(row.get("game_id")).isdigit()
-        })
-
-        if len(numeric_ids) > 1:
-            raise RuntimeError(
-                f"Conflicting numeric sportsbook game IDs for "
-                f"{league.upper()} {key[0]} "
-                f"{group_rows[0].get('away_team')} at "
-                f"{group_rows[0].get('home_team')}: "
-                + ", ".join(numeric_ids)
-            )
-
-        canonical_id = (
-            numeric_ids[0]
-            if numeric_ids
-            else max(
-                (
-                    clean(row.get("game_id"))
-                    for row in group_rows
-                ),
-                key=lambda gid: (
-                    id_rank(gid),
-                    gid,
-                ),
-                default="",
-            )
-        )
-
-        _, best = max(
+        output_row, group_removed, group_aliases = _collapse_sportsbook_group(
+            path,
+            league,
+            key,
             items,
-            key=lambda item: (
-                id_rank(
-                    clean(item[1].get("game_id"))
-                ),
-                row_score(item[1]),
-            ),
+            fieldnames,
         )
-
-        merged = dict(best)
-        merged["game_id"] = canonical_id
-
-        # Fill only blanks; never replace a populated canonical value
-        # with alias data.
-        for _, row in sorted(
-            items,
-            key=lambda item: row_score(item[1]),
-            reverse=True,
-        ):
-            for field in fieldnames:
-                if (
-                    not clean(merged.get(field))
-                    and clean(row.get(field))
-                ):
-                    merged[field] = row[field]
-
-        merged["game_id"] = canonical_id
-
-        output.append(
-            (
-                min(index for index, _ in items),
-                merged,
-            )
-        )
-
-        if len(items) > 1:
-            removed += len(items) - 1
-
-            for _, row in items:
-                alias_id = clean(row.get("game_id"))
-
-                if alias_id != canonical_id:
-                    aliases.append({
-                        "league": league,
-                        "source_file": str(path),
-                        "game_date": clean(
-                            row.get("game_date")
-                        ),
-                        "home_team": clean(
-                            row.get("home_team")
-                        ),
-                        "away_team": clean(
-                            row.get("away_team")
-                        ),
-                        "alias_game_id": alias_id,
-                        "canonical_game_id": canonical_id,
-                    })
+        output.append(output_row)
+        removed += group_removed
+        aliases.extend(group_aliases)
 
     if removed or placeholder_removed:
-        output.sort(
-            key=lambda item: item[0]
-        )
-
+        output.sort(key=lambda item: item[0])
         atomic_write_csv(
             path,
             fieldnames,
-            [
-                row
-                for _, row in output
-            ],
+            [row for _, row in output],
         )
 
     return removed, placeholder_removed, aliases

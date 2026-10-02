@@ -150,81 +150,118 @@ def write_file(path: Path, rows: list[dict]) -> None:
         writer.writerows(normalize_row(row) for row in rows)
 
 
-def consolidate() -> tuple[int, int, int]:
+def _load_consolidation_rows():
     file_rows: dict[Path, list[dict]] = {}
-    groups: dict[tuple[str, str, str, str], list[tuple[int, Path, int, dict]]] = {}
+    groups: dict[
+        tuple[str, str, str, str],
+        list[tuple[int, Path, int, dict]],
+    ] = {}
     sequence = 0
 
     for _league, (label, folder) in LEAGUES.items():
         if not folder.exists():
             continue
         for path in sorted(folder.glob(f"*_{label}_odds.csv")):
-            with open(path, newline="", encoding="utf-8-sig") as f:
-                rows = [normalize_row(row) for row in csv.DictReader(f)]
+            with open(path, newline="", encoding="utf-8-sig") as source:
+                rows = [
+                    normalize_row(row)
+                    for row in csv.DictReader(source)
+                ]
             file_rows[path] = rows
             for row_index, row in enumerate(rows):
                 key = identity_key(row)
-                if not all(key):
-                    sequence += 1
-                    continue
-                groups.setdefault(key, []).append((sequence, path, row_index, row))
+                if all(key):
+                    groups.setdefault(key, []).append(
+                        (sequence, path, row_index, row)
+                    )
                 sequence += 1
 
-    # Validate all duplicate identities before writing anything.
-    canonical_by_key: dict[tuple[str, str, str, str], str] = {}
-    for key, copies in groups.items():
-        if len(copies) > 1:
-            canonical_by_key[key] = choose_canonical_id(copies)
+    return file_rows, groups
+
+
+def _consolidate_identity(
+    key,
+    canonical_id,
+    copies,
+    file_rows,
+    changed_paths,
+    remove_indexes,
+):
+    ordered = sorted(
+        copies,
+        key=lambda item: (
+            parse_timestamp(item[3].get("odds_last_update")),
+            nonblank_count(item[3]),
+            item[0],
+        ),
+    )
+    consolidated = normalize_row(ordered[0][3])
+    for _, _, _, row in ordered[1:]:
+        consolidated = merge_nonblank(consolidated, row)
+    consolidated["game_id"] = canonical_id
+
+    canonical_copies = [
+        item
+        for item in ordered
+        if clean(item[3].get("game_id")) == canonical_id
+    ]
+    target = canonical_copies[-1] if canonical_copies else ordered[-1]
+    _, target_path, target_index, _ = target
+    file_rows[target_path][target_index] = consolidated
+    changed_paths.add(target_path)
+
+    aliases = 0
+    for _, path, row_index, row in copies:
+        if path == target_path and row_index == target_index:
+            continue
+        remove_indexes.setdefault(path, set()).add(row_index)
+        changed_paths.add(path)
+        alias = clean(row.get("game_id"))
+        if alias and alias != canonical_id:
+            aliases += 1
+            log(
+                "ID ALIAS CONSOLIDATED | "
+                f"{key[0]} {key[1]} | "
+                f"{row.get('home_team')} vs {row.get('away_team')} | "
+                f"{alias} -> {canonical_id}"
+            )
+    return aliases
+
+
+def consolidate() -> tuple[int, int, int]:
+    file_rows, groups = _load_consolidation_rows()
+    canonical_by_key = {
+        key: choose_canonical_id(copies)
+        for key, copies in groups.items()
+        if len(copies) > 1
+    }
 
     changed_paths: set[Path] = set()
     remove_indexes: dict[Path, set[int]] = {}
-    identities = 0
     aliases = 0
 
     for key, canonical_id in canonical_by_key.items():
-        copies = groups[key]
-        identities += 1
-        ordered = sorted(
-            copies,
-            key=lambda item: (
-                parse_timestamp(item[3].get("odds_last_update")),
-                nonblank_count(item[3]),
-                item[0],
-            ),
+        aliases += _consolidate_identity(
+            key,
+            canonical_id,
+            groups[key],
+            file_rows,
+            changed_paths,
+            remove_indexes,
         )
-        consolidated = normalize_row(ordered[0][3])
-        for _, _, _, row in ordered[1:]:
-            consolidated = merge_nonblank(consolidated, row)
-        consolidated["game_id"] = canonical_id
-
-        canonical_copies = [item for item in ordered if clean(item[3].get("game_id")) == canonical_id]
-        target = canonical_copies[-1] if canonical_copies else ordered[-1]
-        _, target_path, target_index, _ = target
-        file_rows[target_path][target_index] = consolidated
-        changed_paths.add(target_path)
-
-        for _, path, row_index, row in copies:
-            if path == target_path and row_index == target_index:
-                continue
-            remove_indexes.setdefault(path, set()).add(row_index)
-            changed_paths.add(path)
-            alias = clean(row.get("game_id"))
-            if alias and alias != canonical_id:
-                aliases += 1
-                log(
-                    "ID ALIAS CONSOLIDATED | "
-                    f"{key[0]} {key[1]} | {row.get('home_team')} vs {row.get('away_team')} | "
-                    f"{alias} -> {canonical_id}"
-                )
 
     for path, indexes in remove_indexes.items():
-        file_rows[path] = [row for idx, row in enumerate(file_rows[path]) if idx not in indexes]
+        file_rows[path] = [
+            row
+            for idx, row in enumerate(file_rows[path])
+            if idx not in indexes
+        ]
 
     for path in sorted(changed_paths):
         write_file(path, file_rows[path])
         log(f"REWROTE {path} ({len(file_rows[path])} rows)")
 
-    return identities, aliases, len(changed_paths)
+    return len(canonical_by_key), aliases, len(changed_paths)
 
 
 def main() -> None:
