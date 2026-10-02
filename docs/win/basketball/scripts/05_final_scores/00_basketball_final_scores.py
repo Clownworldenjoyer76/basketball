@@ -148,73 +148,138 @@ def scoreboard_url(espn_slug: str, game_date: date) -> str:
 
 
 def parse_completed_games(payload: dict, league_key: str, game_date: date) -> list[dict]:
-    league_label = LEAGUES[league_key]["label"]
-    rows: list[dict] = []
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    for event in payload.get("events") or []:
-        competitions = event.get("competitions") or []
-        if not competitions:
-            continue
+    def _py_r1000_impl():
+        nonlocal game_date, league_key, payload
+        away: object
+        away_score: object
+        away_team: object
+        competition: object
+        competitions: object
+        competitor: object
+        completed: object
+        event: object
+        game_id: object
+        home: object
+        home_away: object
+        home_score: object
+        home_team: object
+        league_label: object
+        margin: object
+        rows: object
+        state: object
+        status: object
+        status_type: object
 
-        competition = competitions[0]
-        status = competition.get("status") or event.get("status") or {}
-        status_type = status.get("type") or {}
+        def _py_r1000_loop_1():
+            nonlocal away, away_score, away_team, competition, competitions, competitor, completed, game_id, home, home_away, home_score, home_team, margin, state, status, status_type
 
-        completed = bool(status_type.get("completed"))
-        state = str(status_type.get("state") or "").strip().lower()
-        if not completed and state != "post":
-            continue
+            def _py_r1000_loop_2():
+                nonlocal away, home, home_away
 
-        home = None
-        away = None
-        for competitor in competition.get("competitors") or []:
-            home_away = str(competitor.get("homeAway") or "").strip().lower()
-            if home_away == "home":
-                home = competitor
-            elif home_away == "away":
-                away = competitor
+                def _py_r1000_else_3():
+                    nonlocal away
+                    if home_away == 'away':
+                        away = competitor
+                    return (_py_r1000_NONE, None)
+                home_away = str(competitor.get('homeAway') or '').strip().lower()
+                if home_away == 'home':
+                    home = competitor
+                else:
+                    _py_r1000_result_4 = _py_r1000_else_3()
+                    if _py_r1000_result_4[0] != _py_r1000_NONE:
+                        return _py_r1000_result_4
+                return (_py_r1000_NONE, None)
 
-        if home is None or away is None:
-            continue
+            def _py_r1000_chunk_6():
+                nonlocal competition, competitions, completed, state, status, status_type
+                competitions = event.get('competitions') or []
+                if not competitions:
+                    return (_py_r1000_CONTINUE, None)
+                competition = competitions[0]
+                status = competition.get('status') or event.get('status') or {}
+                status_type = status.get('type') or {}
+                completed = bool(status_type.get('completed'))
+                state = str(status_type.get('state') or '').strip().lower()
+                return (_py_r1000_NONE, None)
 
-        home_score = score_value(home.get("score"))
-        away_score = score_value(away.get("score"))
-        if home_score is None or away_score is None:
-            continue
+            def _py_r1000_chunk_7():
+                nonlocal away, competitor, home
 
-        home_team = (
-            (home.get("team") or {}).get("displayName")
-            or (home.get("team") or {}).get("shortDisplayName")
-            or ""
-        )
-        away_team = (
-            (away.get("team") or {}).get("displayName")
-            or (away.get("team") or {}).get("shortDisplayName")
-            or ""
-        )
-        game_id = str(event.get("id") or competition.get("id") or "").strip()
+                def _py_r1000_loop_8():
+                    _py_r1000_result_5 = _py_r1000_loop_2()
+                    if _py_r1000_result_5[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_5
+                    if _py_r1000_result_5[0] == _py_r1000_BREAK:
+                        return (_py_r1000_BREAK, None)
+                    if _py_r1000_result_5[0] == _py_r1000_CONTINUE:
+                        return (_py_r1000_CONTINUE, None)
+                    return (_py_r1000_NONE, None)
+                if not completed and state != 'post':
+                    return (_py_r1000_CONTINUE, None)
+                home = None
+                away = None
+                for competitor in competition.get('competitors') or []:
+                    _py_r1000_result_9 = _py_r1000_loop_8()
+                    if _py_r1000_result_9[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_9
+                    if _py_r1000_result_9[0] == _py_r1000_BREAK:
+                        break
+                    if _py_r1000_result_9[0] == _py_r1000_CONTINUE:
+                        continue
+                return (_py_r1000_NONE, None)
 
-        if not game_id or not str(home_team).strip() or not str(away_team).strip():
-            continue
+            def _py_r1000_chunk_10():
+                nonlocal away_score, home_score
+                if home is None or away is None:
+                    return (_py_r1000_CONTINUE, None)
+                home_score = score_value(home.get('score'))
+                away_score = score_value(away.get('score'))
+                if home_score is None or away_score is None:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
 
-        margin = home_score - away_score
-        rows.append(
-            {
-                "sport": "Basketball",
-                "league": league_label,
-                "game_id": game_id,
-                "game_date": game_date.strftime("%Y_%m_%d"),
-                "home_team": str(home_team).strip(),
-                "away_team": str(away_team).strip(),
-                "home_score": home_score,
-                "away_score": away_score,
-                "total": home_score + away_score,
-                "home_spread": margin,
-                "away_spread": -margin,
-            }
-        )
+            def _py_r1000_chunk_11():
+                nonlocal home_team
+                home_team = (home.get('team') or {}).get('displayName') or (home.get('team') or {}).get('shortDisplayName') or ''
+                return (_py_r1000_NONE, None)
 
-    return rows
+            def _py_r1000_chunk_12():
+                nonlocal away_team, game_id
+                away_team = (away.get('team') or {}).get('displayName') or (away.get('team') or {}).get('shortDisplayName') or ''
+                game_id = str(event.get('id') or competition.get('id') or '').strip()
+                return (_py_r1000_NONE, None)
+
+            def _py_r1000_chunk_13():
+                nonlocal margin
+                if not game_id or not str(home_team).strip() or (not str(away_team).strip()):
+                    return (_py_r1000_CONTINUE, None)
+                margin = home_score - away_score
+                rows.append({'sport': 'Basketball', 'league': league_label, 'game_id': game_id, 'game_date': game_date.strftime('%Y_%m_%d'), 'home_team': str(home_team).strip(), 'away_team': str(away_team).strip(), 'home_score': home_score, 'away_score': away_score, 'total': home_score + away_score, 'home_spread': margin, 'away_spread': -margin})
+                return (_py_r1000_NONE, None)
+            for _py_r1000_block_14 in (_py_r1000_chunk_6, _py_r1000_chunk_7, _py_r1000_chunk_10, _py_r1000_chunk_11, _py_r1000_chunk_12, _py_r1000_chunk_13):
+                _py_r1000_result_15 = _py_r1000_block_14()
+                if _py_r1000_result_15[0] != _py_r1000_NONE:
+                    return _py_r1000_result_15
+            return (_py_r1000_NONE, None)
+        league_label = LEAGUES[league_key]['label']
+        rows: list[dict] = []
+        for event in payload.get('events') or []:
+            _py_r1000_result_16 = _py_r1000_loop_1()
+            if _py_r1000_result_16[0] == _py_r1000_RETURN:
+                return _py_r1000_result_16
+            if _py_r1000_result_16[0] == _py_r1000_BREAK:
+                break
+            if _py_r1000_result_16[0] == _py_r1000_CONTINUE:
+                continue
+        return (_py_r1000_RETURN, rows)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 def composite(row: dict) -> tuple[str, str, str]:
