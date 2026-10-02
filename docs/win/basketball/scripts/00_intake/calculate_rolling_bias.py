@@ -1047,14 +1047,13 @@ def final_files_for_league(
 # SEASON RULES
 # ============================================================================
 
-_SEASON_CONFIG_CACHE: dict[str, dict[str, int]] | None = None
+_SEASON_CONFIG_CACHE = {"value": None}
 
 
 def load_season_config() -> dict[str, dict[str, int]]:
-    global _SEASON_CONFIG_CACHE
-
-    if _SEASON_CONFIG_CACHE is not None:
-        return _SEASON_CONFIG_CACHE
+    cached = _SEASON_CONFIG_CACHE["value"]
+    if cached is not None:
+        return cached
 
     if not SEASON_CONFIG_PATH.exists():
         raise FileNotFoundError(
@@ -1168,9 +1167,7 @@ def load_season_config() -> dict[str, dict[str, int]]:
             league
         ] = values
 
-    _SEASON_CONFIG_CACHE = (
-        config
-    )
+    _SEASON_CONFIG_CACHE["value"] = config
 
     return config
 

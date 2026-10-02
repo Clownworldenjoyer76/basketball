@@ -90,12 +90,14 @@ ERROR_DIR.mkdir(parents=True, exist_ok=True)
 # =========================
 
 RUN_STARTED = datetime.now(UTC)
-WARNING_COUNT = 0
-ERROR_COUNT = 0
-INPUT_FILE_COUNT = 0
-INPUT_ROW_COUNT = 0
-OUTPUT_FILE_COUNT = 0
-OUTPUT_ROW_COUNT = 0
+RUN_COUNTS = {
+    "warnings": 0,
+    "errors": 0,
+    "input_files": 0,
+    "input_rows": 0,
+    "output_files": 0,
+    "output_rows": 0,
+}
 
 with open(LOG_FILE, "w", encoding="utf-8") as startup_log_handle:
     startup_log_handle.write("=== 03_basketball_results_reports ===\n")
@@ -124,12 +126,10 @@ def _count_and_log(
     level: str,
     message: str,
 ) -> None:
-    global WARNING_COUNT, ERROR_COUNT
-
     if level == "WARNING":
-        WARNING_COUNT += 1
+        RUN_COUNTS["warnings"] += 1
     elif level == "ERROR":
-        ERROR_COUNT += 1
+        RUN_COUNTS["errors"] += 1
 
     log(
         level,
@@ -187,10 +187,8 @@ def log_input(
     rows: int,
     exists: bool = True,
 ) -> None:
-    global INPUT_FILE_COUNT, INPUT_ROW_COUNT
-
-    INPUT_FILE_COUNT += 1
-    INPUT_ROW_COUNT += rows
+    RUN_COUNTS["input_files"] += 1
+    RUN_COUNTS["input_rows"] += rows
 
     log(
         "INFO",
@@ -205,8 +203,6 @@ def write_csv(
     df: pd.DataFrame,
     path: Path,
 ) -> None:
-    global OUTPUT_FILE_COUNT, OUTPUT_ROW_COUNT
-
     path.parent.mkdir(
         parents=True,
         exist_ok=True,
@@ -219,8 +215,8 @@ def write_csv(
 
     rows = len(df)
 
-    OUTPUT_FILE_COUNT += 1
-    OUTPUT_ROW_COUNT += rows
+    RUN_COUNTS["output_files"] += 1
+    RUN_COUNTS["output_rows"] += rows
 
     log(
         "INFO",
@@ -235,25 +231,25 @@ def finish(status: str) -> None:
         log_handle.write(
             (
                 f"INPUT_SUMMARY | "
-                f"files={INPUT_FILE_COUNT} | "
-                f"rows={INPUT_ROW_COUNT}\n"
+                f"files={RUN_COUNTS['input_files']} | "
+                f"rows={RUN_COUNTS['input_rows']}\n"
             )
         )
 
         log_handle.write(
             (
                 f"OUTPUT_SUMMARY | "
-                f"files={OUTPUT_FILE_COUNT} | "
-                f"rows={OUTPUT_ROW_COUNT}\n"
+                f"files={RUN_COUNTS['output_files']} | "
+                f"rows={RUN_COUNTS['output_rows']}\n"
             )
         )
 
         log_handle.write(
-            f"WARNING_COUNT: {WARNING_COUNT}\n"
+            f"WARNING_COUNT: {RUN_COUNTS['warnings']}\n"
         )
 
         log_handle.write(
-            f"ERROR_COUNT: {ERROR_COUNT}\n"
+            f"ERROR_COUNT: {RUN_COUNTS['errors']}\n"
         )
 
         log_handle.write(

@@ -12423,6 +12423,7 @@ def write_report(
     production_actions: pd.DataFrame,
     production_std: pd.DataFrame,
     production_cal: pd.DataFrame,
+    stress_reps: int,
     output_files: list[
         Path
     ],
@@ -12466,7 +12467,7 @@ def write_report(
         ),
         (
             'Stress scenarios: '
-            f'{STRESS_REPS:,}'
+            f'{stress_reps:,}'
         ),
         '',
         'CORRECTED VALIDATION DESIGN:',
@@ -13889,10 +13890,7 @@ def main() -> None:
         )
     )
 
-    global STRESS_REPS
-
-    if args.quick:
-        STRESS_REPS = 250
+    stress_reps = 250 if args.quick else STRESS_REPS
 
     t0 = now_seconds()
 
@@ -13990,7 +13988,7 @@ def main() -> None:
         'untouched lockbox='
         f'{len(lockbox):,}; '
         f'OOS folds={len(folds)}; '
-        f'stress reps={STRESS_REPS:,}'
+        f'stress reps={stress_reps:,}'
     )
 
     progress(
@@ -14108,7 +14106,7 @@ def main() -> None:
         stress = stress_bias_strategies(
             detail,
             strategies,
-            STRESS_REPS,
+            stress_reps,
             rng,
         )
 
@@ -14242,7 +14240,7 @@ def main() -> None:
         stress = stress_std_modes(
             detail,
             STD_MODES,
-            STRESS_REPS,
+            stress_reps,
             rng,
         )
 
@@ -14435,7 +14433,7 @@ def main() -> None:
             selection_policies[
                 market
             ],
-            STRESS_REPS,
+            stress_reps,
             rng,
         )
 
@@ -14902,6 +14900,7 @@ def main() -> None:
         production_actions,
         production_std,
         production_cal,
+        stress_reps,
         output_files,
     )
 

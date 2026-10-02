@@ -77,12 +77,14 @@ ERROR_DIR.mkdir(parents=True, exist_ok=True)
 # =========================
 
 RUN_STARTED = datetime.now(UTC)
-WARNING_COUNT = 0
-ERROR_COUNT = 0
-INPUT_FILE_COUNT = 0
-INPUT_ROW_COUNT = 0
-OUTPUT_FILE_COUNT = 0
-OUTPUT_ROW_COUNT = 0
+RUN_COUNTS = {
+    "warnings": 0,
+    "errors": 0,
+    "input_files": 0,
+    "input_rows": 0,
+    "output_files": 0,
+    "output_rows": 0,
+}
 
 with open(LOG_FILE, "w", encoding="utf-8") as startup_log_handle:
     startup_log_handle.write("=== 02_basketball_results_analyze ===\n")
@@ -99,38 +101,34 @@ def log(level: str, message: str) -> None:
 
 
 def warn(message: str) -> None:
-    global WARNING_COUNT
-    WARNING_COUNT += 1
+    RUN_COUNTS["warnings"] += 1
     log("WARNING", message)
 
 
 def error(message: str) -> None:
-    global ERROR_COUNT
-    ERROR_COUNT += 1
+    RUN_COUNTS["errors"] += 1
     log("ERROR", message)
 
 
 def log_input(path: Path, rows: int, exists: bool = True) -> None:
-    global INPUT_FILE_COUNT, INPUT_ROW_COUNT
-    INPUT_FILE_COUNT += 1
-    INPUT_ROW_COUNT += rows
+    RUN_COUNTS["input_files"] += 1
+    RUN_COUNTS["input_rows"] += rows
     log("INFO", f"INPUT | file={path} | exists={int(exists)} | rows={rows}")
 
 
 def log_output(path: Path, rows: int) -> None:
-    global OUTPUT_FILE_COUNT, OUTPUT_ROW_COUNT
-    OUTPUT_FILE_COUNT += 1
-    OUTPUT_ROW_COUNT += rows
+    RUN_COUNTS["output_files"] += 1
+    RUN_COUNTS["output_rows"] += rows
     log("INFO", f"OUTPUT | file={path} | rows={rows}")
 
 
 def finish(status: str) -> None:
     ended = datetime.now(UTC)
     with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(f"INPUT_SUMMARY | files={INPUT_FILE_COUNT} | rows={INPUT_ROW_COUNT}\n")
-        f.write(f"OUTPUT_SUMMARY | files={OUTPUT_FILE_COUNT} | rows={OUTPUT_ROW_COUNT}\n")
-        f.write(f"WARNING_COUNT: {WARNING_COUNT}\n")
-        f.write(f"ERROR_COUNT: {ERROR_COUNT}\n")
+        f.write(f"INPUT_SUMMARY | files={RUN_COUNTS['input_files']} | rows={RUN_COUNTS['input_rows']}\n")
+        f.write(f"OUTPUT_SUMMARY | files={RUN_COUNTS['output_files']} | rows={RUN_COUNTS['output_rows']}\n")
+        f.write(f"WARNING_COUNT: {RUN_COUNTS['warnings']}\n")
+        f.write(f"ERROR_COUNT: {RUN_COUNTS['errors']}\n")
         f.write(f"END_TIMESTAMP_UTC: {ended.isoformat()}\n")
         f.write(f"STATUS: {status}\n")
 

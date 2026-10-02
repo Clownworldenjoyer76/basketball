@@ -2842,7 +2842,7 @@ def add_differentials(
 
 
 # ITEM 20 ADVANCED SDV CANDIDATE FEATURES
-ADVANCED_CANDIDATE_MODE = False
+_ADVANCED_CANDIDATE_STATE = {"enabled": False}
 ADVANCED_INDEXES: dict[str, dict[str, dict[str, list[dict[str, Any]]]]] = {}
 
 ADVANCED_FAMILY_METRICS = {
@@ -2871,8 +2871,7 @@ ADVANCED_FAMILY_METRICS = {
 
 
 def set_advanced_candidate_mode(enabled: bool) -> None:
-    global ADVANCED_CANDIDATE_MODE
-    ADVANCED_CANDIDATE_MODE = bool(enabled)
+    _ADVANCED_CANDIDATE_STATE["enabled"] = bool(enabled)
 
 
 def production_feature_version(cfg: dict[str, Any]) -> str:
@@ -2885,7 +2884,7 @@ def production_feature_version(cfg: dict[str, Any]) -> str:
 
 
 def active_feature_version(cfg: dict[str, Any]) -> str:
-    if ADVANCED_CANDIDATE_MODE:
+    if _ADVANCED_CANDIDATE_STATE["enabled"]:
         return clean(cfg.get("feature_version"))
     return production_feature_version(cfg)
 
@@ -3550,7 +3549,7 @@ def feature_row(
         team_windows,
     )
 
-    if ADVANCED_CANDIDATE_MODE:
+    if _ADVANCED_CANDIDATE_STATE["enabled"]:
         result.update(
             advanced_features_for_target(
                 league,
@@ -3948,7 +3947,7 @@ def build_indexes(
         )
     )
 
-    if ADVANCED_CANDIDATE_MODE:
+    if _ADVANCED_CANDIDATE_STATE["enabled"]:
         ADVANCED_INDEXES[league] = build_advanced_indexes(
             history_root,
             league,
@@ -4156,7 +4155,7 @@ def build_historical(
 
         output_root = (
             advanced_history_output_root(cfg)
-            if ADVANCED_CANDIDATE_MODE
+            if _ADVANCED_CANDIDATE_STATE["enabled"]
             else paths["history_output_root"]
         )
 
@@ -4332,7 +4331,7 @@ def build_current(
 
         output_root = (
             advanced_current_output_root(cfg)
-            if ADVANCED_CANDIDATE_MODE
+            if _ADVANCED_CANDIDATE_STATE["enabled"]
             else paths["current_output_root"]
         )
 
