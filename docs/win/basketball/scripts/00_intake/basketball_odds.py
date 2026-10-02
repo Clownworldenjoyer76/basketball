@@ -40,6 +40,7 @@ unresolved placeholder teams are excluded from matchup consolidation.
 """
 from __future__ import annotations
 
+import sys
 import csv
 import importlib.util
 import os
@@ -48,6 +49,12 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import yaml
+
+SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from basketball_shared import resolve_repository_path
 
 
 NY = ZoneInfo("America/New_York")
@@ -390,13 +397,10 @@ def collapse_file(
     path: Path,
     league: str,
 ) -> tuple[int, int, list[dict]]:
-    repo_root = Path(__file__).resolve().parents[5]
-    candidate = path if path.is_absolute() else Path.cwd() / path
-    safe_path = candidate.resolve(strict=True)
-    try:
-        safe_path.relative_to(repo_root)
-    except ValueError as exc:
-        raise ValueError(f"Path escapes repository root: {path}") from exc
+    safe_path = resolve_repository_path(
+        path,
+        strict=True,
+    )
 
     with safe_path.open(newline="", encoding="utf-8-sig") as source:
         reader = csv.DictReader(source)

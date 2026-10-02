@@ -27,6 +27,12 @@ from pathlib import Path
 
 from sdv_canonical_games import build_current_canonical_games
 
+SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from basketball_shared import identity_key as shared_identity_key
+
 
 BASE = Path("docs/win/basketball")
 
@@ -111,19 +117,10 @@ def build_row(row: dict) -> dict:
 
 
 def identity_key(row: dict) -> tuple[str, str, str, str]:
-    league = clean(row.get("league")).upper()
-    game_date = clean(row.get("game_date"))
-    home_team = clean(row.get("home_team"))
-    away_team = clean(row.get("away_team"))
-
-    if unresolved_team(home_team) or unresolved_team(away_team):
-        return league, game_date, "", ""
-
-    return (
-        league,
-        game_date,
-        home_team.casefold(),
-        away_team.casefold(),
+    return shared_identity_key(
+        row,
+        clean,
+        unresolved_team,
     )
 
 

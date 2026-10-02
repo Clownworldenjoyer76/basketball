@@ -5488,10 +5488,10 @@ def main():
             input_dir.glob(
                 f"*_{league.upper()}.csv"
             ),
-            key=lambda p, league=league: (
+            key=lambda p, bound_league=league: (
                 season_from_input_filename(
                     p,
-                    league,
+                    bound_league,
                 ),
                 p.name,
             ),

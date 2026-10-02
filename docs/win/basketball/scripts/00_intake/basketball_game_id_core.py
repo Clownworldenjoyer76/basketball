@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 # docs/win/basketball/scripts/00_intake/basketball_game_id.py
 
+import sys
 import csv
 import traceback
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
+
+SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from basketball_shared import resolve_repository_path
 
 # =========================
 # PATHS
@@ -72,13 +79,10 @@ def ensure_fieldnames(fieldnames, wanted):
 
 
 def read_csv_rows(path: Path):
-    repo_root = Path(__file__).resolve().parents[5]
-    candidate = path if path.is_absolute() else Path.cwd() / path
-    safe_path = candidate.resolve(strict=True)
-    try:
-        safe_path.relative_to(repo_root)
-    except ValueError as exc:
-        raise ValueError(f"Path escapes repository root: {path}") from exc
+    safe_path = resolve_repository_path(
+        path,
+        strict=True,
+    )
 
     with safe_path.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -88,13 +92,10 @@ def read_csv_rows(path: Path):
 
 
 def write_csv_rows(path: Path, fieldnames, rows):
-    repo_root = Path(__file__).resolve().parents[5]
-    candidate = path if path.is_absolute() else Path.cwd() / path
-    safe_path = candidate.resolve()
-    try:
-        safe_path.relative_to(repo_root)
-    except ValueError as exc:
-        raise ValueError(f"Path escapes repository root: {path}") from exc
+    safe_path = resolve_repository_path(
+        path,
+        strict=False,
+    )
 
     with safe_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)

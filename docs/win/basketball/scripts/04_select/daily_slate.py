@@ -15,6 +15,12 @@ from datetime import datetime, UTC
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from basketball_shared import resolve_repository_path
+
 SELECT_DIR = Path("docs/win/basketball/04_select")
 DAILY_SLATE_DIR = SELECT_DIR / "daily_slate"
 ERROR_DIR = Path("docs/win/basketball/errors/04_select")
@@ -70,13 +76,10 @@ def log(message: str, level: str = "INFO") -> None:
 
 
 def write_output(path: Path, rows: list[dict]) -> None:
-    repo_root = Path(__file__).resolve().parents[5]
-    candidate = path if path.is_absolute() else Path.cwd() / path
-    safe_path = candidate.resolve()
-    try:
-        safe_path.relative_to(repo_root)
-    except ValueError as exc:
-        raise ValueError(f"Path escapes repository root: {path}") from exc
+    safe_path = resolve_repository_path(
+        path,
+        strict=False,
+    )
 
     safe_path.parent.mkdir(parents=True, exist_ok=True)
     with safe_path.open("w", encoding="utf-8", newline="") as f:

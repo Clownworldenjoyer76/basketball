@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 # docs/win/basketball/scripts/00_intake/name_normalization.py
 
+import sys
 import csv
 import pandas as pd
 from pathlib import Path
 from datetime import datetime, timezone
+
+SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from basketball_shared import resolve_repository_path
 
 
 # =========================
@@ -51,13 +58,10 @@ def _write_signal_summary(summary_dir, ts, df):
 def audit(log_path, stage, status, msg="", df=None):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_path = Path(log_path)
-    repo_root = Path(__file__).resolve().parents[5]
-    candidate = log_path if log_path.is_absolute() else Path.cwd() / log_path
-    safe_path = candidate.resolve()
-    try:
-        safe_path.relative_to(repo_root)
-    except ValueError as exc:
-        raise ValueError(f"Path escapes repository root: {log_path}") from exc
+    safe_path = resolve_repository_path(
+        log_path,
+        strict=False,
+    )
 
     safe_path.parent.mkdir(parents=True, exist_ok=True)
 

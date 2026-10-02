@@ -14,10 +14,17 @@ consolidation, and file rewrites:
 """
 from __future__ import annotations
 
+import sys
 import csv
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
+
+SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from basketball_shared import resolve_repository_path, identity_key as shared_identity_key
 
 BASE = Path("docs/win/basketball")
 ERROR_DIR = BASE / "errors/00_intake"
@@ -68,19 +75,10 @@ def normalize_row(row: dict) -> dict:
 
 
 def identity_key(row: dict) -> tuple[str, str, str, str]:
-    league = clean(row.get("league")).upper()
-    game_date = clean(row.get("game_date"))
-    home_team = clean(row.get("home_team"))
-    away_team = clean(row.get("away_team"))
-
-    if unresolved_team(home_team) or unresolved_team(away_team):
-        return league, game_date, "", ""
-
-    return (
-        league,
-        game_date,
-        home_team.casefold(),
-        away_team.casefold(),
+    return shared_identity_key(
+        row,
+        clean,
+        unresolved_team,
     )
 
 
@@ -135,13 +133,10 @@ def choose_canonical_id(copies: list[tuple]) -> str:
 
 
 def write_file(path: Path, rows: list[dict]) -> None:
-    repo_root = Path(__file__).resolve().parents[5]
-    candidate = path if path.is_absolute() else Path.cwd() / path
-    safe_path = candidate.resolve()
-    try:
-        safe_path.relative_to(repo_root)
-    except ValueError as exc:
-        raise ValueError(f"Path escapes repository root: {path}") from exc
+    safe_path = resolve_repository_path(
+        path,
+        strict=False,
+    )
 
     safe_path.parent.mkdir(parents=True, exist_ok=True)
     with safe_path.open("w", newline="", encoding="utf-8") as f:
