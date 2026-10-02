@@ -196,150 +196,181 @@ def configured_paths(
     return result
 
 
-def validate_config(cfg: dict[str, Any]) -> None:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
+def validate_config(
+    cfg: dict[str, Any],
+) -> None:
+    if int(cfg.get("schema_version", 0)) != 1:
+        raise ValueError(
+            "sdv_model.yaml schema_version must be 1"
+        )
 
-    def _py_r1000_impl():
-        nonlocal cfg
-        fallback: object
-        key: object
-        max_poss: object
-        min_poss: object
-        normalized: object
-        player_strength: object
-        possession: object
-        shrinkage: object
-        stat: object
-        team_windows: object
-        validation: object
-        weights: object
-        windows: object
+    if not clean(cfg.get("feature_version")):
+        raise ValueError(
+            "sdv_model.yaml feature_version is blank"
+        )
 
-        def _py_r1000_loop_1():
-            if int(windows.get(key, 0)) <= 0:
-                raise ValueError(f'feature_windows.{key} must be positive')
-            return (_py_r1000_NONE, None)
+    windows = required_mapping(
+        cfg,
+        "feature_windows",
+    )
 
-        def _py_r1000_loop_3():
-            if float(shrinkage.get(key, -1)) < 0:
-                raise ValueError(f'shrinkage.{key} must be >= 0')
-            return (_py_r1000_NONE, None)
+    team_windows = windows.get(
+        "team_games"
+    )
 
-        def _py_r1000_loop_5():
-            if clean(stat) not in PLAYER_STAT_COLUMNS:
-                raise ValueError(f'Unsupported player_strength weight: {stat}')
-            return (_py_r1000_NONE, None)
+    if (
+        not isinstance(team_windows, list)
+        or not team_windows
+    ):
+        raise ValueError(
+            "feature_windows.team_games "
+            "must be a non-empty list"
+        )
 
-        def _py_r1000_chunk_7():
-            nonlocal normalized, team_windows, windows
-            if int(cfg.get('schema_version', 0)) != 1:
-                raise ValueError('sdv_model.yaml schema_version must be 1')
-            if not clean(cfg.get('feature_version')):
-                raise ValueError('sdv_model.yaml feature_version is blank')
-            windows = required_mapping(cfg, 'feature_windows')
-            team_windows = windows.get('team_games')
-            if not isinstance(team_windows, list) or not team_windows:
-                raise ValueError('feature_windows.team_games must be a non-empty list')
-            normalized = [int(value) for value in team_windows]
-            return (_py_r1000_NONE, None)
+    normalized = [
+        int(value)
+        for value
+        in team_windows
+    ]
 
-        def _py_r1000_chunk_8():
-            nonlocal key, shrinkage
+    if (
+        any(
+            value <= 0
+            for value
+            in normalized
+        )
+        or len(set(normalized))
+        != len(normalized)
+    ):
+        raise ValueError(
+            "feature_windows.team_games must "
+            "contain unique positive integers"
+        )
 
-            def _py_r1000_loop_9():
-                _py_r1000_result_2 = _py_r1000_loop_1()
-                if _py_r1000_result_2[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_2
-                if _py_r1000_result_2[0] == _py_r1000_BREAK:
-                    return (_py_r1000_BREAK, None)
-                if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
-                    return (_py_r1000_CONTINUE, None)
-                return (_py_r1000_NONE, None)
-            if any((value <= 0 for value in normalized)) or len(set(normalized)) != len(normalized):
-                raise ValueError('feature_windows.team_games must contain unique positive integers')
-            for key in ('opponent_rating_games', 'player_team_games', 'player_top_n', 'venue_history_games'):
-                _py_r1000_result_10 = _py_r1000_loop_9()
-                if _py_r1000_result_10[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_10
-                if _py_r1000_result_10[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_10[0] == _py_r1000_CONTINUE:
-                    continue
-            shrinkage = required_mapping(cfg, 'shrinkage')
-            return (_py_r1000_NONE, None)
+    for key in (
+        "opponent_rating_games",
+        "player_team_games",
+        "player_top_n",
+        "venue_history_games",
+    ):
+        if int(windows.get(key, 0)) <= 0:
+            raise ValueError(
+                f"feature_windows.{key} must be positive"
+            )
 
-        def _py_r1000_chunk_11():
-            nonlocal fallback, key, max_poss, min_poss, player_strength, possession, validation, weights
+    shrinkage = required_mapping(
+        cfg,
+        "shrinkage",
+    )
 
-            def _py_r1000_loop_12():
-                _py_r1000_result_4 = _py_r1000_loop_3()
-                if _py_r1000_result_4[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_4
-                if _py_r1000_result_4[0] == _py_r1000_BREAK:
-                    return (_py_r1000_BREAK, None)
-                if _py_r1000_result_4[0] == _py_r1000_CONTINUE:
-                    return (_py_r1000_CONTINUE, None)
-                return (_py_r1000_NONE, None)
-            for key in ('team_pseudo_games', 'opponent_pseudo_games', 'player_pseudo_games'):
-                _py_r1000_result_13 = _py_r1000_loop_12()
-                if _py_r1000_result_13[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_13
-                if _py_r1000_result_13[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_13[0] == _py_r1000_CONTINUE:
-                    continue
-            possession = required_mapping(cfg, 'possessions')
-            fallback = required_mapping(possession, 'fallback_estimate')
-            validation = required_mapping(possession, 'validation')
-            if float(fallback.get('free_throw_coefficient', -1)) < 0:
-                raise ValueError('possessions.fallback_estimate.free_throw_coefficient must be >= 0')
-            min_poss = float(validation.get('min_team_possessions', 0))
-            max_poss = float(validation.get('max_team_possessions', 0))
-            if min_poss <= 0 or max_poss <= min_poss:
-                raise ValueError('possessions.validation min/max team possessions are invalid')
-            player_strength = required_mapping(cfg, 'player_strength')
-            weights = player_strength.get('weights')
-            return (_py_r1000_NONE, None)
+    for key in (
+        "team_pseudo_games",
+        "opponent_pseudo_games",
+        "player_pseudo_games",
+    ):
+        if float(shrinkage.get(key, -1)) < 0:
+            raise ValueError(
+                f"shrinkage.{key} must be >= 0"
+            )
 
-        def _py_r1000_chunk_14():
-            nonlocal stat
+    possession = required_mapping(
+        cfg,
+        "possessions",
+    )
 
-            def _py_r1000_loop_15():
-                _py_r1000_result_6 = _py_r1000_loop_5()
-                if _py_r1000_result_6[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_6
-                if _py_r1000_result_6[0] == _py_r1000_BREAK:
-                    return (_py_r1000_BREAK, None)
-                if _py_r1000_result_6[0] == _py_r1000_CONTINUE:
-                    return (_py_r1000_CONTINUE, None)
-                return (_py_r1000_NONE, None)
-            if not isinstance(weights, dict) or not weights:
-                raise ValueError('player_strength.weights must be a non-empty mapping')
-            for stat in weights:
-                _py_r1000_result_16 = _py_r1000_loop_15()
-                if _py_r1000_result_16[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_16
-                if _py_r1000_result_16[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_16[0] == _py_r1000_CONTINUE:
-                    continue
-            required_mapping(cfg, 'formulas')
-            required_mapping(cfg, 'point_in_time')
-            required_mapping(cfg, 'venue_context')
-            required_mapping(cfg, 'model_inputs')
-            configured_paths(cfg)
-            return (_py_r1000_NONE, None)
-        for _py_r1000_block_17 in (_py_r1000_chunk_7, _py_r1000_chunk_8, _py_r1000_chunk_11, _py_r1000_chunk_14):
-            _py_r1000_result_18 = _py_r1000_block_17()
-            if _py_r1000_result_18[0] != _py_r1000_NONE:
-                return _py_r1000_result_18
-        return (_py_r1000_NONE, None)
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+    fallback = required_mapping(
+        possession,
+        "fallback_estimate",
+    )
+
+    validation = required_mapping(
+        possession,
+        "validation",
+    )
+
+    if (
+        float(
+            fallback.get(
+                "free_throw_coefficient",
+                -1,
+            )
+        )
+        < 0
+    ):
+        raise ValueError(
+            "possessions.fallback_estimate."
+            "free_throw_coefficient must be >= 0"
+        )
+
+    min_poss = float(
+        validation.get(
+            "min_team_possessions",
+            0,
+        )
+    )
+
+    max_poss = float(
+        validation.get(
+            "max_team_possessions",
+            0,
+        )
+    )
+
+    if (
+        min_poss <= 0
+        or max_poss <= min_poss
+    ):
+        raise ValueError(
+            "possessions.validation min/max "
+            "team possessions are invalid"
+        )
+
+    player_strength = required_mapping(
+        cfg,
+        "player_strength",
+    )
+
+    weights = player_strength.get(
+        "weights"
+    )
+
+    if (
+        not isinstance(weights, dict)
+        or not weights
+    ):
+        raise ValueError(
+            "player_strength.weights must "
+            "be a non-empty mapping"
+        )
+
+    for stat in weights:
+        if clean(stat) not in PLAYER_STAT_COLUMNS:
+            raise ValueError(
+                "Unsupported player_strength "
+                f"weight: {stat}"
+            )
+
+    required_mapping(
+        cfg,
+        "formulas",
+    )
+
+    required_mapping(
+        cfg,
+        "point_in_time",
+    )
+
+    required_mapping(
+        cfg,
+        "venue_context",
+    )
+
+    required_mapping(
+        cfg,
+        "model_inputs",
+    )
+
+    configured_paths(cfg)
 
 
 def parse_date(
@@ -1305,180 +1336,358 @@ def game_possessions(
     )
 
 
-def prepare_team_game_rows(rows: list[dict[str, Any]], game_context: dict[str, dict[str, Any]], sdv_possessions: dict[str, float], cfg: dict[str, Any]) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
+def prepare_team_game_rows(
+    rows: list[
+        dict[str, Any]
+    ],
+    game_context: dict[
+        str,
+        dict[str, Any],
+    ],
+    sdv_possessions: dict[
+        str,
+        float,
+    ],
+    cfg: dict[str, Any],
+) -> tuple[
+    dict[
+        str,
+        list[
+            dict[str, Any]
+        ],
+    ],
+    list[
+        dict[str, Any]
+    ],
+]:
+    grouped: dict[
+        str,
+        list[
+            dict[str, Any]
+        ],
+    ] = defaultdict(list)
 
-    def _py_r1000_impl():
-        nonlocal cfg, game_context, rows, sdv_possessions
-        all_rows: object
-        away_id: object
-        by_team: object
-        candidates: object
-        context: object
-        def_eff: object
-        efg_pct: object
-        fga: object
-        fgm: object
-        ft_rate: object
-        fta: object
-        game_id: object
-        game_rows: object
-        grouped: object
-        home_id: object
-        margin: object
-        net_eff: object
-        off_eff: object
-        opponent_drb: object
-        opponent_id: object
-        opponent_row: object
-        orb: object
-        orb_rate: object
-        points_against: object
-        points_for: object
-        possession_method: object
-        possessions: object
-        prepared: object
-        raw: object
-        row_by_team: object
-        team_id: object
-        team_rows: object
-        three_made: object
-        tov_rate: object
-        turnovers: object
+    for raw in rows:
+        game_id = row_game_id(
+            raw
+        )
 
-        def _py_r1000_loop_1():
-            nonlocal game_id, team_id
-            game_id = row_game_id(raw)
-            team_id = row_team_id(raw)
-            if game_id and team_id:
-                grouped[game_id].append(raw)
-            return (_py_r1000_NONE, None)
+        team_id = row_team_id(
+            raw
+        )
 
-        def _py_r1000_loop_3():
-            nonlocal away_id, candidates, context, def_eff, efg_pct, fga, fgm, ft_rate, fta, home_id, margin, net_eff, off_eff, opponent_drb, opponent_id, opponent_row, orb, orb_rate, points_against, points_for, possession_method, possessions, prepared, raw, row_by_team, team_id, three_made, tov_rate, turnovers
+        if (
+            game_id
+            and team_id
+        ):
+            grouped[
+                game_id
+            ].append(
+                raw
+            )
 
-            def _py_r1000_loop_4():
-                nonlocal candidates, def_eff, efg_pct, fga, fgm, ft_rate, fta, margin, net_eff, off_eff, opponent_drb, opponent_id, opponent_row, orb, orb_rate, points_against, points_for, possession_method, possessions, prepared, team_id, three_made, tov_rate, turnovers
+    by_team: dict[
+        str,
+        list[
+            dict[str, Any]
+        ],
+    ] = defaultdict(list)
 
-                def _py_r1000_else_5():
-                    nonlocal opponent_id
-                    if team_id == away_id:
-                        opponent_id = home_id
-                    else:
-                        opponent_id = clean_id(raw.get('opponent_team_id'))
-                    return (_py_r1000_NONE, None)
+    all_rows: list[
+        dict[str, Any]
+    ] = []
 
-                def _py_r1000_if_7():
-                    nonlocal candidates, opponent_row
-                    candidates = [row for row in game_rows if row_team_id(row) != team_id]
-                    opponent_row = _py_r1000_expr_1()
-                    return (_py_r1000_NONE, None)
-                team_id = row_team_id(raw)
-                if not team_id:
-                    return (_py_r1000_CONTINUE, None)
-                if team_id == home_id:
-                    opponent_id = away_id
-                else:
-                    _py_r1000_result_6 = _py_r1000_else_5()
-                    if _py_r1000_result_6[0] != _py_r1000_NONE:
-                        return _py_r1000_result_6
-                opponent_row = row_by_team.get(opponent_id)
-                if opponent_row is None:
-                    _py_r1000_result_8 = _py_r1000_if_7()
-                    if _py_r1000_result_8[0] != _py_r1000_NONE:
-                        return _py_r1000_result_8
-                if opponent_row is None:
-                    return (_py_r1000_CONTINUE, None)
-                possessions, possession_method = game_possessions(game_id, raw, opponent_row, sdv_possessions, cfg)
-                points_for = to_float(raw.get('team_score'))
-                points_against = to_float(_py_r1000_expr_2())
-                fgm = to_float(raw.get('field_goals_made'))
-                fga = to_float(raw.get('field_goals_attempted'))
-                three_made = to_float(raw.get('three_point_field_goals_made'))
-                turnovers = to_float(first_value(raw, ('total_turnovers', 'turnovers')))
-                orb = to_float(raw.get('offensive_rebounds'))
-                opponent_drb = to_float(opponent_row.get('defensive_rebounds'))
-                fta = to_float(raw.get('free_throws_attempted'))
-                off_eff = _py_r1000_expr_3()
-                def_eff = _py_r1000_expr_4()
-                efg_pct = _py_r1000_expr_5()
-                tov_rate = safe_ratio(turnovers, possessions)
-                orb_rate = _py_r1000_expr_6()
-                ft_rate = safe_ratio(fta, fga)
-                margin = _py_r1000_expr_7()
-                net_eff = _py_r1000_expr_8()
-                prepared = {**raw, 'game_id': game_id, 'team_id': team_id, 'opponent_team_id': opponent_id, '_date': context['_date'], '_dt': context['_dt'], '_possessions': possessions, '_possession_method': possession_method, '_raw_off_eff': off_eff, '_raw_def_eff': def_eff, '_raw_pace': possessions, '_raw_efg_pct': efg_pct, '_raw_tov_rate': tov_rate, '_raw_orb_rate': orb_rate, '_raw_ft_rate': ft_rate, '_raw_margin': margin, '_raw_net_eff': net_eff}
-                by_team[team_id].append(prepared)
-                all_rows.append(prepared)
-                return (_py_r1000_NONE, None)
-            context = game_context.get(game_id)
-            if context is None:
-                return (_py_r1000_CONTINUE, None)
-            row_by_team = {row_team_id(row): row for row in game_rows if row_team_id(row)}
-            home_id = clean_id(context.get('home_team_id'))
-            away_id = clean_id(context.get('away_team_id'))
-            for raw in game_rows:
-                _py_r1000_result_9 = _py_r1000_loop_4()
-                if _py_r1000_result_9[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_9
-                if _py_r1000_result_9[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_9[0] == _py_r1000_CONTINUE:
-                    continue
-            return (_py_r1000_NONE, None)
+    for (
+        game_id,
+        game_rows,
+    ) in grouped.items():
+        context = game_context.get(
+            game_id
+        )
 
-        def _py_r1000_expr_1():
-            return candidates[0] if len(candidates) == 1 else None
+        if context is None:
+            continue
 
-        def _py_r1000_expr_2():
-            return raw.get('opponent_team_score') if clean(raw.get('opponent_team_score')) != '' else opponent_row.get('team_score')
+        row_by_team = {
+            row_team_id(row): row
+            for row
+            in game_rows
+            if row_team_id(row)
+        }
 
-        def _py_r1000_expr_3():
-            return 100.0 * points_for / possessions if points_for is not None and possessions is not None and (possessions > 0) else None
+        home_id = clean_id(
+            context.get(
+                "home_team_id"
+            )
+        )
 
-        def _py_r1000_expr_4():
-            return 100.0 * points_against / possessions if points_against is not None and possessions is not None and (possessions > 0) else None
+        away_id = clean_id(
+            context.get(
+                "away_team_id"
+            )
+        )
 
-        def _py_r1000_expr_5():
-            return (fgm + 0.5 * three_made) / fga if fgm is not None and three_made is not None and (fga is not None) and (fga > 0) else None
+        for raw in game_rows:
+            team_id = row_team_id(
+                raw
+            )
 
-        def _py_r1000_expr_6():
-            return orb / (orb + opponent_drb) if orb is not None and opponent_drb is not None and (orb + opponent_drb > 0) else None
-
-        def _py_r1000_expr_7():
-            return points_for - points_against if points_for is not None and points_against is not None else None
-
-        def _py_r1000_expr_8():
-            return off_eff - def_eff if off_eff is not None and def_eff is not None else None
-        grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
-        for raw in rows:
-            _py_r1000_result_2 = _py_r1000_loop_1()
-            if _py_r1000_result_2[0] == _py_r1000_RETURN:
-                return _py_r1000_result_2
-            if _py_r1000_result_2[0] == _py_r1000_BREAK:
-                break
-            if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
+            if not team_id:
                 continue
-        by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
-        all_rows: list[dict[str, Any]] = []
-        for game_id, game_rows in grouped.items():
-            _py_r1000_result_10 = _py_r1000_loop_3()
-            if _py_r1000_result_10[0] == _py_r1000_RETURN:
-                return _py_r1000_result_10
-            if _py_r1000_result_10[0] == _py_r1000_BREAK:
-                break
-            if _py_r1000_result_10[0] == _py_r1000_CONTINUE:
+
+            if team_id == home_id:
+                opponent_id = away_id
+
+            elif team_id == away_id:
+                opponent_id = home_id
+
+            else:
+                opponent_id = clean_id(
+                    raw.get(
+                        "opponent_team_id"
+                    )
+                )
+
+            opponent_row = row_by_team.get(
+                opponent_id
+            )
+
+            if opponent_row is None:
+                candidates = [
+                    row
+                    for row
+                    in game_rows
+                    if row_team_id(row)
+                    != team_id
+                ]
+
+                opponent_row = (
+                    candidates[0]
+                    if len(candidates)
+                    == 1
+                    else None
+                )
+
+            if opponent_row is None:
                 continue
-        for team_rows in by_team.values():
-            team_rows.sort(key=source_sort_key)
-        all_rows.sort(key=source_sort_key)
-        return (_py_r1000_RETURN, (dict(by_team), all_rows))
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+
+            (
+                possessions,
+                possession_method,
+            ) = game_possessions(
+                game_id,
+                raw,
+                opponent_row,
+                sdv_possessions,
+                cfg,
+            )
+
+            points_for = to_float(
+                raw.get(
+                    "team_score"
+                )
+            )
+
+            points_against = to_float(
+                raw.get(
+                    "opponent_team_score"
+                )
+                if clean(
+                    raw.get(
+                        "opponent_team_score"
+                    )
+                )
+                != ""
+                else opponent_row.get(
+                    "team_score"
+                )
+            )
+
+            fgm = to_float(
+                raw.get(
+                    "field_goals_made"
+                )
+            )
+
+            fga = to_float(
+                raw.get(
+                    "field_goals_attempted"
+                )
+            )
+
+            three_made = to_float(
+                raw.get(
+                    "three_point_field_goals_made"
+                )
+            )
+
+            turnovers = to_float(
+                first_value(
+                    raw,
+                    (
+                        "total_turnovers",
+                        "turnovers",
+                    ),
+                )
+            )
+
+            orb = to_float(
+                raw.get(
+                    "offensive_rebounds"
+                )
+            )
+
+            opponent_drb = to_float(
+                opponent_row.get(
+                    "defensive_rebounds"
+                )
+            )
+
+            fta = to_float(
+                raw.get(
+                    "free_throws_attempted"
+                )
+            )
+
+            off_eff = (
+                100.0
+                * points_for
+                / possessions
+                if (
+                    points_for is not None
+                    and possessions is not None
+                    and possessions > 0
+                )
+                else None
+            )
+
+            def_eff = (
+                100.0
+                * points_against
+                / possessions
+                if (
+                    points_against is not None
+                    and possessions is not None
+                    and possessions > 0
+                )
+                else None
+            )
+
+            efg_pct = (
+                (
+                    fgm
+                    + (
+                        0.5
+                        * three_made
+                    )
+                )
+                / fga
+                if (
+                    fgm is not None
+                    and three_made is not None
+                    and fga is not None
+                    and fga > 0
+                )
+                else None
+            )
+
+            tov_rate = safe_ratio(
+                turnovers,
+                possessions,
+            )
+
+            orb_rate = (
+                orb
+                / (
+                    orb
+                    + opponent_drb
+                )
+                if (
+                    orb is not None
+                    and opponent_drb is not None
+                    and (
+                        orb
+                        + opponent_drb
+                    )
+                    > 0
+                )
+                else None
+            )
+
+            ft_rate = safe_ratio(
+                fta,
+                fga,
+            )
+
+            margin = (
+                points_for
+                - points_against
+                if (
+                    points_for is not None
+                    and points_against is not None
+                )
+                else None
+            )
+
+            net_eff = (
+                off_eff
+                - def_eff
+                if (
+                    off_eff is not None
+                    and def_eff is not None
+                )
+                else None
+            )
+
+            prepared = {
+                **raw,
+                "game_id": game_id,
+                "team_id": team_id,
+                "opponent_team_id": opponent_id,
+                "_date": context[
+                    "_date"
+                ],
+                "_dt": context[
+                    "_dt"
+                ],
+                "_possessions": possessions,
+                "_possession_method": (
+                    possession_method
+                ),
+                "_raw_off_eff": off_eff,
+                "_raw_def_eff": def_eff,
+                "_raw_pace": possessions,
+                "_raw_efg_pct": efg_pct,
+                "_raw_tov_rate": tov_rate,
+                "_raw_orb_rate": orb_rate,
+                "_raw_ft_rate": ft_rate,
+                "_raw_margin": margin,
+                "_raw_net_eff": net_eff,
+            }
+
+            by_team[
+                team_id
+            ].append(
+                prepared
+            )
+
+            all_rows.append(
+                prepared
+            )
+
+    for team_rows in by_team.values():
+        team_rows.sort(
+            key=source_sort_key
+        )
+
+    all_rows.sort(
+        key=source_sort_key
+    )
+
+    return (
+        dict(by_team),
+        all_rows,
+    )
 
 
 class LeagueEfficiencyIndex:
@@ -2194,103 +2403,225 @@ def player_contribution(
     return total
 
 
-def player_features(team_id: str, target_game_id: str, target_dt: datetime | None, target_date: date, index: dict[str, list[dict[str, Any]]], team_game_window: int, top_n: int, pseudo_games: float, weights: dict[str, float], side: str) -> dict[str, Any]:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
+def player_features(
+    team_id: str,
+    target_game_id: str,
+    target_dt: datetime | None,
+    target_date: date,
+    index: dict[
+        str,
+        list[
+            dict[str, Any]
+        ],
+    ],
+    team_game_window: int,
+    top_n: int,
+    pseudo_games: float,
+    weights: dict[
+        str,
+        float,
+    ],
+    side: str,
+) -> dict[str, Any]:
+    eligible_games = prior_rows(
+        index.get(
+            team_id,
+            [],
+        ),
+        target_dt,
+        target_date,
+    )
 
-    def _py_r1000_impl():
-        nonlocal index, pseudo_games, side, target_date, target_dt, target_game_id, team_game_window, team_id, top_n, weights
-        all_contributions: object
-        by_player: object
-        contributions: object
-        eligible_games: object
-        games: object
-        minutes: object
-        player_id: object
-        raw_strength: object
-        recent_games: object
-        recent_rows: object
-        row: object
-        rows: object
-        strength: object
-        summaries: object
-        team_player_baseline: object
-        top: object
-        value: object
+    assert_target_absent(
+        eligible_games,
+        target_game_id,
+        f"player_game:{side}",
+    )
 
-        def _py_r1000_loop_1():
-            nonlocal player_id
-            player_id = clean_id(row.get('player_id') or row.get('athlete_id'))
-            if player_id:
-                by_player[player_id].append(row)
-            return (_py_r1000_NONE, None)
+    recent_games = eligible_games[
+        -team_game_window:
+    ]
 
-        def _py_r1000_loop_3():
-            nonlocal contributions, games, minutes, raw_strength, row, strength, value
+    recent_rows = [
+        player
+        for game
+        in recent_games
+        for player
+        in game[
+            "players"
+        ]
+    ]
 
-            def _py_r1000_loop_4():
-                nonlocal value
-                value = to_float(first_value(row, PLAYER_STAT_COLUMNS['minutes']))
-                if value is not None:
-                    minutes.append(value)
-                return (_py_r1000_NONE, None)
-            contributions = [player_contribution(row, weights) for row in rows]
-            minutes = []
-            for row in rows:
-                _py_r1000_result_5 = _py_r1000_loop_4()
-                if _py_r1000_result_5[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_5
-                if _py_r1000_result_5[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_5[0] == _py_r1000_CONTINUE:
-                    continue
-            raw_strength = mean(contributions) or 0.0
-            games = len(rows)
-            if team_player_baseline is not None and pseudo_games > 0:
-                strength = (games * raw_strength + pseudo_games * team_player_baseline) / (games + pseudo_games)
-            else:
-                strength = raw_strength
-            summaries.append({'strength': strength, 'minutes': mean(minutes) or 0.0, 'recent_minutes': sum(minutes)})
-            return (_py_r1000_NONE, None)
+    assert_target_absent(
+        recent_rows,
+        target_game_id,
+        f"player_game_rows:{side}",
+    )
 
-        def _py_r1000_expr_1():
-            return sum((item['strength'] for item in top)) if top else None
+    by_player: dict[
+        str,
+        list[
+            dict[str, Any]
+        ],
+    ] = defaultdict(list)
 
-        def _py_r1000_expr_2():
-            return sum((item['minutes'] for item in top)) if top else None
-        eligible_games = prior_rows(index.get(team_id, []), target_dt, target_date)
-        assert_target_absent(eligible_games, target_game_id, f'player_game:{side}')
-        recent_games = eligible_games[-team_game_window:]
-        recent_rows = [player for game in recent_games for player in game['players']]
-        assert_target_absent(recent_rows, target_game_id, f'player_game_rows:{side}')
-        by_player: dict[str, list[dict[str, Any]]] = defaultdict(list)
-        for row in recent_rows:
-            _py_r1000_result_2 = _py_r1000_loop_1()
-            if _py_r1000_result_2[0] == _py_r1000_RETURN:
-                return _py_r1000_result_2
-            if _py_r1000_result_2[0] == _py_r1000_BREAK:
-                break
-            if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
-                continue
-        all_contributions = [player_contribution(row, weights) for row in recent_rows]
-        team_player_baseline = mean(all_contributions)
-        summaries: list[dict[str, float]] = []
-        for rows in by_player.values():
-            _py_r1000_result_6 = _py_r1000_loop_3()
-            if _py_r1000_result_6[0] == _py_r1000_RETURN:
-                return _py_r1000_result_6
-            if _py_r1000_result_6[0] == _py_r1000_BREAK:
-                break
-            if _py_r1000_result_6[0] == _py_r1000_CONTINUE:
-                continue
-        summaries.sort(key=lambda item: (item['recent_minutes'], item['strength']), reverse=True)
-        top = summaries[:top_n]
-        return (_py_r1000_RETURN, {f'{side}_player_games_used': len(recent_games), f'{side}_player_recent_count': len(summaries), f'{side}_player_strength': _py_r1000_expr_1(), f'{side}_player_minutes': _py_r1000_expr_2()})
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+    for row in recent_rows:
+        player_id = clean_id(
+            row.get(
+                "player_id"
+            )
+            or row.get(
+                "athlete_id"
+            )
+        )
+
+        if player_id:
+            by_player[
+                player_id
+            ].append(
+                row
+            )
+
+    all_contributions = [
+        player_contribution(
+            row,
+            weights,
+        )
+        for row
+        in recent_rows
+    ]
+
+    team_player_baseline = mean(
+        all_contributions
+    )
+
+    summaries: list[
+        dict[
+            str,
+            float,
+        ]
+    ] = []
+
+    for rows in by_player.values():
+        contributions = [
+            player_contribution(
+                row,
+                weights,
+            )
+            for row
+            in rows
+        ]
+
+        minutes: list[
+            float
+        ] = []
+
+        for row in rows:
+            value = to_float(
+                first_value(
+                    row,
+                    PLAYER_STAT_COLUMNS[
+                        "minutes"
+                    ],
+                )
+            )
+
+            if value is not None:
+                minutes.append(
+                    value
+                )
+
+        raw_strength = (
+            mean(
+                contributions
+            )
+            or 0.0
+        )
+
+        games = len(
+            rows
+        )
+
+        if (
+            team_player_baseline is not None
+            and pseudo_games > 0
+        ):
+            strength = (
+                (
+                    games
+                    * raw_strength
+                )
+                + (
+                    pseudo_games
+                    * team_player_baseline
+                )
+            ) / (
+                games
+                + pseudo_games
+            )
+
+        else:
+            strength = raw_strength
+
+        summaries.append(
+            {
+                "strength": strength,
+                "minutes": (
+                    mean(minutes)
+                    or 0.0
+                ),
+                "recent_minutes": sum(
+                    minutes
+                ),
+            }
+        )
+
+    summaries.sort(
+        key=lambda item: (
+            item[
+                "recent_minutes"
+            ],
+            item[
+                "strength"
+            ],
+        ),
+        reverse=True,
+    )
+
+    top = summaries[
+        :top_n
+    ]
+
+    return {
+        f"{side}_player_games_used": len(
+            recent_games
+        ),
+        f"{side}_player_recent_count": len(
+            summaries
+        ),
+        f"{side}_player_strength": (
+            sum(
+                item[
+                    "strength"
+                ]
+                for item
+                in top
+            )
+            if top
+            else None
+        ),
+        f"{side}_player_minutes": (
+            sum(
+                item[
+                    "minutes"
+                ]
+                for item
+                in top
+            )
+            if top
+            else None
+        ),
+    }
 
 
 def team_court_indicator(
@@ -2783,94 +3114,40 @@ def possession_duration(row: dict[str, Any]) -> float | None:
 
 
 def build_possession_index(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
-
-    def _py_r1000_impl():
-        nonlocal rows
-        context: object
-        duration: object
-        durations: object
-        game_id: object
-        game_rows: object
-        points: object
-        pts: object
-        row: object
-        summaries: object
-        team_id: object
-        transition: object
-        transition_points: object
-        transitions: object
-        valid: object
-
-        def _py_r1000_loop_1():
-            nonlocal context, duration, durations, points, pts, row, transition, transition_points, transitions, valid
-
-            def _py_r1000_loop_2():
-                nonlocal duration, pts, transition
-
-                def _py_r1000_if_3():
-                    transitions.append(transition)
-                    if transition and pts is not None:
-                        transition_points.append(pts)
-                    return (_py_r1000_NONE, None)
-                transition = possession_transition(row)
-                pts = first_numeric(row, ('possession_points', 'points_scored', 'points', 'score_value'))
-                duration = possession_duration(row)
-                if transition is not None:
-                    _py_r1000_result_4 = _py_r1000_if_3()
-                    if _py_r1000_result_4[0] != _py_r1000_NONE:
-                        return _py_r1000_result_4
-                if pts is not None:
-                    points.append(pts)
-                if duration is not None:
-                    durations.append(duration)
-                return (_py_r1000_NONE, None)
-            valid = [row for row in game_rows if possession_counted(row)]
-            if not valid:
-                return (_py_r1000_CONTINUE, None)
-            transitions = []
-            transition_points = []
-            points = []
-            durations = []
-            context = valid[0]
-            for row in valid:
-                _py_r1000_result_5 = _py_r1000_loop_2()
-                if _py_r1000_result_5[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_5
-                if _py_r1000_result_5[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_5[0] == _py_r1000_CONTINUE:
-                    continue
-            summaries.append({'game_id': game_id, 'team_id': team_id, '_date': context['_date'], '_dt': context['_dt'], 'possession_transition_share': _py_r1000_expr_1(), 'possession_transition_ppp': _py_r1000_expr_2(), 'possession_avg_duration_seconds': mean(durations), 'possession_early_offense_share': _py_r1000_expr_3(), 'possession_ppp': _py_r1000_expr_4()})
-            return (_py_r1000_NONE, None)
-
-        def _py_r1000_expr_1():
-            return sum((1 for x in transitions if x)) / len(transitions) if transitions else None
-
-        def _py_r1000_expr_2():
-            return sum(transition_points) / sum((1 for x in transitions if x)) if transitions and any(transitions) and transition_points else None
-
-        def _py_r1000_expr_3():
-            return sum((1 for x in durations if x <= 7.0)) / len(durations) if durations else None
-
-        def _py_r1000_expr_4():
-            return sum(points) / len(valid) if points else None
-        summaries: list[dict[str, Any]] = []
-        for (team_id, game_id), game_rows in group_advanced_rows(rows).items():
-            _py_r1000_result_6 = _py_r1000_loop_1()
-            if _py_r1000_result_6[0] == _py_r1000_RETURN:
-                return _py_r1000_result_6
-            if _py_r1000_result_6[0] == _py_r1000_BREAK:
-                break
-            if _py_r1000_result_6[0] == _py_r1000_CONTINUE:
-                continue
-        return (_py_r1000_RETURN, index_game_summaries(summaries))
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+    summaries: list[dict[str, Any]] = []
+    for (team_id, game_id), game_rows in group_advanced_rows(rows).items():
+        valid = [row for row in game_rows if possession_counted(row)]
+        if not valid:
+            continue
+        transitions: list[bool] = []
+        transition_points: list[float] = []
+        points: list[float] = []
+        durations: list[float] = []
+        context = valid[0]
+        for row in valid:
+            transition = possession_transition(row)
+            pts = first_numeric(row, ("possession_points", "points_scored", "points", "score_value"))
+            duration = possession_duration(row)
+            if transition is not None:
+                transitions.append(transition)
+                if transition and pts is not None:
+                    transition_points.append(pts)
+            if pts is not None:
+                points.append(pts)
+            if duration is not None:
+                durations.append(duration)
+        summaries.append({
+            "game_id": game_id,
+            "team_id": team_id,
+            "_date": context["_date"],
+            "_dt": context["_dt"],
+            "possession_transition_share": (sum(1 for x in transitions if x) / len(transitions)) if transitions else None,
+            "possession_transition_ppp": (sum(transition_points) / sum(1 for x in transitions if x)) if transitions and any(transitions) and transition_points else None,
+            "possession_avg_duration_seconds": mean(durations),
+            "possession_early_offense_share": (sum(1 for x in durations if x <= 7.0) / len(durations)) if durations else None,
+            "possession_ppp": (sum(points) / len(valid)) if points else None,
+        })
+    return index_game_summaries(summaries)
 
 
 def shot_made(row: dict[str, Any]) -> bool | None:
@@ -2916,115 +3193,45 @@ def shot_rim(row: dict[str, Any]) -> bool | None:
 
 
 def build_shot_index(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
-
-    def _py_r1000_impl():
-        nonlocal rows
-        context: object
-        distance: object
-        distances: object
-        game_id: object
-        game_rows: object
-        high_value: object
-        made: object
-        rim: object
-        rim_flags: object
-        rim_makes: object
-        row: object
-        summaries: object
-        team_id: object
-        three: object
-        three_flags: object
-        three_makes: object
-
-        def _py_r1000_loop_1():
-            nonlocal context, distance, distances, high_value, made, rim, rim_flags, rim_makes, row, three, three_flags, three_makes
-
-            def _py_r1000_loop_2():
-                nonlocal distance, made, rim, three
-
-                def _py_r1000_if_3():
-                    rim_flags.append(rim)
-                    if rim and made is not None:
-                        rim_makes.append(made)
-                    return (_py_r1000_NONE, None)
-
-                def _py_r1000_if_5():
-                    three_flags.append(three)
-                    if three and made is not None:
-                        three_makes.append(made)
-                    return (_py_r1000_NONE, None)
-
-                def _py_r1000_if_7():
-                    high_value.append(rim or three)
-                    return (_py_r1000_NONE, None)
-                rim = shot_rim(row)
-                three = shot_three(row)
-                made = shot_made(row)
-                distance = shot_distance(row)
-                if rim is not None:
-                    _py_r1000_result_4 = _py_r1000_if_3()
-                    if _py_r1000_result_4[0] != _py_r1000_NONE:
-                        return _py_r1000_result_4
-                if three is not None:
-                    _py_r1000_result_6 = _py_r1000_if_5()
-                    if _py_r1000_result_6[0] != _py_r1000_NONE:
-                        return _py_r1000_result_6
-                if rim is not None and three is not None:
-                    _py_r1000_result_8 = _py_r1000_if_7()
-                    if _py_r1000_result_8[0] != _py_r1000_NONE:
-                        return _py_r1000_result_8
-                if distance is not None:
-                    distances.append(distance)
-                return (_py_r1000_NONE, None)
-            rim_flags = []
-            three_flags = []
-            rim_makes = []
-            three_makes = []
-            high_value = []
-            distances = []
-            context = game_rows[0]
-            for row in game_rows:
-                _py_r1000_result_9 = _py_r1000_loop_2()
-                if _py_r1000_result_9[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_9
-                if _py_r1000_result_9[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_9[0] == _py_r1000_CONTINUE:
-                    continue
-            summaries.append({'game_id': game_id, 'team_id': team_id, '_date': context['_date'], '_dt': context['_dt'], 'shot_rim_rate': _py_r1000_expr_1(), 'shot_rim_fg_pct': _py_r1000_expr_2(), 'shot_three_rate': _py_r1000_expr_3(), 'shot_three_fg_pct': _py_r1000_expr_4(), 'shot_high_value_rate': _py_r1000_expr_5(), 'shot_avg_distance': mean(distances)})
-            return (_py_r1000_NONE, None)
-
-        def _py_r1000_expr_1():
-            return sum((1 for x in rim_flags if x)) / len(rim_flags) if rim_flags else None
-
-        def _py_r1000_expr_2():
-            return sum((1 for x in rim_makes if x)) / len(rim_makes) if rim_makes else None
-
-        def _py_r1000_expr_3():
-            return sum((1 for x in three_flags if x)) / len(three_flags) if three_flags else None
-
-        def _py_r1000_expr_4():
-            return sum((1 for x in three_makes if x)) / len(three_makes) if three_makes else None
-
-        def _py_r1000_expr_5():
-            return sum((1 for x in high_value if x)) / len(high_value) if high_value else None
-        summaries: list[dict[str, Any]] = []
-        for (team_id, game_id), game_rows in group_advanced_rows(rows).items():
-            _py_r1000_result_10 = _py_r1000_loop_1()
-            if _py_r1000_result_10[0] == _py_r1000_RETURN:
-                return _py_r1000_result_10
-            if _py_r1000_result_10[0] == _py_r1000_BREAK:
-                break
-            if _py_r1000_result_10[0] == _py_r1000_CONTINUE:
-                continue
-        return (_py_r1000_RETURN, index_game_summaries(summaries))
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+    summaries: list[dict[str, Any]] = []
+    for (team_id, game_id), game_rows in group_advanced_rows(rows).items():
+        rim_flags: list[bool] = []
+        three_flags: list[bool] = []
+        rim_makes: list[bool] = []
+        three_makes: list[bool] = []
+        high_value: list[bool] = []
+        distances: list[float] = []
+        context = game_rows[0]
+        for row in game_rows:
+            rim = shot_rim(row)
+            three = shot_three(row)
+            made = shot_made(row)
+            distance = shot_distance(row)
+            if rim is not None:
+                rim_flags.append(rim)
+                if rim and made is not None:
+                    rim_makes.append(made)
+            if three is not None:
+                three_flags.append(three)
+                if three and made is not None:
+                    three_makes.append(made)
+            if rim is not None and three is not None:
+                high_value.append(rim or three)
+            if distance is not None:
+                distances.append(distance)
+        summaries.append({
+            "game_id": game_id,
+            "team_id": team_id,
+            "_date": context["_date"],
+            "_dt": context["_dt"],
+            "shot_rim_rate": (sum(1 for x in rim_flags if x) / len(rim_flags)) if rim_flags else None,
+            "shot_rim_fg_pct": (sum(1 for x in rim_makes if x) / len(rim_makes)) if rim_makes else None,
+            "shot_three_rate": (sum(1 for x in three_flags if x) / len(three_flags)) if three_flags else None,
+            "shot_three_fg_pct": (sum(1 for x in three_makes if x) / len(three_makes)) if three_makes else None,
+            "shot_high_value_rate": (sum(1 for x in high_value if x) / len(high_value)) if high_value else None,
+            "shot_avg_distance": mean(distances),
+        })
+    return index_game_summaries(summaries)
 
 
 def build_advanced_indexes(

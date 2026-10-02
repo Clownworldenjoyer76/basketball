@@ -366,143 +366,77 @@ def collect_league_data(league: str, root: Path) -> dict:
 
 
 def collect_all_data(payloads: dict[str, dict]) -> dict:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
+    grand_rows = [
+        payload.get("grand_total") or {}
+        for payload in payloads.values()
+        if payload.get("grand_total")
+    ]
 
-    def _py_r1000_impl():
-        nonlocal payloads
-        bets: object
-        by_market_summary: object
-        dimension: object
-        grand_rows: object
-        grand_total: object
-        key: object
-        league: object
-        league_markets: object
-        league_overview: object
-        losses: object
-        market: object
-        market_payload: object
-        markets: object
-        overview: object
-        payload: object
-        pushes: object
-        quality: object
-        rows: object
-        units_flat: object
-        units_kelly: object
-        view: object
-        wins: object
+    bets = int(sum(to_number(row.get("bets")) for row in grand_rows))
+    wins = int(sum(to_number(row.get("wins")) for row in grand_rows))
+    losses = int(sum(to_number(row.get("losses")) for row in grand_rows))
+    pushes = int(sum(to_number(row.get("pushes")) for row in grand_rows))
+    units_flat = sum(to_number(row.get("units_flat")) for row in grand_rows)
+    units_kelly = sum(to_number(row.get("units_kelly")) for row in grand_rows)
 
-        def _py_r1000_loop_1():
-            nonlocal dimension, key, league_markets, league_overview, market, market_payload, rows, view
+    grand_total = {
+        "league": "ALL",
+        "bets": bets,
+        "wins": wins,
+        "losses": losses,
+        "pushes": pushes,
+        "win_pct": wins / (wins + losses) if (wins + losses) else None,
+        "units_flat": units_flat if grand_rows else None,
+        "roi_flat": units_flat / bets if bets else None,
+        "units_kelly": units_kelly if grand_rows else None,
+        "roi_kelly": None,
+    }
 
-            def _py_r1000_loop_2():
-                overview[key].extend(add_league(league_overview.get(key) or [], league))
-                return (_py_r1000_NONE, None)
+    by_market_summary: list[dict] = []
+    quality: list[dict] = []
+    overview = {
+        "by_market": [],
+        "by_side_group": [],
+        "by_date": [],
+    }
+    markets = {
+        market: {"by": {}, "by_side": {}}
+        for market in MARKETS
+    }
 
-            def _py_r1000_loop_4():
-                nonlocal dimension, market_payload, rows, view
+    for league, payload in payloads.items():
+        by_market_summary.extend(
+            add_league(payload.get("by_market_summary") or [], league)
+        )
+        quality.extend(add_league(payload.get("quality") or [], league))
 
-                def _py_r1000_loop_5():
-                    nonlocal dimension, rows
+        league_overview = payload.get("overview") or {}
+        for key in overview:
+            overview[key].extend(
+                add_league(league_overview.get(key) or [], league)
+            )
 
-                    def _py_r1000_loop_6():
-                        markets[market][view].setdefault(dimension, [])
-                        markets[market][view][dimension].extend(add_league(rows or [], league))
-                        return (_py_r1000_NONE, None)
-                    for dimension, rows in (market_payload.get(view) or {}).items():
-                        _py_r1000_result_7 = _py_r1000_loop_6()
-                        if _py_r1000_result_7[0] == _py_r1000_RETURN:
-                            return _py_r1000_result_7
-                        if _py_r1000_result_7[0] == _py_r1000_BREAK:
-                            break
-                        if _py_r1000_result_7[0] == _py_r1000_CONTINUE:
-                            continue
-                    return (_py_r1000_NONE, None)
-                market_payload = league_markets.get(market) or {'by': {}, 'by_side': {}}
-                for view in ('by', 'by_side'):
-                    _py_r1000_result_8 = _py_r1000_loop_5()
-                    if _py_r1000_result_8[0] == _py_r1000_RETURN:
-                        return _py_r1000_result_8
-                    if _py_r1000_result_8[0] == _py_r1000_BREAK:
-                        break
-                    if _py_r1000_result_8[0] == _py_r1000_CONTINUE:
-                        continue
-                return (_py_r1000_NONE, None)
-            by_market_summary.extend(add_league(payload.get('by_market_summary') or [], league))
-            quality.extend(add_league(payload.get('quality') or [], league))
-            league_overview = payload.get('overview') or {}
-            for key in overview:
-                _py_r1000_result_3 = _py_r1000_loop_2()
-                if _py_r1000_result_3[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_3
-                if _py_r1000_result_3[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_3[0] == _py_r1000_CONTINUE:
-                    continue
-            league_markets = payload.get('markets') or {}
-            for market in MARKETS:
-                _py_r1000_result_9 = _py_r1000_loop_4()
-                if _py_r1000_result_9[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_9
-                if _py_r1000_result_9[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_9[0] == _py_r1000_CONTINUE:
-                    continue
-            return (_py_r1000_NONE, None)
+        league_markets = payload.get("markets") or {}
+        for market in MARKETS:
+            market_payload = league_markets.get(market) or {"by": {}, "by_side": {}}
 
-        def _py_r1000_chunk_11():
-            nonlocal bets, grand_rows, losses, pushes, wins
-            grand_rows = [payload.get('grand_total') or {} for payload in payloads.values() if payload.get('grand_total')]
-            bets = int(sum((to_number(row.get('bets')) for row in grand_rows)))
-            wins = int(sum((to_number(row.get('wins')) for row in grand_rows)))
-            losses = int(sum((to_number(row.get('losses')) for row in grand_rows)))
-            pushes = int(sum((to_number(row.get('pushes')) for row in grand_rows)))
-            return (_py_r1000_NONE, None)
+            for view in ("by", "by_side"):
+                for dimension, rows in (market_payload.get(view) or {}).items():
+                    markets[market][view].setdefault(dimension, [])
+                    markets[market][view][dimension].extend(
+                        add_league(rows or [], league)
+                    )
 
-        def _py_r1000_chunk_12():
-            nonlocal by_market_summary, grand_total, markets, overview, quality, units_flat, units_kelly
-            units_flat = sum((to_number(row.get('units_flat')) for row in grand_rows))
-            units_kelly = sum((to_number(row.get('units_kelly')) for row in grand_rows))
-            grand_total = {'league': 'ALL', 'bets': bets, 'wins': wins, 'losses': losses, 'pushes': pushes, 'win_pct': wins / (wins + losses) if wins + losses else None, 'units_flat': units_flat if grand_rows else None, 'roi_flat': units_flat / bets if bets else None, 'units_kelly': units_kelly if grand_rows else None, 'roi_kelly': None}
-            by_market_summary = []
-            quality = []
-            overview = {'by_market': [], 'by_side_group': [], 'by_date': []}
-            markets = {market: {'by': {}, 'by_side': {}} for market in MARKETS}
-            return (_py_r1000_NONE, None)
-
-        def _py_r1000_chunk_13():
-            nonlocal league, payload
-
-            def _py_r1000_loop_14():
-                _py_r1000_result_10 = _py_r1000_loop_1()
-                if _py_r1000_result_10[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_10
-                if _py_r1000_result_10[0] == _py_r1000_BREAK:
-                    return (_py_r1000_BREAK, None)
-                if _py_r1000_result_10[0] == _py_r1000_CONTINUE:
-                    return (_py_r1000_CONTINUE, None)
-                return (_py_r1000_NONE, None)
-            for league, payload in payloads.items():
-                _py_r1000_result_15 = _py_r1000_loop_14()
-                if _py_r1000_result_15[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_15
-                if _py_r1000_result_15[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_15[0] == _py_r1000_CONTINUE:
-                    continue
-            return (_py_r1000_RETURN, {'league': 'ALL', 'display': 'All', 'is_all': True, 'grand_total': grand_total, 'by_market_summary': by_market_summary, 'quality': quality, 'overview': overview, 'markets': markets})
-        for _py_r1000_block_16 in (_py_r1000_chunk_11, _py_r1000_chunk_12, _py_r1000_chunk_13):
-            _py_r1000_result_17 = _py_r1000_block_16()
-            if _py_r1000_result_17[0] != _py_r1000_NONE:
-                return _py_r1000_result_17
-        return (_py_r1000_NONE, None)
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+    return {
+        "league": "ALL",
+        "display": "All",
+        "is_all": True,
+        "grand_total": grand_total,
+        "by_market_summary": by_market_summary,
+        "quality": quality,
+        "overview": overview,
+        "markets": markets,
+    }
 
 
 # ============================================================

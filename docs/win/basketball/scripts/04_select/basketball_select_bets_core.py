@@ -214,26 +214,6 @@ def _fails_band(
     return True
 
 
-def _fails_band(
-    values,
-    scfg,
-    config_key,
-    value_key,
-    debug_key,
-    *,
-    require_value=False,
-):
-    if config_key not in scfg:
-        return False
-    value = values.get(value_key)
-    if require_value and value is None:
-        return False
-    if in_any_band(value, scfg[config_key]):
-        return False
-    DEBUG_COUNTS[debug_key] += 1
-    return True
-
-
 def passes_filters(values: dict, scfg: dict, game_date: str) -> bool:
     checks = (
         ("odds_bands", "odds", "fail_odds", False),
@@ -597,103 +577,6 @@ def process_file(file: Path, league: str, market_type: str):
 # =========================
 # MAIN
 # =========================
-
-def _collect_candidate_frames(summary, per_file):
-    league_dfs = {league: [] for league in LEAGUES}
-
-    for league in LEAGUES:
-        for market in MARKETS:
-            folder = INPUT_DIR / league / market
-            if not folder.exists():
-                _log(f"INPUT FOLDER MISSING: {folder}", "WARN")
-                continue
-
-            files = sorted(folder.glob("*.csv"))
-            if not files:
-                _log(
-                    f"NO FILES: league={league} market={market}",
-                    "WARN",
-                )
-                continue
-
-            for path in files:
-                per_file_row = {
-                    "name": path.name,
-                    "market": market,
-                    "league": league.upper(),
-                    "selected": 0,
-                    "status": "ok",
-                }
-                try:
-                    df, selected = process_file(path, league, market)
-                    per_file_row["selected"] = selected
-                    summary["files_processed"] += 1
-                    summary["total_candidates"] += selected
-                    if not df.empty:
-                        league_dfs[league].append(df)
-                except KeyError as exc:
-                    _log(
-                        f"{path.name} CONFIG ERROR: {exc}",
-                        "ERROR",
-                    )
-                    per_file_row["status"] = "config_error"
-                    summary["errors"] += 1
-                except Exception as exc:
-                    _log(
-                        f"{path.name} FAILED: {exc}\n"
-                        f"{traceback.format_exc()}",
-                        "ERROR",
-                    )
-                    per_file_row["status"] = "error"
-                    summary["errors"] += 1
-                per_file.append(per_file_row)
-
-    return league_dfs
-
-
-def _combine_candidate_frames(league_dfs, summary):
-    candidate_frames = [
-        pd.concat(league_dfs[league], ignore_index=True)
-        for league in LEAGUES
-        if league_dfs[league]
-    ]
-    all_candidates = (
-        pd.concat(candidate_frames, ignore_index=True)
-        if candidate_frames
-        else pd.DataFrame()
-    )
-    if not all_candidates.empty:
-        all_candidates, dropped = reconcile_ml_vs_spread(all_candidates)
-        summary["ml_vs_spread_dropped"] = dropped
-    return all_candidates
-
-
-def _write_final_pick_files(all_candidates, summary):
-    final_picks = all_candidates.copy()
-    summary["total_candidates"] = (
-        len(all_candidates) + summary["ml_vs_spread_dropped"]
-    )
-    summary["total_selected"] = len(final_picks)
-
-    for league in LEAGUES:
-        if final_picks.empty:
-            out_df = pd.DataFrame()
-        else:
-            league_mask = (
-                final_picks["league_lower"].astype(str).str.lower()
-                == league
-            )
-            out_df = final_picks[league_mask].copy()
-
-        summary[f"{league}_bets"] = len(out_df)
-        if out_df.empty:
-            _log(
-                "NO FINAL SELECTED ROWS FOR LEAGUE: "
-                f"{league}; daily pick files not written"
-            )
-            continue
-        write_daily_pick_files(league, out_df)
-
 
 def _collect_candidate_frames(summary, per_file):
     league_dfs = {league: [] for league in LEAGUES}

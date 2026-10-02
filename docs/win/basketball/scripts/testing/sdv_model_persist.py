@@ -1140,115 +1140,265 @@ def metadata_payload(
     }
 
 
-def validate_written_bundle(league_root: Path) -> None:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
+def validate_written_bundle(
+    league_root: Path,
+) -> None:
+    paths = {
+        name: (
+            league_root
+            / name
+        )
+        for name
+        in REQUIRED_ARTIFACT_FILES
+    }
 
-    def _py_r1000_impl():
-        nonlocal league_root
-        coefficient_names: object
-        coefficients: object
-        contract: object
-        encoded_order: object
-        encoder: object
-        feature_versions: object
-        margin: object
-        metadata: object
-        missing: object
-        model: object
-        model_order: object
-        model_versions: object
-        name: object
-        paths: object
-        residual: object
-        schema: object
-        std: object
-        total: object
+    missing = [
+        str(path)
+        for path
+        in paths.values()
+        if not path.exists()
+    ]
 
-        def _py_r1000_loop_1():
-            nonlocal coefficient_names, coefficients, encoder, model_order, residual, std
-            encoder = model.get('encoder')
-            if not isinstance(encoder, dict):
-                raise RuntimeError(f'{name}: encoder missing')
-            model_order = encoder.get('encoded_feature_order')
-            if model_order != encoded_order:
-                raise RuntimeError(f'{name}: encoded feature order does not match schema')
-            coefficients = model.get('coefficients')
-            if not isinstance(coefficients, list):
-                raise RuntimeError(f'{name}: coefficients invalid')
-            if len(coefficients) != len(encoded_order):
-                raise RuntimeError(f'{name}: coefficient count does not match schema')
-            coefficient_names = [item.get('feature') for item in coefficients]
-            if coefficient_names != encoded_order:
-                raise RuntimeError(f'{name}: coefficient feature order does not match schema')
-            residual = model.get('residual_distribution')
-            if not isinstance(residual, dict):
-                raise RuntimeError(f'{name}: residual distribution missing')
-            std = trainer.to_float(residual.get('std'))
-            if std is None or std <= 0:
-                raise RuntimeError(f'{name}: residual std must be positive')
-            return (_py_r1000_NONE, None)
+    if missing:
+        raise RuntimeError(
+            "Missing model artifacts: "
+            f"{missing}"
+        )
 
-        def _py_r1000_chunk_3():
-            nonlocal feature_versions, margin, metadata, missing, model_versions, paths, schema, total
-            paths = {name: league_root / name for name in REQUIRED_ARTIFACT_FILES}
-            missing = [str(path) for path in paths.values() if not path.exists()]
-            if missing:
-                raise RuntimeError(f'Missing model artifacts: {missing}')
-            margin = json_read(paths['margin_model.json'])
-            total = json_read(paths['total_model.json'])
-            schema = json_read(paths['feature_schema.json'])
-            metadata = json_read(paths['metadata.json'])
-            feature_versions = {trainer.clean(margin.get('feature_version')), trainer.clean(total.get('feature_version')), trainer.clean(schema.get('feature_version')), trainer.clean(metadata.get('feature_version'))}
-            if len(feature_versions) != 1 or '' in feature_versions:
-                raise RuntimeError(f'Artifact feature versions do not match: {feature_versions}')
-            model_versions = {trainer.clean(margin.get('model_version')), trainer.clean(total.get('model_version')), trainer.clean(schema.get('model_version')), trainer.clean(metadata.get('model_version'))}
-            return (_py_r1000_NONE, None)
+    margin = json_read(
+        paths[
+            "margin_model.json"
+        ]
+    )
 
-        def _py_r1000_chunk_4():
-            nonlocal contract, encoded_order, model, name
+    total = json_read(
+        paths[
+            "total_model.json"
+        ]
+    )
 
-            def _py_r1000_loop_5():
-                _py_r1000_result_2 = _py_r1000_loop_1()
-                if _py_r1000_result_2[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_2
-                if _py_r1000_result_2[0] == _py_r1000_BREAK:
-                    return (_py_r1000_BREAK, None)
-                if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
-                    return (_py_r1000_CONTINUE, None)
-                return (_py_r1000_NONE, None)
-            if len(model_versions) != 1 or '' in model_versions:
-                raise RuntimeError(f'Artifact model versions do not match: {model_versions}')
-            encoded_order = schema.get('encoded_feature_order')
-            if not isinstance(encoded_order, list):
-                raise RuntimeError('feature_schema encoded order is invalid')
-            for name, model in (('margin', margin), ('total', total)):
-                _py_r1000_result_6 = _py_r1000_loop_5()
-                if _py_r1000_result_6[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_6
-                if _py_r1000_result_6[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_6[0] == _py_r1000_CONTINUE:
-                    continue
-            contract = metadata.get('version_enforcement_contract')
-            return (_py_r1000_NONE, None)
+    schema = json_read(
+        paths[
+            "feature_schema.json"
+        ]
+    )
 
-        def _py_r1000_chunk_7():
-            if not isinstance(contract, dict):
-                raise RuntimeError('metadata version enforcement contract missing')
-            if not all((bool(contract.get(key, False)) for key in ('predictor_must_require_exact_model_version_match', 'predictor_must_require_exact_feature_version_match', 'predictor_must_refuse_on_mismatch'))):
-                raise RuntimeError('metadata version enforcement contract is incomplete')
-            return (_py_r1000_NONE, None)
-        for _py_r1000_block_8 in (_py_r1000_chunk_3, _py_r1000_chunk_4, _py_r1000_chunk_7):
-            _py_r1000_result_9 = _py_r1000_block_8()
-            if _py_r1000_result_9[0] != _py_r1000_NONE:
-                return _py_r1000_result_9
-        return (_py_r1000_NONE, None)
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+    metadata = json_read(
+        paths[
+            "metadata.json"
+        ]
+    )
+
+    feature_versions = {
+        trainer.clean(
+            margin.get(
+                "feature_version"
+            )
+        ),
+        trainer.clean(
+            total.get(
+                "feature_version"
+            )
+        ),
+        trainer.clean(
+            schema.get(
+                "feature_version"
+            )
+        ),
+        trainer.clean(
+            metadata.get(
+                "feature_version"
+            )
+        ),
+    }
+
+    if (
+        len(feature_versions) != 1
+        or "" in feature_versions
+    ):
+        raise RuntimeError(
+            "Artifact feature versions "
+            "do not match: "
+            f"{feature_versions}"
+        )
+
+    model_versions = {
+        trainer.clean(
+            margin.get(
+                "model_version"
+            )
+        ),
+        trainer.clean(
+            total.get(
+                "model_version"
+            )
+        ),
+        trainer.clean(
+            schema.get(
+                "model_version"
+            )
+        ),
+        trainer.clean(
+            metadata.get(
+                "model_version"
+            )
+        ),
+    }
+
+    if (
+        len(model_versions) != 1
+        or "" in model_versions
+    ):
+        raise RuntimeError(
+            "Artifact model versions "
+            "do not match: "
+            f"{model_versions}"
+        )
+
+    encoded_order = schema.get(
+        "encoded_feature_order"
+    )
+
+    if not isinstance(
+        encoded_order,
+        list,
+    ):
+        raise RuntimeError(
+            "feature_schema encoded order "
+            "is invalid"
+        )
+
+    for (
+        name,
+        model,
+    ) in (
+        (
+            "margin",
+            margin,
+        ),
+        (
+            "total",
+            total,
+        ),
+    ):
+        encoder = model.get(
+            "encoder"
+        )
+
+        if not isinstance(
+            encoder,
+            dict,
+        ):
+            raise RuntimeError(
+                f"{name}: encoder missing"
+            )
+
+        model_order = encoder.get(
+            "encoded_feature_order"
+        )
+
+        if model_order != encoded_order:
+            raise RuntimeError(
+                f"{name}: encoded feature "
+                "order does not match schema"
+            )
+
+        coefficients = model.get(
+            "coefficients"
+        )
+
+        if not isinstance(
+            coefficients,
+            list,
+        ):
+            raise RuntimeError(
+                f"{name}: coefficients invalid"
+            )
+
+        if (
+            len(coefficients)
+            != len(
+                encoded_order
+            )
+        ):
+            raise RuntimeError(
+                f"{name}: coefficient count "
+                "does not match schema"
+            )
+
+        coefficient_names = [
+            item.get(
+                "feature"
+            )
+            for item
+            in coefficients
+        ]
+
+        if coefficient_names != encoded_order:
+            raise RuntimeError(
+                f"{name}: coefficient feature "
+                "order does not match schema"
+            )
+
+        residual = model.get(
+            "residual_distribution"
+        )
+
+        if not isinstance(
+            residual,
+            dict,
+        ):
+            raise RuntimeError(
+                f"{name}: residual "
+                "distribution missing"
+            )
+
+        std = trainer.to_float(
+            residual.get(
+                "std"
+            )
+        )
+
+        if (
+            std is None
+            or std <= 0
+        ):
+            raise RuntimeError(
+                f"{name}: residual std "
+                "must be positive"
+            )
+
+    contract = metadata.get(
+        "version_enforcement_contract"
+    )
+
+    if not isinstance(
+        contract,
+        dict,
+    ):
+        raise RuntimeError(
+            "metadata version enforcement "
+            "contract missing"
+        )
+
+    if not all(
+        bool(
+            contract.get(
+                key,
+                False,
+            )
+        )
+        for key
+        in (
+            "predictor_must_require_exact_model_version_match",
+            "predictor_must_require_exact_feature_version_match",
+            "predictor_must_refuse_on_mismatch",
+        )
+    ):
+        raise RuntimeError(
+            "metadata version enforcement "
+            "contract is incomplete"
+        )
 
 
 def persist_league(

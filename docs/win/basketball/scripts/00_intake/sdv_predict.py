@@ -1329,209 +1329,336 @@ def exact_single_version(
     return next(iter(normalized))
 
 
-def validate_artifacts(cfg: dict[str, Any], league: str, artifacts: dict[str, Any]) -> tuple[str, str]:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
+def validate_artifacts(
+    cfg: dict[str, Any],
+    league: str,
+    artifacts: dict[str, Any],
+) -> tuple[str, str]:
+    margin = artifacts["margin"]
+    total = artifacts["total"]
+    schema = artifacts["schema"]
+    metadata = artifacts["metadata"]
 
-    def _py_r1000_impl():
-        nonlocal artifacts, cfg, league
-        artifact: object
-        artifact_league: object
-        artifact_name: object
-        categorical_order: object
-        coefficients: object
-        configured_feature_version: object
-        configured_model_version: object
-        contract: object
-        encoded_order: object
-        expected_position: object
-        feature: object
-        feature_version: object
-        item: object
-        key: object
-        label: object
-        margin: object
-        margin_encoder: object
-        metadata: object
-        model: object
-        model_name: object
-        model_version: object
-        names: object
-        numeric_order: object
-        raw_order: object
-        residual: object
-        residual_std: object
-        schema: object
-        total: object
-        total_encoder: object
-        training_cfg: object
+    label = LEAGUE_LABELS[league]
 
-        def _py_r1000_loop_1():
-            nonlocal artifact_league
-            artifact_league = clean(artifact.get('league')).upper()
-            if artifact_league != label:
-                raise RuntimeError(f'{artifact_name} league mismatch: expected={label} actual={artifact_league}')
-            return (_py_r1000_NONE, None)
+    for artifact_name, artifact in (
+        ("margin_model", margin),
+        ("total_model", total),
+        ("feature_schema", schema),
+        ("metadata", metadata),
+    ):
+        artifact_league = clean(
+            artifact.get("league")
+        ).upper()
 
-        def _py_r1000_loop_3():
-            nonlocal coefficients, expected_position, feature, item, names, residual, residual_std
+        if artifact_league != label:
+            raise RuntimeError(
+                f"{artifact_name} league "
+                "mismatch: "
+                f"expected={label} "
+                f"actual={artifact_league}"
+            )
 
-            def _py_r1000_loop_4():
-                nonlocal feature
-                if not isinstance(item, dict):
-                    raise RuntimeError(f'{model_name}: invalid coefficient entry')
-                if int(item.get('position', -1)) != expected_position:
-                    raise RuntimeError(f'{model_name}: coefficient position mismatch')
-                feature = clean(item.get('feature'))
-                names.append(feature)
-                to_float_required(item.get('value'), f'{model_name} coefficient {feature}')
-                return (_py_r1000_NONE, None)
-            coefficients = model.get('coefficients')
-            if not isinstance(coefficients, list):
-                raise RuntimeError(f'{model_name}: coefficients invalid')
-            if len(coefficients) != len(encoded_order):
-                raise RuntimeError(f'{model_name}: coefficient count does not match schema')
-            names = []
-            for expected_position, item in enumerate(coefficients):
-                _py_r1000_result_5 = _py_r1000_loop_4()
-                if _py_r1000_result_5[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_5
-                if _py_r1000_result_5[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_5[0] == _py_r1000_CONTINUE:
-                    continue
-            if names != encoded_order:
-                raise RuntimeError(f'{model_name}: coefficient order does not match schema')
-            residual = model.get('residual_distribution')
-            if not isinstance(residual, dict):
-                raise RuntimeError(f'{model_name}: residual distribution missing')
-            residual_std = to_float_required(residual.get('std'), f'{model_name} residual std')
-            if residual_std <= 0:
-                raise RuntimeError(f'{model_name}: residual std must be positive')
-            to_float_required(residual.get('mean'), f'{model_name} residual mean')
-            return (_py_r1000_NONE, None)
+    configured_feature_version = (
+        feature_generation
+        .production_feature_version(cfg)
+    )
 
-        def _py_r1000_loop_7():
-            if not bool(contract.get(key, False)):
-                raise RuntimeError(f'Metadata version contract failed: {key}')
-            return (_py_r1000_NONE, None)
+    training_cfg = required_mapping(
+        cfg,
+        "training",
+    )
 
-        def _py_r1000_chunk_9():
-            nonlocal artifact, artifact_name, configured_feature_version, configured_model_version, encoded_order, feature_version, label, margin, margin_encoder, metadata, model_version, raw_order, schema, total, total_encoder, training_cfg
+    configured_model_version = clean(
+        training_cfg.get("model_version")
+    )
 
-            def _py_r1000_loop_10():
-                _py_r1000_result_2 = _py_r1000_loop_1()
-                if _py_r1000_result_2[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_2
-                if _py_r1000_result_2[0] == _py_r1000_BREAK:
-                    return (_py_r1000_BREAK, None)
-                if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
-                    return (_py_r1000_CONTINUE, None)
-                return (_py_r1000_NONE, None)
-            margin = artifacts['margin']
-            total = artifacts['total']
-            schema = artifacts['schema']
-            metadata = artifacts['metadata']
-            label = LEAGUE_LABELS[league]
-            for artifact_name, artifact in (('margin_model', margin), ('total_model', total), ('feature_schema', schema), ('metadata', metadata)):
-                _py_r1000_result_11 = _py_r1000_loop_10()
-                if _py_r1000_result_11[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_11
-                if _py_r1000_result_11[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_11[0] == _py_r1000_CONTINUE:
-                    continue
-            configured_feature_version = feature_generation.production_feature_version(cfg)
-            training_cfg = required_mapping(cfg, 'training')
-            configured_model_version = clean(training_cfg.get('model_version'))
-            feature_version = exact_single_version([configured_feature_version, margin.get('feature_version'), total.get('feature_version'), schema.get('feature_version'), metadata.get('feature_version')], 'feature_version')
-            model_version = exact_single_version([configured_model_version, margin.get('model_version'), total.get('model_version'), schema.get('model_version'), metadata.get('model_version')], 'model_version')
-            margin_encoder = margin.get('encoder')
-            total_encoder = total.get('encoder')
-            if not isinstance(margin_encoder, dict):
-                raise RuntimeError('margin_model encoder missing')
-            if not isinstance(total_encoder, dict):
-                raise RuntimeError('total_model encoder missing')
-            if margin_encoder != total_encoder:
-                raise RuntimeError('Margin and total encoders do not match')
-            encoded_order = schema.get('encoded_feature_order')
-            raw_order = schema.get('raw_feature_order')
-            return (_py_r1000_NONE, None)
+    feature_version = (
+        exact_single_version(
+            [
+                configured_feature_version,
+                margin.get(
+                    "feature_version"
+                ),
+                total.get(
+                    "feature_version"
+                ),
+                schema.get(
+                    "feature_version"
+                ),
+                metadata.get(
+                    "feature_version"
+                ),
+            ],
+            "feature_version",
+        )
+    )
 
-        def _py_r1000_chunk_12():
-            nonlocal categorical_order, numeric_order
-            if not isinstance(encoded_order, list):
-                raise RuntimeError('Invalid encoded_feature_order')
-            if not isinstance(raw_order, list):
-                raise RuntimeError('Invalid raw_feature_order')
-            if margin_encoder.get('encoded_feature_order') != encoded_order:
-                raise RuntimeError('Model encoded feature order does not match feature schema')
-            numeric_order = margin_encoder.get('numeric_feature_order')
-            categorical_order = margin_encoder.get('categorical_feature_order')
-            if not isinstance(numeric_order, list):
-                raise RuntimeError('Invalid numeric feature order')
-            if not isinstance(categorical_order, list):
-                raise RuntimeError('Invalid categorical feature order')
-            if numeric_order + categorical_order != raw_order:
-                raise RuntimeError('Raw feature order mismatch')
-            return (_py_r1000_NONE, None)
+    model_version = (
+        exact_single_version(
+            [
+                configured_model_version,
+                margin.get(
+                    "model_version"
+                ),
+                total.get(
+                    "model_version"
+                ),
+                schema.get(
+                    "model_version"
+                ),
+                metadata.get(
+                    "model_version"
+                ),
+            ],
+            "model_version",
+        )
+    )
 
-        def _py_r1000_chunk_13():
-            nonlocal contract, model, model_name
+    margin_encoder = margin.get(
+        "encoder"
+    )
 
-            def _py_r1000_loop_14():
-                _py_r1000_result_6 = _py_r1000_loop_3()
-                if _py_r1000_result_6[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_6
-                if _py_r1000_result_6[0] == _py_r1000_BREAK:
-                    return (_py_r1000_BREAK, None)
-                if _py_r1000_result_6[0] == _py_r1000_CONTINUE:
-                    return (_py_r1000_CONTINUE, None)
-                return (_py_r1000_NONE, None)
-            for model_name, model in (('margin', margin), ('total', total)):
-                _py_r1000_result_15 = _py_r1000_loop_14()
-                if _py_r1000_result_15[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_15
-                if _py_r1000_result_15[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_15[0] == _py_r1000_CONTINUE:
-                    continue
-            contract = metadata.get('version_enforcement_contract')
-            if not isinstance(contract, dict):
-                raise RuntimeError('Metadata version contract missing')
-            return (_py_r1000_NONE, None)
+    total_encoder = total.get(
+        "encoder"
+    )
 
-        def _py_r1000_chunk_16():
-            nonlocal key
+    if not isinstance(
+        margin_encoder,
+        dict,
+    ):
+        raise RuntimeError(
+            "margin_model encoder missing"
+        )
 
-            def _py_r1000_loop_17():
-                _py_r1000_result_8 = _py_r1000_loop_7()
-                if _py_r1000_result_8[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_8
-                if _py_r1000_result_8[0] == _py_r1000_BREAK:
-                    return (_py_r1000_BREAK, None)
-                if _py_r1000_result_8[0] == _py_r1000_CONTINUE:
-                    return (_py_r1000_CONTINUE, None)
-                return (_py_r1000_NONE, None)
-            for key in ('predictor_must_require_exact_model_version_match', 'predictor_must_require_exact_feature_version_match', 'predictor_must_refuse_on_mismatch'):
-                _py_r1000_result_18 = _py_r1000_loop_17()
-                if _py_r1000_result_18[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_18
-                if _py_r1000_result_18[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_18[0] == _py_r1000_CONTINUE:
-                    continue
-            return (_py_r1000_RETURN, (model_version, feature_version))
-        for _py_r1000_block_19 in (_py_r1000_chunk_9, _py_r1000_chunk_12, _py_r1000_chunk_13, _py_r1000_chunk_16):
-            _py_r1000_result_20 = _py_r1000_block_19()
-            if _py_r1000_result_20[0] != _py_r1000_NONE:
-                return _py_r1000_result_20
-        return (_py_r1000_NONE, None)
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+    if not isinstance(
+        total_encoder,
+        dict,
+    ):
+        raise RuntimeError(
+            "total_model encoder missing"
+        )
+
+    if margin_encoder != total_encoder:
+        raise RuntimeError(
+            "Margin and total encoders "
+            "do not match"
+        )
+
+    encoded_order = schema.get(
+        "encoded_feature_order"
+    )
+
+    raw_order = schema.get(
+        "raw_feature_order"
+    )
+
+    if not isinstance(
+        encoded_order,
+        list,
+    ):
+        raise RuntimeError(
+            "Invalid encoded_feature_order"
+        )
+
+    if not isinstance(
+        raw_order,
+        list,
+    ):
+        raise RuntimeError(
+            "Invalid raw_feature_order"
+        )
+
+    if (
+        margin_encoder.get(
+            "encoded_feature_order"
+        )
+        != encoded_order
+    ):
+        raise RuntimeError(
+            "Model encoded feature order "
+            "does not match feature schema"
+        )
+
+    numeric_order = (
+        margin_encoder.get(
+            "numeric_feature_order"
+        )
+    )
+
+    categorical_order = (
+        margin_encoder.get(
+            "categorical_feature_order"
+        )
+    )
+
+    if not isinstance(
+        numeric_order,
+        list,
+    ):
+        raise RuntimeError(
+            "Invalid numeric feature order"
+        )
+
+    if not isinstance(
+        categorical_order,
+        list,
+    ):
+        raise RuntimeError(
+            "Invalid categorical feature order"
+        )
+
+    if (
+        numeric_order
+        + categorical_order
+        != raw_order
+    ):
+        raise RuntimeError(
+            "Raw feature order mismatch"
+        )
+
+    for model_name, model in (
+        ("margin", margin),
+        ("total", total),
+    ):
+        coefficients = model.get(
+            "coefficients"
+        )
+
+        if not isinstance(
+            coefficients,
+            list,
+        ):
+            raise RuntimeError(
+                f"{model_name}: "
+                "coefficients invalid"
+            )
+
+        if len(coefficients) != len(
+            encoded_order
+        ):
+            raise RuntimeError(
+                f"{model_name}: "
+                "coefficient count does "
+                "not match schema"
+            )
+
+        names: list[str] = []
+
+        for expected_position, item in enumerate(
+            coefficients
+        ):
+            if not isinstance(
+                item,
+                dict,
+            ):
+                raise RuntimeError(
+                    f"{model_name}: "
+                    "invalid coefficient entry"
+                )
+
+            if int(
+                item.get(
+                    "position",
+                    -1,
+                )
+            ) != expected_position:
+                raise RuntimeError(
+                    f"{model_name}: "
+                    "coefficient position mismatch"
+                )
+
+            feature = clean(
+                item.get("feature")
+            )
+
+            names.append(feature)
+
+            to_float_required(
+                item.get("value"),
+                (
+                    f"{model_name} "
+                    f"coefficient {feature}"
+                ),
+            )
+
+        if names != encoded_order:
+            raise RuntimeError(
+                f"{model_name}: "
+                "coefficient order does "
+                "not match schema"
+            )
+
+        residual = model.get(
+            "residual_distribution"
+        )
+
+        if not isinstance(
+            residual,
+            dict,
+        ):
+            raise RuntimeError(
+                f"{model_name}: "
+                "residual distribution missing"
+            )
+
+        residual_std = (
+            to_float_required(
+                residual.get("std"),
+                (
+                    f"{model_name} "
+                    "residual std"
+                ),
+            )
+        )
+
+        if residual_std <= 0:
+            raise RuntimeError(
+                f"{model_name}: "
+                "residual std must be positive"
+            )
+
+        to_float_required(
+            residual.get("mean"),
+            (
+                f"{model_name} "
+                "residual mean"
+            ),
+        )
+
+    contract = metadata.get(
+        "version_enforcement_contract"
+    )
+
+    if not isinstance(
+        contract,
+        dict,
+    ):
+        raise RuntimeError(
+            "Metadata version contract "
+            "missing"
+        )
+
+    for key in (
+        "predictor_must_require_exact_model_version_match",
+        "predictor_must_require_exact_feature_version_match",
+        "predictor_must_refuse_on_mismatch",
+    ):
+        if not bool(
+            contract.get(
+                key,
+                False,
+            )
+        ):
+            raise RuntimeError(
+                "Metadata version contract "
+                f"failed: {key}"
+            )
+
+    return (
+        model_version,
+        feature_version,
+    )
 
 
 def validate_feature_row_schema(
@@ -1627,144 +1754,210 @@ def numeric_feature_value(
     return result
 
 
-def encode_feature_row(row: dict[str, Any], model: dict[str, Any], schema: dict[str, Any]) -> np.ndarray:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
+def encode_feature_row(
+    row: dict[str, Any],
+    model: dict[str, Any],
+    schema: dict[str, Any],
+) -> np.ndarray:
+    validate_feature_row_schema(
+        row,
+        schema,
+    )
 
-    def _py_r1000_impl():
-        nonlocal model, row, schema
-        categorical_encoding: object
-        category: object
-        encoded_index: object
-        encoded_order: object
-        encoder: object
-        feature_index: object
-        fill_value: object
-        intercept: object
-        intercept_index: object
-        item: object
-        mapping: object
-        mean_value: object
-        missing_token: object
-        name: object
-        numeric_scaling: object
-        raw_value: object
-        std_value: object
-        unknown_token: object
-        vector: object
+    encoder = model["encoder"]
 
-        def _py_r1000_loop_1():
-            nonlocal fill_value, mean_value, name, raw_value, std_value
-            name = clean(item.get('name'))
-            if name not in feature_index:
-                raise RuntimeError(f'Numeric feature absent from encoded order: {name}')
-            fill_value = to_float_required(item.get('missing_fill_value'), f'{name} fill value')
-            mean_value = to_float_required(item.get('mean'), f'{name} mean')
-            std_value = to_float_required(item.get('std'), f'{name} std')
-            if std_value <= 0:
-                raise RuntimeError(f'{name}: std must be positive')
-            raw_value = numeric_feature_value(row, name, fill_value)
-            vector[feature_index[name]] = (raw_value - mean_value) / std_value
-            return (_py_r1000_NONE, None)
+    encoded_order = encoder.get(
+        "encoded_feature_order"
+    )
 
-        def _py_r1000_loop_3():
-            nonlocal category, encoded_index, mapping, missing_token, name, unknown_token
-            name = clean(item.get('name'))
-            missing_token = clean(item.get('missing_token'))
-            unknown_token = clean(item.get('unknown_token'))
-            mapping = item.get('encoded_index_by_level')
-            if not isinstance(mapping, dict):
-                raise RuntimeError(f'{name}: categorical mapping missing')
-            category = clean(row.get(name)) or missing_token
-            if category not in mapping:
-                category = unknown_token
-            if category not in mapping:
-                raise RuntimeError(f'{name}: unknown category token not encoded')
-            encoded_index = int(mapping[category])
-            if encoded_index < 0 or encoded_index >= len(vector):
-                raise RuntimeError(f'{name}: encoded index out of bounds')
-            vector[encoded_index] = 1.0
-            return (_py_r1000_NONE, None)
+    if not isinstance(
+        encoded_order,
+        list,
+    ):
+        raise RuntimeError(
+            "Invalid encoded feature order"
+        )
 
-        def _py_r1000_chunk_5():
-            nonlocal encoded_order, encoder, feature_index, intercept, intercept_index, numeric_scaling, vector
-            validate_feature_row_schema(row, schema)
-            encoder = model['encoder']
-            encoded_order = encoder.get('encoded_feature_order')
-            if not isinstance(encoded_order, list):
-                raise RuntimeError('Invalid encoded feature order')
-            feature_index = {clean(feature): position for position, feature in enumerate(encoded_order)}
-            vector = np.zeros(len(encoded_order), dtype=float)
-            intercept = encoder.get('intercept')
-            if not isinstance(intercept, dict):
-                raise RuntimeError('Model intercept metadata missing')
-            intercept_index = int(intercept.get('encoded_index', -1))
-            if intercept_index < 0 or intercept_index >= len(vector):
-                raise RuntimeError('Invalid intercept index')
-            vector[intercept_index] = to_float_required(intercept.get('value'), 'intercept value')
-            numeric_scaling = encoder.get('numeric_scaling')
-            if not isinstance(numeric_scaling, list):
-                raise RuntimeError('numeric_scaling invalid')
-            return (_py_r1000_NONE, None)
+    feature_index = {
+        clean(feature): position
+        for position, feature
+        in enumerate(encoded_order)
+    }
 
-        def _py_r1000_chunk_6():
-            nonlocal categorical_encoding, item
+    vector = np.zeros(
+        len(encoded_order),
+        dtype=float,
+    )
 
-            def _py_r1000_loop_7():
-                _py_r1000_result_2 = _py_r1000_loop_1()
-                if _py_r1000_result_2[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_2
-                if _py_r1000_result_2[0] == _py_r1000_BREAK:
-                    return (_py_r1000_BREAK, None)
-                if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
-                    return (_py_r1000_CONTINUE, None)
-                return (_py_r1000_NONE, None)
-            for item in numeric_scaling:
-                _py_r1000_result_8 = _py_r1000_loop_7()
-                if _py_r1000_result_8[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_8
-                if _py_r1000_result_8[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_8[0] == _py_r1000_CONTINUE:
-                    continue
-            categorical_encoding = encoder.get('categorical_encoding')
-            if not isinstance(categorical_encoding, list):
-                raise RuntimeError('categorical_encoding invalid')
-            return (_py_r1000_NONE, None)
+    intercept = encoder.get(
+        "intercept"
+    )
 
-        def _py_r1000_chunk_9():
-            nonlocal item
+    if not isinstance(
+        intercept,
+        dict,
+    ):
+        raise RuntimeError(
+            "Model intercept metadata missing"
+        )
 
-            def _py_r1000_loop_10():
-                _py_r1000_result_4 = _py_r1000_loop_3()
-                if _py_r1000_result_4[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_4
-                if _py_r1000_result_4[0] == _py_r1000_BREAK:
-                    return (_py_r1000_BREAK, None)
-                if _py_r1000_result_4[0] == _py_r1000_CONTINUE:
-                    return (_py_r1000_CONTINUE, None)
-                return (_py_r1000_NONE, None)
-            for item in categorical_encoding:
-                _py_r1000_result_11 = _py_r1000_loop_10()
-                if _py_r1000_result_11[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_11
-                if _py_r1000_result_11[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_11[0] == _py_r1000_CONTINUE:
-                    continue
-            if not np.all(np.isfinite(vector)):
-                raise RuntimeError(f"Encoded feature vector contains non-finite values for game_id={row.get('game_id')}")
-            return (_py_r1000_RETURN, vector)
-        for _py_r1000_block_12 in (_py_r1000_chunk_5, _py_r1000_chunk_6, _py_r1000_chunk_9):
-            _py_r1000_result_13 = _py_r1000_block_12()
-            if _py_r1000_result_13[0] != _py_r1000_NONE:
-                return _py_r1000_result_13
-        return (_py_r1000_NONE, None)
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+    intercept_index = int(
+        intercept.get(
+            "encoded_index",
+            -1,
+        )
+    )
+
+    if (
+        intercept_index < 0
+        or intercept_index >= len(vector)
+    ):
+        raise RuntimeError(
+            "Invalid intercept index"
+        )
+
+    vector[intercept_index] = (
+        to_float_required(
+            intercept.get("value"),
+            "intercept value",
+        )
+    )
+
+    numeric_scaling = encoder.get(
+        "numeric_scaling"
+    )
+
+    if not isinstance(
+        numeric_scaling,
+        list,
+    ):
+        raise RuntimeError(
+            "numeric_scaling invalid"
+        )
+
+    for item in numeric_scaling:
+        name = clean(
+            item.get("name")
+        )
+
+        if name not in feature_index:
+            raise RuntimeError(
+                "Numeric feature absent "
+                "from encoded order: "
+                f"{name}"
+            )
+
+        fill_value = to_float_required(
+            item.get(
+                "missing_fill_value"
+            ),
+            f"{name} fill value",
+        )
+
+        mean_value = to_float_required(
+            item.get("mean"),
+            f"{name} mean",
+        )
+
+        std_value = to_float_required(
+            item.get("std"),
+            f"{name} std",
+        )
+
+        if std_value <= 0:
+            raise RuntimeError(
+                f"{name}: std must be positive"
+            )
+
+        raw_value = numeric_feature_value(
+            row,
+            name,
+            fill_value,
+        )
+
+        vector[
+            feature_index[name]
+        ] = (
+            raw_value - mean_value
+        ) / std_value
+
+    categorical_encoding = encoder.get(
+        "categorical_encoding"
+    )
+
+    if not isinstance(
+        categorical_encoding,
+        list,
+    ):
+        raise RuntimeError(
+            "categorical_encoding invalid"
+        )
+
+    for item in categorical_encoding:
+        name = clean(
+            item.get("name")
+        )
+
+        missing_token = clean(
+            item.get("missing_token")
+        )
+
+        unknown_token = clean(
+            item.get("unknown_token")
+        )
+
+        mapping = item.get(
+            "encoded_index_by_level"
+        )
+
+        if not isinstance(
+            mapping,
+            dict,
+        ):
+            raise RuntimeError(
+                f"{name}: categorical "
+                "mapping missing"
+            )
+
+        category = (
+            clean(row.get(name))
+            or missing_token
+        )
+
+        if category not in mapping:
+            category = unknown_token
+
+        if category not in mapping:
+            raise RuntimeError(
+                f"{name}: unknown category "
+                "token not encoded"
+            )
+
+        encoded_index = int(
+            mapping[category]
+        )
+
+        if (
+            encoded_index < 0
+            or encoded_index >= len(vector)
+        ):
+            raise RuntimeError(
+                f"{name}: encoded index "
+                "out of bounds"
+            )
+
+        vector[encoded_index] = 1.0
+
+    if not np.all(
+        np.isfinite(vector)
+    ):
+        raise RuntimeError(
+            "Encoded feature vector "
+            "contains non-finite values "
+            f"for game_id={row.get('game_id')}"
+        )
+
+    return vector
 
 
 def model_coefficients(

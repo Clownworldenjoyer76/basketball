@@ -415,202 +415,359 @@ def to_num(series):
     )
 
 
-def aggregate_block(df: pd.DataFrame, league: str, market_type: str | None, bucket_dimension: str, bucket_col: str, side_group_col: str | None=None) -> pd.DataFrame:
+def aggregate_block(
+    df: pd.DataFrame,
+    league: str,
+    market_type: str | None,
+    bucket_dimension: str,
+    bucket_col: str,
+    side_group_col: str | None = None,
+) -> pd.DataFrame:
     """Build one canonical aggregation DataFrame."""
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
 
-    def _py_r1000_impl():
-        nonlocal bucket_col, bucket_dimension, df, league, market_type, side_group_col
-        avg_edgepp: object
-        avg_ev: object
-        avg_kpct: object
-        avg_mp: object
-        avg_odds: object
-        bets: object
-        col: object
-        cols: object
-        group_cols: object
-        keys: object
-        losses: object
-        market_values: object
-        out: object
-        pushes: object
-        resolved_market_type: object
-        result: object
-        roi_flat: object
-        roi_kelly: object
-        row: object
-        rows: object
-        sort_cols: object
-        stake_total: object
-        sub: object
-        total: object
-        units_flat: object
-        units_kelly: object
-        win_pct: object
-        wins: object
-        work: object
+    if df.empty:
+        cols = (
+            CANON_COLS_WITH_SIDE
+            if side_group_col
+            else CANON_COLS_NO_SIDE
+        )
 
-        def _py_r1000_if_1():
-            nonlocal cols
-            cols = CANON_COLS_WITH_SIDE if side_group_col else CANON_COLS_NO_SIDE
-            return (_py_r1000_RETURN, pd.DataFrame(columns=cols))
+        return pd.DataFrame(
+            columns=cols
+        )
 
-        def _py_r1000_loop_3():
-            if col in work.columns:
-                work[col] = to_num(work[col])
-            return (_py_r1000_NONE, None)
+    work = df.copy()
 
-        def _py_r1000_loop_5():
-            nonlocal avg_edgepp, avg_ev, avg_kpct, avg_mp, avg_odds, bets, keys, losses, market_values, pushes, resolved_market_type, roi_flat, roi_kelly, row, stake_total, total, units_flat, units_kelly, win_pct, wins
+    for col in (
+        "profit_unit",
+        "profit_kelly",
+        "bet_stake_pct",
+        "bet_ev",
+        "bet_edge_vs_market",
+        "bet_kelly",
+        "bet_model_prob",
+        "bet_odds_american",
+    ):
+        if col in work.columns:
+            work[col] = to_num(
+                work[col]
+            )
 
-            def _py_r1000_else_6():
-                nonlocal market_values, resolved_market_type
-                if 'market_type' in sub.columns:
-                    market_values = sub['market_type'].astype(str).str.lower().unique()
-                else:
-                    market_values = []
-                resolved_market_type = market_values[0] if len(market_values) == 1 else 'mixed'
-                return (_py_r1000_NONE, None)
+    if "bet_result" in work.columns:
+        result = (
+            work["bet_result"]
+            .astype(str)
+            .str.strip()
+            .str.lower()
+        )
+    else:
+        result = pd.Series(
+            [""] * len(work)
+        )
 
-            def _py_r1000_chunk_8():
-                nonlocal avg_edgepp, avg_ev, avg_kpct, bets, keys, losses, pushes, roi_flat, roi_kelly, stake_total, total, units_flat, units_kelly, win_pct, wins
-                if not isinstance(keys, tuple):
-                    keys = (keys,)
-                wins = int(sub['_is_win'].sum())
-                losses = int(sub['_is_loss'].sum())
-                pushes = int(sub['_is_push'].sum())
-                bets = wins + losses + pushes
-                total = bets
-                units_flat = float(sub['profit_unit'].sum(skipna=True)) if 'profit_unit' in sub.columns else 0.0
-                units_kelly = float(sub['profit_kelly'].sum(skipna=True)) if 'profit_kelly' in sub.columns else 0.0
-                stake_total = float(sub['bet_stake_pct'].sum(skipna=True)) if 'bet_stake_pct' in sub.columns else 0.0
-                roi_flat, roi_kelly, win_pct = performance_rates(bets, units_flat, stake_total, units_kelly, wins, losses)
-                avg_ev = float(sub['bet_ev'].mean(skipna=True)) if 'bet_ev' in sub.columns else np.nan
-                avg_edgepp = float(sub['bet_edge_vs_market'].mean(skipna=True)) if 'bet_edge_vs_market' in sub.columns else np.nan
-                avg_kpct = float(sub['bet_kelly'].mean(skipna=True)) if 'bet_kelly' in sub.columns else np.nan
-                return (_py_r1000_NONE, None)
+    work["_is_win"] = (
+        result == "win"
+    ).astype(int)
 
-            def _py_r1000_chunk_9():
-                nonlocal avg_mp, avg_odds, resolved_market_type
+    work["_is_loss"] = (
+        result == "loss"
+    ).astype(int)
 
-                def _py_r1000_else_10():
-                    _py_r1000_result_7 = _py_r1000_else_6()
-                    if _py_r1000_result_7[0] != _py_r1000_NONE:
-                        return _py_r1000_result_7
-                    return (_py_r1000_NONE, None)
-                avg_mp = float(sub['bet_model_prob'].mean(skipna=True)) if 'bet_model_prob' in sub.columns else np.nan
-                avg_odds = float(sub['bet_odds_american'].mean(skipna=True)) if 'bet_odds_american' in sub.columns else np.nan
-                if market_type is not None:
-                    resolved_market_type = market_type
-                else:
-                    _py_r1000_result_11 = _py_r1000_else_10()
-                    if _py_r1000_result_11[0] != _py_r1000_NONE:
-                        return _py_r1000_result_11
-                return (_py_r1000_NONE, None)
+    work["_is_push"] = (
+        result == "push"
+    ).astype(int)
 
-            def _py_r1000_chunk_12():
-                nonlocal row
-                row = {'league': league, 'market_type': resolved_market_type, 'bucket_dimension': bucket_dimension, 'bucket': keys[-1] if len(keys) == 1 else keys[1], 'bets': bets, 'wins': wins, 'losses': losses, 'pushes': pushes, 'total': total, 'win_pct': round(win_pct, 4) if not pd.isna(win_pct) else np.nan, 'units_flat': round(units_flat, 4), 'roi_flat': round(roi_flat, 4) if not pd.isna(roi_flat) else np.nan, 'units_kelly': round(units_kelly, 6), 'roi_kelly': round(roi_kelly, 4) if not pd.isna(roi_kelly) else np.nan, 'avg_ev': round(avg_ev, 4) if not pd.isna(avg_ev) else np.nan, 'avg_edge_vs_market_pp': round(avg_edgepp, 4) if not pd.isna(avg_edgepp) else np.nan, 'avg_kelly_pct': round(avg_kpct, 4) if not pd.isna(avg_kpct) else np.nan, 'avg_model_prob': round(avg_mp, 4) if not pd.isna(avg_mp) else np.nan, 'avg_odds_american': round(avg_odds, 1) if not pd.isna(avg_odds) else np.nan}
-                return (_py_r1000_NONE, None)
+    group_cols = [
+        bucket_col
+    ]
 
-            def _py_r1000_chunk_13():
-                if side_group_col:
-                    row['side_group'] = keys[0]
-                rows.append(row)
-                return (_py_r1000_NONE, None)
-            for _py_r1000_block_14 in (_py_r1000_chunk_8, _py_r1000_chunk_9, _py_r1000_chunk_12, _py_r1000_chunk_13):
-                _py_r1000_result_15 = _py_r1000_block_14()
-                if _py_r1000_result_15[0] != _py_r1000_NONE:
-                    return _py_r1000_result_15
-            return (_py_r1000_NONE, None)
+    if side_group_col:
+        group_cols = [
+            side_group_col,
+            bucket_col,
+        ]
 
-        def _py_r1000_chunk_17():
-            nonlocal col, group_cols, result, work
+    rows = []
 
-            def _py_r1000_if_18():
-                _py_r1000_result_2 = _py_r1000_if_1()
-                if _py_r1000_result_2[0] != _py_r1000_NONE:
-                    return _py_r1000_result_2
-                return (_py_r1000_NONE, None)
+    for keys, sub in work.groupby(
+        group_cols,
+        dropna=False,
+        observed=True,
+    ):
+        if not isinstance(keys, tuple):
+            keys = (keys,)
 
-            def _py_r1000_loop_20():
-                _py_r1000_result_4 = _py_r1000_loop_3()
-                if _py_r1000_result_4[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_4
-                if _py_r1000_result_4[0] == _py_r1000_BREAK:
-                    return (_py_r1000_BREAK, None)
-                if _py_r1000_result_4[0] == _py_r1000_CONTINUE:
-                    return (_py_r1000_CONTINUE, None)
-                return (_py_r1000_NONE, None)
-            if df.empty:
-                _py_r1000_result_19 = _py_r1000_if_18()
-                if _py_r1000_result_19[0] != _py_r1000_NONE:
-                    return _py_r1000_result_19
-            work = df.copy()
-            for col in ('profit_unit', 'profit_kelly', 'bet_stake_pct', 'bet_ev', 'bet_edge_vs_market', 'bet_kelly', 'bet_model_prob', 'bet_odds_american'):
-                _py_r1000_result_21 = _py_r1000_loop_20()
-                if _py_r1000_result_21[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_21
-                if _py_r1000_result_21[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_21[0] == _py_r1000_CONTINUE:
-                    continue
-            if 'bet_result' in work.columns:
-                result = work['bet_result'].astype(str).str.strip().str.lower()
+        wins = int(
+            sub["_is_win"].sum()
+        )
+
+        losses = int(
+            sub["_is_loss"].sum()
+        )
+
+        pushes = int(
+            sub["_is_push"].sum()
+        )
+
+        bets = (
+            wins
+            + losses
+            + pushes
+        )
+
+        total = bets
+
+        units_flat = (
+            float(
+                sub["profit_unit"].sum(
+                    skipna=True
+                )
+            )
+            if "profit_unit" in sub.columns
+            else 0.0
+        )
+
+        units_kelly = (
+            float(
+                sub["profit_kelly"].sum(
+                    skipna=True
+                )
+            )
+            if "profit_kelly" in sub.columns
+            else 0.0
+        )
+
+        stake_total = (
+            float(
+                sub["bet_stake_pct"].sum(
+                    skipna=True
+                )
+            )
+            if "bet_stake_pct" in sub.columns
+            else 0.0
+        )
+
+        (
+            roi_flat,
+            roi_kelly,
+            win_pct,
+        ) = performance_rates(
+            bets,
+            units_flat,
+            stake_total,
+            units_kelly,
+            wins,
+            losses,
+        )
+
+        avg_ev = (
+            float(
+                sub["bet_ev"].mean(
+                    skipna=True
+                )
+            )
+            if "bet_ev" in sub.columns
+            else np.nan
+        )
+
+        avg_edgepp = (
+            float(
+                sub[
+                    "bet_edge_vs_market"
+                ].mean(
+                    skipna=True
+                )
+            )
+            if "bet_edge_vs_market"
+            in sub.columns
+            else np.nan
+        )
+
+        avg_kpct = (
+            float(
+                sub["bet_kelly"].mean(
+                    skipna=True
+                )
+            )
+            if "bet_kelly" in sub.columns
+            else np.nan
+        )
+
+        avg_mp = (
+            float(
+                sub[
+                    "bet_model_prob"
+                ].mean(
+                    skipna=True
+                )
+            )
+            if "bet_model_prob"
+            in sub.columns
+            else np.nan
+        )
+
+        avg_odds = (
+            float(
+                sub[
+                    "bet_odds_american"
+                ].mean(
+                    skipna=True
+                )
+            )
+            if "bet_odds_american"
+            in sub.columns
+            else np.nan
+        )
+
+        if market_type is not None:
+            resolved_market_type = (
+                market_type
+            )
+        else:
+            if "market_type" in sub.columns:
+                market_values = (
+                    sub["market_type"]
+                    .astype(str)
+                    .str.lower()
+                    .unique()
+                )
             else:
-                result = pd.Series([''] * len(work))
-            work['_is_win'] = (result == 'win').astype(int)
-            work['_is_loss'] = (result == 'loss').astype(int)
-            work['_is_push'] = (result == 'push').astype(int)
-            group_cols = [bucket_col]
-            return (_py_r1000_NONE, None)
+                market_values = []
 
-        def _py_r1000_chunk_22():
-            nonlocal cols, group_cols, keys, out, rows, sub
+            resolved_market_type = (
+                market_values[0]
+                if len(market_values) == 1
+                else "mixed"
+            )
 
-            def _py_r1000_loop_23():
-                _py_r1000_result_16 = _py_r1000_loop_5()
-                if _py_r1000_result_16[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_16
-                if _py_r1000_result_16[0] == _py_r1000_BREAK:
-                    return (_py_r1000_BREAK, None)
-                if _py_r1000_result_16[0] == _py_r1000_CONTINUE:
-                    return (_py_r1000_CONTINUE, None)
-                return (_py_r1000_NONE, None)
-            if side_group_col:
-                group_cols = [side_group_col, bucket_col]
-            rows = []
-            for keys, sub in work.groupby(group_cols, dropna=False, observed=True):
-                _py_r1000_result_24 = _py_r1000_loop_23()
-                if _py_r1000_result_24[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_24
-                if _py_r1000_result_24[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_24[0] == _py_r1000_CONTINUE:
-                    continue
-            cols = CANON_COLS_WITH_SIDE if side_group_col else CANON_COLS_NO_SIDE
-            out = pd.DataFrame(rows)
-            if out.empty:
-                return (_py_r1000_RETURN, pd.DataFrame(columns=cols))
-            return (_py_r1000_NONE, None)
+        row = {
+            "league": league,
+            "market_type": resolved_market_type,
+            "bucket_dimension": bucket_dimension,
+            "bucket": (
+                keys[-1]
+                if len(keys) == 1
+                else keys[1]
+            ),
+            "bets": bets,
+            "wins": wins,
+            "losses": losses,
+            "pushes": pushes,
+            "total": total,
+            "win_pct": (
+                round(
+                    win_pct,
+                    4,
+                )
+                if not pd.isna(win_pct)
+                else np.nan
+            ),
+            "units_flat": round(
+                units_flat,
+                4,
+            ),
+            "roi_flat": (
+                round(
+                    roi_flat,
+                    4,
+                )
+                if not pd.isna(roi_flat)
+                else np.nan
+            ),
+            "units_kelly": round(
+                units_kelly,
+                6,
+            ),
+            "roi_kelly": (
+                round(
+                    roi_kelly,
+                    4,
+                )
+                if not pd.isna(roi_kelly)
+                else np.nan
+            ),
+            "avg_ev": (
+                round(
+                    avg_ev,
+                    4,
+                )
+                if not pd.isna(avg_ev)
+                else np.nan
+            ),
+            "avg_edge_vs_market_pp": (
+                round(
+                    avg_edgepp,
+                    4,
+                )
+                if not pd.isna(avg_edgepp)
+                else np.nan
+            ),
+            "avg_kelly_pct": (
+                round(
+                    avg_kpct,
+                    4,
+                )
+                if not pd.isna(avg_kpct)
+                else np.nan
+            ),
+            "avg_model_prob": (
+                round(
+                    avg_mp,
+                    4,
+                )
+                if not pd.isna(avg_mp)
+                else np.nan
+            ),
+            "avg_odds_american": (
+                round(
+                    avg_odds,
+                    1,
+                )
+                if not pd.isna(avg_odds)
+                else np.nan
+            ),
+        }
 
-        def _py_r1000_chunk_25():
-            nonlocal out, sort_cols
-            sort_cols = [col for col in cols if col in ('side_group', 'bucket')]
-            out = out[cols].sort_values(by=sort_cols).reset_index(drop=True)
-            return (_py_r1000_RETURN, out)
-        for _py_r1000_block_26 in (_py_r1000_chunk_17, _py_r1000_chunk_22, _py_r1000_chunk_25):
-            _py_r1000_result_27 = _py_r1000_block_26()
-            if _py_r1000_result_27[0] != _py_r1000_NONE:
-                return _py_r1000_result_27
-        return (_py_r1000_NONE, None)
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+        if side_group_col:
+            row["side_group"] = (
+                keys[0]
+            )
+
+        rows.append(row)
+
+    cols = (
+        CANON_COLS_WITH_SIDE
+        if side_group_col
+        else CANON_COLS_NO_SIDE
+    )
+
+    out = pd.DataFrame(rows)
+
+    if out.empty:
+        return pd.DataFrame(
+            columns=cols
+        )
+
+    sort_cols = [
+        col
+        for col in cols
+        if col in (
+            "side_group",
+            "bucket",
+        )
+    ]
+
+    out = (
+        out[cols]
+        .sort_values(
+            by=sort_cols
+        )
+        .reset_index(
+            drop=True
+        )
+    )
+
+    return out
 
 
 # =========================

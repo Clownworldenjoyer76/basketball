@@ -444,95 +444,155 @@ def in_season(
 # EXISTING CURRENT PIPELINE HEALTH
 # =============================================================================
 
-def current_league_health(league: str, now: datetime, season_config: dict[str, dict[str, int]]) -> tuple[dict, list[str]]:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
+def current_league_health(
+    league: str,
+    now: datetime,
+    season_config: dict[str, dict[str, int]],
+) -> tuple[dict, list[str]]:
+    upper = LABEL[league]
+    date = now.strftime("%Y_%m_%d")
+    active = in_season(league, now, season_config)
 
-    def _py_r1000_impl():
-        nonlocal league, now, season_config
-        active: object
-        blank_daily_ids: object
-        blank_pred_ids: object
-        book_map: object
-        book_path: object
-        books: object
-        daily: object
-        daily_map: object
-        daily_path: object
-        date: object
-        dup_comp: object
-        dup_ids: object
-        fatals: object
-        item: object
-        locked: object
-        locked_path: object
-        merge_map: object
-        merge_path: object
-        merged: object
-        missing_predictions: object
-        missing_sportsbook: object
-        picks: object
-        picks_path: object
-        pred_dup_comp: object
-        pred_dup_ids: object
-        pred_map: object
-        pred_path: object
-        predicted_not_merged: object
-        preds: object
-        upper: object
+    daily_path = BASE / f"daily_games/{league}/{date}_{upper}.csv"
+    pred_path = (
+        BASE
+        / "00_intake/predictions/predictions_cleaned"
+        / league
+        / f"{date}_{upper}_predictions.csv"
+    )
+    book_path = (
+        BASE
+        / "00_intake/sportsbook/sportsbook_cleaned"
+        / league
+        / f"{date}_{upper}_odds.csv"
+    )
+    merge_path = (
+        BASE
+        / "01_merge"
+        / league
+        / "moneyline"
+        / f"{date}_{upper}_moneyline.csv"
+    )
+    picks_path = (
+        BASE
+        / "04_select"
+        / league
+        / "daily_picks"
+        / f"{date}_{league}_selected.csv"
+    )
+    locked_path = (
+        BASE
+        / "04_select"
+        / league
+        / "locked_picks"
+        / f"{date}_{league}_selected.csv"
+    )
 
-        def _py_r1000_if_1():
-            if dup_comp or dup_ids or pred_dup_comp or pred_dup_ids:
-                fatals.append(f'{upper}: duplicate/conflicting current game identity')
-            if blank_daily_ids:
-                fatals.append(f'{upper}: {blank_daily_ids} current daily games missing game_id')
-            if preds and blank_pred_ids:
-                fatals.append(f'{upper}: {blank_pred_ids} current predictions missing game_id')
-            if daily_map and missing_predictions:
-                fatals.append(f'{upper}: {len(missing_predictions)} scheduled games missing predictions')
-            if daily_map and missing_sportsbook:
-                fatals.append(f'{upper}: {len(missing_sportsbook)} scheduled games missing sportsbook rows')
-            if pred_map and predicted_not_merged:
-                fatals.append(f'{upper}: {len(predicted_not_merged)} prediction games did not merge')
-            return (_py_r1000_NONE, None)
-        upper = LABEL[league]
-        date = now.strftime('%Y_%m_%d')
-        active = in_season(league, now, season_config)
-        daily_path = BASE / f'daily_games/{league}/{date}_{upper}.csv'
-        pred_path = BASE / '00_intake/predictions/predictions_cleaned' / league / f'{date}_{upper}_predictions.csv'
-        book_path = BASE / '00_intake/sportsbook/sportsbook_cleaned' / league / f'{date}_{upper}_odds.csv'
-        merge_path = BASE / '01_merge' / league / 'moneyline' / f'{date}_{upper}_moneyline.csv'
-        picks_path = BASE / '04_select' / league / 'daily_picks' / f'{date}_{league}_selected.csv'
-        locked_path = BASE / '04_select' / league / 'locked_picks' / f'{date}_{league}_selected.csv'
-        daily = read_rows(daily_path)
-        preds = read_rows(pred_path)
-        books = read_rows(book_path)
-        merged = read_rows(merge_path)
-        picks = read_rows(picks_path)
-        locked = read_rows(locked_path)
-        daily_map = unique_by_comp(daily)
-        pred_map = unique_by_comp(preds)
-        book_map = unique_by_comp(books)
-        merge_map = unique_by_comp(merged)
-        dup_comp, dup_ids = duplicate_integrity(daily)
-        pred_dup_comp, pred_dup_ids = duplicate_integrity(preds)
-        missing_predictions = sorted(('|'.join(key) for key in set(daily_map) - set(pred_map)))
-        missing_sportsbook = sorted(('|'.join(key) for key in set(daily_map) - set(book_map)))
-        predicted_not_merged = sorted(('|'.join(key) for key in set(pred_map) - set(merge_map)))
-        blank_pred_ids = sum((1 for row in preds if not clean_id(row.get('game_id'))))
-        blank_daily_ids = sum((1 for row in daily if not clean_id(row.get('game_id'))))
-        item = {'in_season': active, 'season_config': dict(season_config[league]), 'paths': {'daily_games': str(daily_path), 'predictions': str(pred_path), 'sportsbook': str(book_path), 'merged': str(merge_path), 'selected': str(picks_path), 'locked': str(locked_path)}, 'counts': {'scheduled_games': len(daily_map), 'prediction_games': len(pred_map), 'sportsbook_games': len(book_map), 'merged_games': len(merge_map), 'selected_bets': len(picks), 'locked_bets': len(locked)}, 'identity': {'daily_duplicate_composites': dup_comp, 'daily_conflicting_game_ids': dup_ids, 'prediction_duplicate_composites': pred_dup_comp, 'prediction_conflicting_game_ids': pred_dup_ids, 'blank_daily_game_ids': blank_daily_ids, 'blank_prediction_game_ids': blank_pred_ids}, 'coverage': {'scheduled_missing_predictions': missing_predictions, 'scheduled_missing_sportsbook': missing_sportsbook, 'predictions_not_merged': predicted_not_merged}}
-        fatals: list[str] = []
-        if active:
-            _py_r1000_result_2 = _py_r1000_if_1()
-            if _py_r1000_result_2[0] != _py_r1000_NONE:
-                return _py_r1000_result_2
-        return (_py_r1000_RETURN, (item, fatals))
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+    daily = read_rows(daily_path)
+    preds = read_rows(pred_path)
+    books = read_rows(book_path)
+    merged = read_rows(merge_path)
+    picks = read_rows(picks_path)
+    locked = read_rows(locked_path)
+
+    daily_map = unique_by_comp(daily)
+    pred_map = unique_by_comp(preds)
+    book_map = unique_by_comp(books)
+    merge_map = unique_by_comp(merged)
+
+    dup_comp, dup_ids = duplicate_integrity(daily)
+    pred_dup_comp, pred_dup_ids = duplicate_integrity(preds)
+
+    missing_predictions = sorted(
+        "|".join(key)
+        for key in set(daily_map) - set(pred_map)
+    )
+    missing_sportsbook = sorted(
+        "|".join(key)
+        for key in set(daily_map) - set(book_map)
+    )
+    predicted_not_merged = sorted(
+        "|".join(key)
+        for key in set(pred_map) - set(merge_map)
+    )
+
+    blank_pred_ids = sum(
+        1 for row in preds if not clean_id(row.get("game_id"))
+    )
+    blank_daily_ids = sum(
+        1 for row in daily if not clean_id(row.get("game_id"))
+    )
+
+    item = {
+        "in_season": active,
+        "season_config": dict(season_config[league]),
+        "paths": {
+            "daily_games": str(daily_path),
+            "predictions": str(pred_path),
+            "sportsbook": str(book_path),
+            "merged": str(merge_path),
+            "selected": str(picks_path),
+            "locked": str(locked_path),
+        },
+        "counts": {
+            "scheduled_games": len(daily_map),
+            "prediction_games": len(pred_map),
+            "sportsbook_games": len(book_map),
+            "merged_games": len(merge_map),
+            "selected_bets": len(picks),
+            "locked_bets": len(locked),
+        },
+        "identity": {
+            "daily_duplicate_composites": dup_comp,
+            "daily_conflicting_game_ids": dup_ids,
+            "prediction_duplicate_composites": pred_dup_comp,
+            "prediction_conflicting_game_ids": pred_dup_ids,
+            "blank_daily_game_ids": blank_daily_ids,
+            "blank_prediction_game_ids": blank_pred_ids,
+        },
+        "coverage": {
+            "scheduled_missing_predictions": missing_predictions,
+            "scheduled_missing_sportsbook": missing_sportsbook,
+            "predictions_not_merged": predicted_not_merged,
+        },
+    }
+
+    fatals: list[str] = []
+
+    if active:
+        if dup_comp or dup_ids or pred_dup_comp or pred_dup_ids:
+            fatals.append(
+                f"{upper}: duplicate/conflicting current game identity"
+            )
+
+        if blank_daily_ids:
+            fatals.append(
+                f"{upper}: {blank_daily_ids} current daily games missing game_id"
+            )
+
+        if preds and blank_pred_ids:
+            fatals.append(
+                f"{upper}: {blank_pred_ids} current predictions missing game_id"
+            )
+
+        if daily_map and missing_predictions:
+            fatals.append(
+                f"{upper}: {len(missing_predictions)} scheduled games "
+                "missing predictions"
+            )
+
+        if daily_map and missing_sportsbook:
+            fatals.append(
+                f"{upper}: {len(missing_sportsbook)} scheduled games "
+                "missing sportsbook rows"
+            )
+
+        if pred_map and predicted_not_merged:
+            fatals.append(
+                f"{upper}: {len(predicted_not_merged)} prediction games did not merge"
+            )
+
+    return item, fatals
 
 
 # =============================================================================
@@ -632,147 +692,135 @@ def validate_sdv_seasons_config() -> tuple[
     return mappings, report, fatals
 
 
-def validate_sdv_storage_config(season_mappings: dict[str, dict[int, int]]) -> tuple[dict, dict, list[str]]:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
+def validate_sdv_storage_config(
+    season_mappings: dict[str, dict[int, int]],
+) -> tuple[dict, dict, list[str]]:
+    report = {
+        "path": str(SDV_STORAGE_CONFIG),
+        "exists": SDV_STORAGE_CONFIG.exists(),
+        "valid": False,
+        "expected_version": None,
+        "history_root": None,
+        "format": None,
+        "tables": [],
+        "historical_internal_seasons": {},
+        "errors": [],
+    }
+    fatals: list[str] = []
 
-    def _py_r1000_impl():
-        nonlocal season_mappings
-        cfg: object
-        exc: object
-        expected_version: object
-        fatals: object
-        historical: object
-        league: object
-        message: object
-        raw_seasons: object
-        raw_tables: object
-        report: object
-        root: object
-        season: object
-        seasons: object
-        sportsdataverse: object
-        storage: object
-        storage_format: object
-        tables: object
-        value: object
+    try:
+        cfg = read_yaml_mapping(SDV_STORAGE_CONFIG)
+    except Exception as exc:
+        message = f"SDV storage config failure: {SDV_STORAGE_CONFIG} -> {exc}"
+        report["errors"].append(message)
+        fatals.append(message)
+        return {}, report, fatals
 
-        def _py_r1000_loop_1():
-            nonlocal raw_seasons, season, seasons, value
+    if cfg.get("schema_version") != 1:
+        report["errors"].append(
+            f"{SDV_STORAGE_CONFIG}: schema_version must be 1"
+        )
 
-            def _py_r1000_loop_2():
-                nonlocal season
-                try:
-                    season = int(value)
-                except (TypeError, ValueError):
-                    report['errors'].append(f'{SDV_STORAGE_CONFIG}: {league} invalid historical season {value!r}')
-                    return (_py_r1000_CONTINUE, None)
-                seasons.append(season)
-                if season not in season_mappings.get(league, {}):
-                    report['errors'].append(f'{SDV_STORAGE_CONFIG}: {league} historical season={season} has no mapping in {SDV_SEASONS_CONFIG}')
-                return (_py_r1000_NONE, None)
-            raw_seasons = historical.get(league)
-            if not isinstance(raw_seasons, list) or not raw_seasons:
-                report['historical_internal_seasons'][league] = []
-                report['errors'].append(f'{SDV_STORAGE_CONFIG}: historical_internal_seasons.{league} must be a non-empty list')
-                return (_py_r1000_CONTINUE, None)
-            seasons = []
-            for value in raw_seasons:
-                _py_r1000_result_3 = _py_r1000_loop_2()
-                if _py_r1000_result_3[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_3
-                if _py_r1000_result_3[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_3[0] == _py_r1000_CONTINUE:
-                    continue
-            if len(seasons) != len(set(seasons)):
-                report['errors'].append(f'{SDV_STORAGE_CONFIG}: historical_internal_seasons.{league} contains duplicates')
-            report['historical_internal_seasons'][league] = sorted(set(seasons))
-            return (_py_r1000_NONE, None)
+    sportsdataverse = cfg.get("sportsdataverse")
+    if not isinstance(sportsdataverse, dict):
+        sportsdataverse = {}
 
-        def _py_r1000_chunk_5():
-            nonlocal cfg, exc, expected_version, fatals, message, report, root, sportsdataverse, storage, storage_format
-            report = {'path': str(SDV_STORAGE_CONFIG), 'exists': SDV_STORAGE_CONFIG.exists(), 'valid': False, 'expected_version': None, 'history_root': None, 'format': None, 'tables': [], 'historical_internal_seasons': {}, 'errors': []}
-            fatals = []
+    expected_version = clean(sportsdataverse.get("expected_version"))
+    report["expected_version"] = expected_version or None
+
+    if not expected_version:
+        report["errors"].append(
+            f"{SDV_STORAGE_CONFIG}: sportsdataverse.expected_version is blank"
+        )
+
+    storage = cfg.get("storage")
+    if not isinstance(storage, dict):
+        storage = {}
+        report["errors"].append(
+            f"{SDV_STORAGE_CONFIG}: missing storage mapping"
+        )
+
+    root = clean(storage.get("root"))
+    storage_format = clean(storage.get("format")).lower()
+
+    report["history_root"] = root or None
+    report["format"] = storage_format or None
+
+    if os.path.normcase(os.path.normpath(root)) != os.path.normcase(os.path.normpath(str(SDV_HISTORY_ROOT))):
+        report["errors"].append(
+            f"{SDV_STORAGE_CONFIG}: storage.root mismatch "
+            f"expected={SDV_HISTORY_ROOT} actual={root!r}"
+        )
+
+    if storage_format != "parquet":
+        report["errors"].append(
+            f"{SDV_STORAGE_CONFIG}: storage.format must be parquet"
+        )
+
+    raw_tables = cfg.get("tables")
+    if not isinstance(raw_tables, list) or not raw_tables:
+        raw_tables = []
+        report["errors"].append(
+            f"{SDV_STORAGE_CONFIG}: tables must be a non-empty list"
+        )
+
+    tables = [clean(value) for value in raw_tables if clean(value)]
+    report["tables"] = tables
+
+    if len(tables) != len(set(tables)):
+        report["errors"].append(
+            f"{SDV_STORAGE_CONFIG}: tables contains duplicates"
+        )
+
+    historical = cfg.get("historical_internal_seasons")
+    if not isinstance(historical, dict):
+        historical = {}
+        report["errors"].append(
+            f"{SDV_STORAGE_CONFIG}: missing historical_internal_seasons mapping"
+        )
+
+    for league in LEAGUES:
+        raw_seasons = historical.get(league)
+
+        if not isinstance(raw_seasons, list) or not raw_seasons:
+            report["historical_internal_seasons"][league] = []
+            report["errors"].append(
+                f"{SDV_STORAGE_CONFIG}: historical_internal_seasons.{league} "
+                "must be a non-empty list"
+            )
+            continue
+
+        seasons: list[int] = []
+
+        for value in raw_seasons:
             try:
-                cfg = read_yaml_mapping(SDV_STORAGE_CONFIG)
-            except Exception as exc:
-                message = f'SDV storage config failure: {SDV_STORAGE_CONFIG} -> {exc}'
-                report['errors'].append(message)
-                fatals.append(message)
-                return (_py_r1000_RETURN, ({}, report, fatals))
-            if cfg.get('schema_version') != 1:
-                report['errors'].append(f'{SDV_STORAGE_CONFIG}: schema_version must be 1')
-            sportsdataverse = cfg.get('sportsdataverse')
-            if not isinstance(sportsdataverse, dict):
-                sportsdataverse = {}
-            expected_version = clean(sportsdataverse.get('expected_version'))
-            report['expected_version'] = expected_version or None
-            if not expected_version:
-                report['errors'].append(f'{SDV_STORAGE_CONFIG}: sportsdataverse.expected_version is blank')
-            storage = cfg.get('storage')
-            if not isinstance(storage, dict):
-                storage = {}
-                report['errors'].append(f'{SDV_STORAGE_CONFIG}: missing storage mapping')
-            root = clean(storage.get('root'))
-            storage_format = clean(storage.get('format')).lower()
-            report['history_root'] = root or None
-            return (_py_r1000_NONE, None)
+                season = int(value)
+            except (TypeError, ValueError):
+                report["errors"].append(
+                    f"{SDV_STORAGE_CONFIG}: {league} invalid historical "
+                    f"season {value!r}"
+                )
+                continue
 
-        def _py_r1000_chunk_6():
-            nonlocal raw_tables, tables
-            report['format'] = storage_format or None
-            if os.path.normcase(os.path.normpath(root)) != os.path.normcase(os.path.normpath(str(SDV_HISTORY_ROOT))):
-                report['errors'].append(f'{SDV_STORAGE_CONFIG}: storage.root mismatch expected={SDV_HISTORY_ROOT} actual={root!r}')
-            if storage_format != 'parquet':
-                report['errors'].append(f'{SDV_STORAGE_CONFIG}: storage.format must be parquet')
-            raw_tables = cfg.get('tables')
-            if not isinstance(raw_tables, list) or not raw_tables:
-                raw_tables = []
-                report['errors'].append(f'{SDV_STORAGE_CONFIG}: tables must be a non-empty list')
-            tables = [clean(value) for value in raw_tables if clean(value)]
-            report['tables'] = tables
-            return (_py_r1000_NONE, None)
+            seasons.append(season)
 
-        def _py_r1000_chunk_7():
-            nonlocal historical, league
+            if season not in season_mappings.get(league, {}):
+                report["errors"].append(
+                    f"{SDV_STORAGE_CONFIG}: {league} historical season={season} "
+                    f"has no mapping in {SDV_SEASONS_CONFIG}"
+                )
 
-            def _py_r1000_loop_8():
-                _py_r1000_result_4 = _py_r1000_loop_1()
-                if _py_r1000_result_4[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_4
-                if _py_r1000_result_4[0] == _py_r1000_BREAK:
-                    return (_py_r1000_BREAK, None)
-                if _py_r1000_result_4[0] == _py_r1000_CONTINUE:
-                    return (_py_r1000_CONTINUE, None)
-                return (_py_r1000_NONE, None)
-            if len(tables) != len(set(tables)):
-                report['errors'].append(f'{SDV_STORAGE_CONFIG}: tables contains duplicates')
-            historical = cfg.get('historical_internal_seasons')
-            if not isinstance(historical, dict):
-                historical = {}
-                report['errors'].append(f'{SDV_STORAGE_CONFIG}: missing historical_internal_seasons mapping')
-            for league in LEAGUES:
-                _py_r1000_result_9 = _py_r1000_loop_8()
-                if _py_r1000_result_9[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_9
-                if _py_r1000_result_9[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_9[0] == _py_r1000_CONTINUE:
-                    continue
-            report['valid'] = not report['errors']
-            fatals.extend(report['errors'])
-            return (_py_r1000_RETURN, (cfg, report, fatals))
-        for _py_r1000_block_10 in (_py_r1000_chunk_5, _py_r1000_chunk_6, _py_r1000_chunk_7):
-            _py_r1000_result_11 = _py_r1000_block_10()
-            if _py_r1000_result_11[0] != _py_r1000_NONE:
-                return _py_r1000_result_11
-        return (_py_r1000_NONE, None)
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+        if len(seasons) != len(set(seasons)):
+            report["errors"].append(
+                f"{SDV_STORAGE_CONFIG}: historical_internal_seasons.{league} "
+                "contains duplicates"
+            )
+
+        report["historical_internal_seasons"][league] = sorted(set(seasons))
+
+    report["valid"] = not report["errors"]
+    fatals.extend(report["errors"])
+    return cfg, report, fatals
 
 
 def validate_sdv_model_config() -> tuple[dict, dict, list[str]]:
@@ -967,572 +1015,410 @@ def ensemble_enabled_for_league(
 # SDV HISTORICAL MANIFEST HEALTH
 # =============================================================================
 
-def validate_historical_manifests(season_mappings: dict[str, dict[int, int]], storage_report: dict) -> tuple[dict, list[str]]:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
+def validate_historical_manifests(
+    season_mappings: dict[str, dict[int, int]],
+    storage_report: dict,
+) -> tuple[dict, list[str]]:
+    report = {
+        "required_count": 0,
+        "valid_count": 0,
+        "manifests": [],
+    }
+    fatals: list[str] = []
 
-    def _py_r1000_impl():
-        nonlocal season_mappings, storage_report
-        actual_format: object
-        actual_sdv: object
-        actual_version: object
-        exc: object
-        expected_format: object
-        expected_sdv: object
-        expected_version: object
-        fatals: object
-        filename: object
-        historical: object
-        internal_season: object
-        item: object
-        league: object
-        manifest: object
-        message: object
-        needs_file: object
-        path: object
-        report: object
-        required_tables: object
-        row_count: object
-        rows: object
-        season: object
-        status: object
-        table: object
-        table_info: object
-        table_path: object
-        tables: object
+    expected_version = clean(storage_report.get("expected_version"))
+    expected_format = clean(storage_report.get("format"))
+    required_tables = list(storage_report.get("tables", []))
+    historical = storage_report.get("historical_internal_seasons", {})
 
-        def _py_r1000_loop_1():
-            nonlocal actual_format, actual_sdv, actual_version, exc, expected_sdv, filename, internal_season, item, manifest, message, needs_file, path, row_count, rows, season, status, table, table_info, table_path, tables
+    for league in LEAGUES:
+        for season in historical.get(league, []):
+            report["required_count"] += 1
+            path = SDV_HISTORY_ROOT / league / str(season) / "manifest.json"
 
-            def _py_r1000_loop_2():
-                nonlocal actual_format, actual_sdv, actual_version, exc, expected_sdv, filename, internal_season, item, manifest, message, needs_file, path, row_count, rows, status, table, table_info, table_path, tables
+            item = {
+                "league": league,
+                "internal_season": season,
+                "path": str(path),
+                "exists": path.exists(),
+                "valid": False,
+                "errors": [],
+            }
 
-                def _py_r1000_loop_3():
-                    nonlocal filename, needs_file, row_count, rows, status, table_info, table_path
-
-                    def _py_r1000_if_4():
-                        nonlocal row_count
-
-                        def _py_r1000_try_else_5():
-                            if row_count < 0:
-                                item['errors'].append(f'{path}: table={table} rows={row_count} cannot be negative')
-                            return (_py_r1000_NONE, None)
-                        try:
-                            row_count = int(rows)
-                        except (TypeError, ValueError):
-                            item['errors'].append(f'{path}: table={table} rows is not an integer: {rows!r}')
-                        else:
-                            _py_r1000_result_6 = _py_r1000_try_else_5()
-                            if _py_r1000_result_6[0] != _py_r1000_NONE:
-                                return _py_r1000_result_6
-                        return (_py_r1000_NONE, None)
-
-                    def _py_r1000_if_8():
-                        nonlocal table_path
-                        table_path = path.parent / (filename or f'{table}.parquet')
-                        if not table_path.exists():
-                            item['errors'].append(f'missing SDV historical table file: {table_path} (manifest={path}, table={table})')
-                        return (_py_r1000_NONE, None)
-                    table_info = tables.get(table)
-                    if not isinstance(table_info, dict):
-                        item['errors'].append(f'{path}: missing required table entry={table}')
-                        return (_py_r1000_CONTINUE, None)
-                    rows = table_info.get('rows')
-                    row_count = None
-                    if rows is not None:
-                        _py_r1000_result_7 = _py_r1000_if_4()
-                        if _py_r1000_result_7[0] != _py_r1000_NONE:
-                            return _py_r1000_result_7
-                    status = clean(table_info.get('status')).lower()
-                    filename = clean(table_info.get('filename'))
-                    needs_file = row_count is not None and row_count > 0 or status in {'written', 'ready', 'success', 'existing', 'existing_not_rebuilt'}
-                    if needs_file:
-                        _py_r1000_result_9 = _py_r1000_if_8()
-                        if _py_r1000_result_9[0] != _py_r1000_NONE:
-                            return _py_r1000_result_9
-                    return (_py_r1000_NONE, None)
-
-                def _py_r1000_chunk_11():
-                    nonlocal actual_sdv, exc, expected_sdv, internal_season, item, manifest, message, path
-                    report['required_count'] += 1
-                    path = SDV_HISTORY_ROOT / league / str(season) / 'manifest.json'
-                    item = {'league': league, 'internal_season': season, 'path': str(path), 'exists': path.exists(), 'valid': False, 'errors': []}
-                    if not path.exists():
-                        message = f'missing required SDV historical manifest: {path}'
-                        item['errors'].append(message)
-                        fatals.append(message)
-                        report['manifests'].append(item)
-                        return (_py_r1000_CONTINUE, None)
-                    try:
-                        manifest = read_json_mapping(path)
-                    except Exception as exc:
-                        message = f'invalid SDV historical manifest: {path} -> {exc}'
-                        item['errors'].append(message)
-                        fatals.append(message)
-                        report['manifests'].append(item)
-                        return (_py_r1000_CONTINUE, None)
-                    if clean(manifest.get('league')).lower() != league:
-                        item['errors'].append(f"{path}: league mismatch expected={league.upper()} actual={manifest.get('league')!r}")
-                    try:
-                        internal_season = int(manifest.get('internal_season'))
-                    except (TypeError, ValueError):
-                        internal_season = None
-                    if internal_season != season:
-                        item['errors'].append(f"{path}: internal_season mismatch expected={season} actual={manifest.get('internal_season')!r}")
-                    expected_sdv = season_mappings.get(league, {}).get(season)
-                    try:
-                        actual_sdv = int(manifest.get('sdv_season'))
-                    except (TypeError, ValueError):
-                        actual_sdv = None
-                    return (_py_r1000_NONE, None)
-
-                def _py_r1000_chunk_12():
-                    nonlocal actual_format, actual_version, tables
-                    if expected_sdv is not None and actual_sdv != expected_sdv:
-                        item['errors'].append(f'{path}: sdv_season mismatch expected={expected_sdv} actual={actual_sdv}')
-                    actual_version = clean(manifest.get('sportsdataverse_version'))
-                    if expected_version and actual_version != expected_version:
-                        item['errors'].append(f'{path}: sportsdataverse_version mismatch expected={expected_version!r} actual={actual_version!r}')
-                    actual_format = clean(manifest.get('storage_format')).lower()
-                    if expected_format and actual_format != expected_format:
-                        item['errors'].append(f'{path}: storage_format mismatch expected={expected_format!r} actual={actual_format!r}')
-                    tables = manifest.get('tables')
-                    if not isinstance(tables, dict):
-                        item['errors'].append(f'{path}: missing tables mapping')
-                        tables = {}
-                    return (_py_r1000_NONE, None)
-
-                def _py_r1000_chunk_13():
-                    nonlocal table
-
-                    def _py_r1000_loop_14():
-                        _py_r1000_result_10 = _py_r1000_loop_3()
-                        if _py_r1000_result_10[0] == _py_r1000_RETURN:
-                            return _py_r1000_result_10
-                        if _py_r1000_result_10[0] == _py_r1000_BREAK:
-                            return (_py_r1000_BREAK, None)
-                        if _py_r1000_result_10[0] == _py_r1000_CONTINUE:
-                            return (_py_r1000_CONTINUE, None)
-                        return (_py_r1000_NONE, None)
-                    for table in required_tables:
-                        _py_r1000_result_15 = _py_r1000_loop_14()
-                        if _py_r1000_result_15[0] == _py_r1000_RETURN:
-                            return _py_r1000_result_15
-                        if _py_r1000_result_15[0] == _py_r1000_BREAK:
-                            break
-                        if _py_r1000_result_15[0] == _py_r1000_CONTINUE:
-                            continue
-                    if item['errors']:
-                        fatals.extend(item['errors'])
-                    else:
-                        item['valid'] = True
-                        report['valid_count'] += 1
-                    report['manifests'].append(item)
-                    return (_py_r1000_NONE, None)
-                for _py_r1000_block_16 in (_py_r1000_chunk_11, _py_r1000_chunk_12, _py_r1000_chunk_13):
-                    _py_r1000_result_17 = _py_r1000_block_16()
-                    if _py_r1000_result_17[0] != _py_r1000_NONE:
-                        return _py_r1000_result_17
-                return (_py_r1000_NONE, None)
-            for season in historical.get(league, []):
-                _py_r1000_result_18 = _py_r1000_loop_2()
-                if _py_r1000_result_18[0] == _py_r1000_RETURN:
-                    return _py_r1000_result_18
-                if _py_r1000_result_18[0] == _py_r1000_BREAK:
-                    break
-                if _py_r1000_result_18[0] == _py_r1000_CONTINUE:
-                    continue
-            return (_py_r1000_NONE, None)
-        report = {'required_count': 0, 'valid_count': 0, 'manifests': []}
-        fatals: list[str] = []
-        expected_version = clean(storage_report.get('expected_version'))
-        expected_format = clean(storage_report.get('format'))
-        required_tables = list(storage_report.get('tables', []))
-        historical = storage_report.get('historical_internal_seasons', {})
-        for league in LEAGUES:
-            _py_r1000_result_19 = _py_r1000_loop_1()
-            if _py_r1000_result_19[0] == _py_r1000_RETURN:
-                return _py_r1000_result_19
-            if _py_r1000_result_19[0] == _py_r1000_BREAK:
-                break
-            if _py_r1000_result_19[0] == _py_r1000_CONTINUE:
+            if not path.exists():
+                message = f"missing required SDV historical manifest: {path}"
+                item["errors"].append(message)
+                fatals.append(message)
+                report["manifests"].append(item)
                 continue
-        return (_py_r1000_RETURN, (report, fatals))
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+
+            try:
+                manifest = read_json_mapping(path)
+            except Exception as exc:
+                message = f"invalid SDV historical manifest: {path} -> {exc}"
+                item["errors"].append(message)
+                fatals.append(message)
+                report["manifests"].append(item)
+                continue
+
+            if clean(manifest.get("league")).lower() != league:
+                item["errors"].append(
+                    f"{path}: league mismatch expected={league.upper()} "
+                    f"actual={manifest.get('league')!r}"
+                )
+
+            try:
+                internal_season = int(manifest.get("internal_season"))
+            except (TypeError, ValueError):
+                internal_season = None
+
+            if internal_season != season:
+                item["errors"].append(
+                    f"{path}: internal_season mismatch expected={season} "
+                    f"actual={manifest.get('internal_season')!r}"
+                )
+
+            expected_sdv = season_mappings.get(league, {}).get(season)
+
+            try:
+                actual_sdv = int(manifest.get("sdv_season"))
+            except (TypeError, ValueError):
+                actual_sdv = None
+
+            if expected_sdv is not None and actual_sdv != expected_sdv:
+                item["errors"].append(
+                    f"{path}: sdv_season mismatch expected={expected_sdv} "
+                    f"actual={actual_sdv}"
+                )
+
+            actual_version = clean(manifest.get("sportsdataverse_version"))
+            if expected_version and actual_version != expected_version:
+                item["errors"].append(
+                    f"{path}: sportsdataverse_version mismatch "
+                    f"expected={expected_version!r} actual={actual_version!r}"
+                )
+
+            actual_format = clean(manifest.get("storage_format")).lower()
+            if expected_format and actual_format != expected_format:
+                item["errors"].append(
+                    f"{path}: storage_format mismatch "
+                    f"expected={expected_format!r} actual={actual_format!r}"
+                )
+
+            tables = manifest.get("tables")
+            if not isinstance(tables, dict):
+                item["errors"].append(f"{path}: missing tables mapping")
+                tables = {}
+
+            for table in required_tables:
+                table_info = tables.get(table)
+
+                if not isinstance(table_info, dict):
+                    item["errors"].append(
+                        f"{path}: missing required table entry={table}"
+                    )
+                    continue
+
+                rows = table_info.get("rows")
+                row_count = None
+
+                if rows is not None:
+                    try:
+                        row_count = int(rows)
+                    except (TypeError, ValueError):
+                        item["errors"].append(
+                            f"{path}: table={table} rows is not an integer: "
+                            f"{rows!r}"
+                        )
+                    else:
+                        if row_count < 0:
+                            item["errors"].append(
+                                f"{path}: table={table} rows={row_count} "
+                                "cannot be negative"
+                            )
+
+                status = clean(table_info.get("status")).lower()
+                filename = clean(table_info.get("filename"))
+                needs_file = (
+                    (row_count is not None and row_count > 0)
+                    or status
+                    in {
+                        "written",
+                        "ready",
+                        "success",
+                        "existing",
+                        "existing_not_rebuilt",
+                    }
+                )
+
+                if needs_file:
+                    table_path = path.parent / (filename or f"{table}.parquet")
+                    if not table_path.exists():
+                        item["errors"].append(
+                            f"missing SDV historical table file: {table_path} "
+                            f"(manifest={path}, table={table})"
+                        )
+
+            if item["errors"]:
+                fatals.extend(item["errors"])
+            else:
+                item["valid"] = True
+                report["valid_count"] += 1
+
+            report["manifests"].append(item)
+
+    return report, fatals
 
 
 # =============================================================================
 # SDV MODEL / ENSEMBLE ARTIFACT HEALTH
 # =============================================================================
 
-def validate_sdv_models(expected_feature_version: str, expected_model_version: str) -> tuple[dict, dict[str, dict], list[str]]:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
+def validate_sdv_models(
+    expected_feature_version: str,
+    expected_model_version: str,
+) -> tuple[dict, dict[str, dict], list[str]]:
+    report = {}
+    contexts: dict[str, dict] = {}
+    fatals: list[str] = []
 
-    def _py_r1000_impl():
-        nonlocal expected_feature_version, expected_model_version
-        artifact_files: object
-        contexts: object
-        exc: object
-        fatals: object
-        feature_version: object
-        file_item: object
-        filename: object
-        folder: object
-        item: object
-        league: object
-        metadata: object
-        metadata_feature: object
-        metadata_model: object
-        missing_declared: object
-        model_version: object
-        path: object
-        payload: object
-        payloads: object
-        report: object
+    for league in LEAGUES:
+        folder = SDV_MODEL_ROOT / league
+        item = {
+            "directory": str(folder),
+            "valid": False,
+            "feature_version": None,
+            "model_version": None,
+            "files": {},
+            "errors": [],
+        }
+        payloads: dict[str, dict] = {}
 
-        def _py_r1000_loop_1():
-            nonlocal artifact_files, exc, feature_version, file_item, filename, folder, item, metadata, metadata_feature, metadata_model, missing_declared, model_version, path, payload, payloads
+        for filename in REQUIRED_SDV_MODEL_FILES:
+            path = folder / filename
+            file_item = {
+                "path": str(path),
+                "exists": path.exists(),
+                "valid_json": False,
+            }
+            item["files"][filename] = file_item
 
-            def _py_r1000_loop_2():
-                nonlocal exc, file_item, path
-                path = folder / filename
-                file_item = {'path': str(path), 'exists': path.exists(), 'valid_json': False}
-                item['files'][filename] = file_item
-                if not path.exists():
-                    item['errors'].append(f'missing SDV model file: {path}')
-                    return (_py_r1000_CONTINUE, None)
-                try:
-                    payloads[filename] = read_json_mapping(path)
-                    file_item['valid_json'] = True
-                except Exception as exc:
-                    item['errors'].append(f'invalid SDV model JSON: {path} -> {exc}')
-                return (_py_r1000_NONE, None)
-
-            def _py_r1000_if_4():
-                nonlocal filename, missing_declared
-                missing_declared = sorted(set(REQUIRED_SDV_MODEL_FILES) - {clean(value) for value in artifact_files})
-                for filename in missing_declared:
-                    item['errors'].append(f"{folder / 'metadata.json'}: artifact_files missing {filename}")
-                return (_py_r1000_NONE, None)
-
-            def _py_r1000_loop_6():
-                nonlocal feature_version, model_version, path
-
-                def _py_r1000_else_7():
-                    if expected_feature_version and feature_version != expected_feature_version:
-                        item['errors'].append(f'{path}: feature_version mismatch configured={expected_feature_version!r} artifact={feature_version!r}')
-                    return (_py_r1000_NONE, None)
-                path = folder / filename
-                feature_version = clean(payload.get('feature_version'))
-                model_version = clean(payload.get('model_version'))
-                if not feature_version:
-                    item['errors'].append(f'{path}: feature_version is blank')
-                else:
-                    _py_r1000_result_8 = _py_r1000_else_7()
-                    if _py_r1000_result_8[0] != _py_r1000_NONE:
-                        return _py_r1000_result_8
-                if model_version and expected_model_version and (model_version != expected_model_version):
-                    item['errors'].append(f'{path}: model_version mismatch configured={expected_model_version!r} artifact={model_version!r}')
-                return (_py_r1000_NONE, None)
-
-            def _py_r1000_chunk_10():
-                nonlocal filename, folder, item, metadata, metadata_feature, metadata_model, payloads
-
-                def _py_r1000_loop_11():
-                    _py_r1000_result_3 = _py_r1000_loop_2()
-                    if _py_r1000_result_3[0] == _py_r1000_RETURN:
-                        return _py_r1000_result_3
-                    if _py_r1000_result_3[0] == _py_r1000_BREAK:
-                        return (_py_r1000_BREAK, None)
-                    if _py_r1000_result_3[0] == _py_r1000_CONTINUE:
-                        return (_py_r1000_CONTINUE, None)
-                    return (_py_r1000_NONE, None)
-                folder = SDV_MODEL_ROOT / league
-                item = {'directory': str(folder), 'valid': False, 'feature_version': None, 'model_version': None, 'files': {}, 'errors': []}
-                payloads = {}
-                for filename in REQUIRED_SDV_MODEL_FILES:
-                    _py_r1000_result_12 = _py_r1000_loop_11()
-                    if _py_r1000_result_12[0] == _py_r1000_RETURN:
-                        return _py_r1000_result_12
-                    if _py_r1000_result_12[0] == _py_r1000_BREAK:
-                        break
-                    if _py_r1000_result_12[0] == _py_r1000_CONTINUE:
-                        continue
-                metadata = payloads.get('metadata.json', {})
-                metadata_feature = clean(metadata.get('feature_version'))
-                metadata_model = clean(metadata.get('model_version'))
-                item['feature_version'] = metadata_feature or None
-                item['model_version'] = metadata_model or None
-                if not metadata_feature:
-                    item['errors'].append(f"{folder / 'metadata.json'}: feature_version is blank")
-                return (_py_r1000_NONE, None)
-
-            def _py_r1000_chunk_13():
-                nonlocal artifact_files
-
-                def _py_r1000_if_14():
-                    _py_r1000_result_5 = _py_r1000_if_4()
-                    if _py_r1000_result_5[0] != _py_r1000_NONE:
-                        return _py_r1000_result_5
-                    return (_py_r1000_NONE, None)
-                if not metadata_model:
-                    item['errors'].append(f"{folder / 'metadata.json'}: model_version is blank")
-                if clean(metadata.get('league')).lower() not in {'', league}:
-                    item['errors'].append(f"{folder / 'metadata.json'}: league mismatch expected={league.upper()} actual={metadata.get('league')!r}")
-                artifact_files = metadata.get('artifact_files')
-                if isinstance(artifact_files, list):
-                    _py_r1000_result_15 = _py_r1000_if_14()
-                    if _py_r1000_result_15[0] != _py_r1000_NONE:
-                        return _py_r1000_result_15
-                return (_py_r1000_NONE, None)
-
-            def _py_r1000_chunk_16():
-                nonlocal filename, payload
-
-                def _py_r1000_loop_17():
-                    _py_r1000_result_9 = _py_r1000_loop_6()
-                    if _py_r1000_result_9[0] == _py_r1000_RETURN:
-                        return _py_r1000_result_9
-                    if _py_r1000_result_9[0] == _py_r1000_BREAK:
-                        return (_py_r1000_BREAK, None)
-                    if _py_r1000_result_9[0] == _py_r1000_CONTINUE:
-                        return (_py_r1000_CONTINUE, None)
-                    return (_py_r1000_NONE, None)
-                for filename, payload in payloads.items():
-                    _py_r1000_result_18 = _py_r1000_loop_17()
-                    if _py_r1000_result_18[0] == _py_r1000_RETURN:
-                        return _py_r1000_result_18
-                    if _py_r1000_result_18[0] == _py_r1000_BREAK:
-                        break
-                    if _py_r1000_result_18[0] == _py_r1000_CONTINUE:
-                        continue
-                contexts[league] = {'feature_version': metadata_feature or expected_feature_version, 'model_version': metadata_model or expected_model_version}
-                if item['errors']:
-                    fatals.extend(item['errors'])
-                else:
-                    item['valid'] = True
-                report[league] = item
-                return (_py_r1000_NONE, None)
-            for _py_r1000_block_19 in (_py_r1000_chunk_10, _py_r1000_chunk_13, _py_r1000_chunk_16):
-                _py_r1000_result_20 = _py_r1000_block_19()
-                if _py_r1000_result_20[0] != _py_r1000_NONE:
-                    return _py_r1000_result_20
-            return (_py_r1000_NONE, None)
-        report = {}
-        contexts: dict[str, dict] = {}
-        fatals: list[str] = []
-        for league in LEAGUES:
-            _py_r1000_result_21 = _py_r1000_loop_1()
-            if _py_r1000_result_21[0] == _py_r1000_RETURN:
-                return _py_r1000_result_21
-            if _py_r1000_result_21[0] == _py_r1000_BREAK:
-                break
-            if _py_r1000_result_21[0] == _py_r1000_CONTINUE:
+            if not path.exists():
+                item["errors"].append(f"missing SDV model file: {path}")
                 continue
-        return (_py_r1000_RETURN, (report, contexts, fatals))
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+
+            try:
+                payloads[filename] = read_json_mapping(path)
+                file_item["valid_json"] = True
+            except Exception as exc:
+                item["errors"].append(
+                    f"invalid SDV model JSON: {path} -> {exc}"
+                )
+
+        metadata = payloads.get("metadata.json", {})
+        metadata_feature = clean(metadata.get("feature_version"))
+        metadata_model = clean(metadata.get("model_version"))
+
+        item["feature_version"] = metadata_feature or None
+        item["model_version"] = metadata_model or None
+
+        if not metadata_feature:
+            item["errors"].append(
+                f"{folder / 'metadata.json'}: feature_version is blank"
+            )
+
+        if not metadata_model:
+            item["errors"].append(
+                f"{folder / 'metadata.json'}: model_version is blank"
+            )
+
+        if clean(metadata.get("league")).lower() not in {"", league}:
+            item["errors"].append(
+                f"{folder / 'metadata.json'}: league mismatch "
+                f"expected={league.upper()} actual={metadata.get('league')!r}"
+            )
+
+        artifact_files = metadata.get("artifact_files")
+        if isinstance(artifact_files, list):
+            missing_declared = sorted(
+                set(REQUIRED_SDV_MODEL_FILES)
+                - {clean(value) for value in artifact_files}
+            )
+            for filename in missing_declared:
+                item["errors"].append(
+                    f"{folder / 'metadata.json'}: artifact_files missing "
+                    f"{filename}"
+                )
+
+        for filename, payload in payloads.items():
+            path = folder / filename
+            feature_version = clean(payload.get("feature_version"))
+            model_version = clean(payload.get("model_version"))
+
+            if not feature_version:
+                item["errors"].append(
+                    f"{path}: feature_version is blank"
+                )
+            elif (
+                expected_feature_version
+                and feature_version != expected_feature_version
+            ):
+                item["errors"].append(
+                    f"{path}: feature_version mismatch "
+                    f"configured={expected_feature_version!r} "
+                    f"artifact={feature_version!r}"
+                )
+
+            if (
+                model_version
+                and expected_model_version
+                and model_version != expected_model_version
+            ):
+                item["errors"].append(
+                    f"{path}: model_version mismatch "
+                    f"configured={expected_model_version!r} "
+                    f"artifact={model_version!r}"
+                )
+
+        contexts[league] = {
+            "feature_version": metadata_feature or expected_feature_version,
+            "model_version": metadata_model or expected_model_version,
+        }
+
+        if item["errors"]:
+            fatals.extend(item["errors"])
+        else:
+            item["valid"] = True
+
+        report[league] = item
+
+    return report, contexts, fatals
 
 
-def validate_ensemble_weights(model_cfg: dict, production_source: str | None, sdv_contexts: dict[str, dict]) -> tuple[dict, list[str], list[str]]:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
+def validate_ensemble_weights(
+    model_cfg: dict,
+    production_source: str | None,
+    sdv_contexts: dict[str, dict],
+) -> tuple[dict, list[str], list[str]]:
+    report = {}
+    fatals: list[str] = []
+    warnings: list[str] = []
 
-    def _py_r1000_impl():
-        nonlocal model_cfg, production_source, sdv_contexts
-        components: object
-        dratings_weight: object
-        enabled: object
-        ensemble_version: object
-        exc: object
-        expected_feature: object
-        expected_model: object
-        fatals: object
-        item: object
-        league: object
-        market: object
-        message: object
-        path: object
-        payload: object
-        report: object
-        sdv_component: object
-        sdv_weight: object
-        section: object
-        target: object
-        warnings: object
-        weight_feature: object
-        weight_model: object
+    for league in LEAGUES:
+        enabled = ensemble_enabled_for_league(
+            model_cfg,
+            league,
+            production_source,
+        )
+        path = ENSEMBLE_MODEL_ROOT / league / "weights.json"
 
-        def _py_r1000_loop_1():
-            nonlocal components, dratings_weight, enabled, ensemble_version, exc, expected_feature, expected_model, item, market, message, path, payload, sdv_component, sdv_weight, section, target, weight_feature, weight_model
+        item = {
+            "path": str(path),
+            "enabled": enabled,
+            "exists": path.exists(),
+            "valid": False,
+            "ensemble_version": None,
+            "errors": [],
+        }
 
-            def _py_r1000_if_2():
-                nonlocal message
-                message = f'missing ensemble weights file: {path}'
-                item['errors'].append(message)
-                (fatals if enabled else warnings).append(message)
-                report[league] = item
-                return (_py_r1000_CONTINUE, None)
+        if not path.exists():
+            message = f"missing ensemble weights file: {path}"
+            item["errors"].append(message)
+            (fatals if enabled else warnings).append(message)
+            report[league] = item
+            continue
 
-            def _py_r1000_except_4():
-                nonlocal message
-                message = f'invalid ensemble weights JSON: {path} -> {exc}'
-                item['errors'].append(message)
-                (fatals if enabled else warnings).append(message)
-                report[league] = item
-                return (_py_r1000_CONTINUE, None)
+        try:
+            payload = read_json_mapping(path)
+        except Exception as exc:
+            message = f"invalid ensemble weights JSON: {path} -> {exc}"
+            item["errors"].append(message)
+            (fatals if enabled else warnings).append(message)
+            report[league] = item
+            continue
 
-            def _py_r1000_loop_6():
-                nonlocal dratings_weight, sdv_weight, section
-                section = payload.get(market)
-                if not isinstance(section, dict):
-                    item['errors'].append(f'{path}: missing {market} weights mapping')
-                    return (_py_r1000_CONTINUE, None)
-                dratings_weight = fnum(section.get('dratings_weight'))
-                sdv_weight = fnum(section.get('sdv_weight'))
-                if dratings_weight is None or sdv_weight is None:
-                    item['errors'].append(f'{path}: {market} weights must be numeric')
-                    return (_py_r1000_CONTINUE, None)
-                if not (0 <= dratings_weight <= 1 and 0 <= sdv_weight <= 1):
-                    item['errors'].append(f'{path}: {market} weights must be between 0 and 1 dratings={dratings_weight} sdv={sdv_weight}')
-                if abs(dratings_weight + sdv_weight - 1.0) > 1e-09:
-                    item['errors'].append(f'{path}: {market} weights must sum to 1.0 actual={dratings_weight + sdv_weight}')
-                return (_py_r1000_NONE, None)
+        ensemble_version = clean(payload.get("ensemble_version"))
+        item["ensemble_version"] = ensemble_version or None
 
-            def _py_r1000_else_8():
-                nonlocal expected_feature, expected_model, weight_feature, weight_model
-                expected_feature = clean(sdv_contexts.get(league, {}).get('feature_version'))
-                expected_model = clean(sdv_contexts.get(league, {}).get('model_version'))
-                weight_feature = clean(sdv_component.get('feature_version'))
-                weight_model = clean(sdv_component.get('model_version'))
-                if expected_feature and weight_feature != expected_feature:
-                    item['errors'].append(f'{path}: components.sdv.feature_version mismatch model={expected_feature!r} weights={weight_feature!r}')
-                if expected_model and weight_model != expected_model:
-                    item['errors'].append(f'{path}: components.sdv.model_version mismatch model={expected_model!r} weights={weight_model!r}')
-                return (_py_r1000_NONE, None)
+        if not ensemble_version:
+            item["errors"].append(f"{path}: ensemble_version is blank")
 
-            def _py_r1000_if_10():
-                nonlocal target
-                target = fatals if enabled else warnings
-                target.extend(item['errors'])
-                return (_py_r1000_NONE, None)
+        if clean(payload.get("league")).lower() not in {"", league}:
+            item["errors"].append(
+                f"{path}: league mismatch expected={league.upper()} "
+                f"actual={payload.get('league')!r}"
+            )
 
-            def _py_r1000_chunk_12():
-                nonlocal enabled, ensemble_version, exc, item, path, payload
+        for market in ("margin", "total", "moneyline"):
+            section = payload.get(market)
 
-                def _py_r1000_if_13():
-                    _py_r1000_result_3 = _py_r1000_if_2()
-                    if _py_r1000_result_3[0] != _py_r1000_NONE:
-                        return _py_r1000_result_3
-                    return (_py_r1000_NONE, None)
-
-                def _py_r1000_except_15():
-                    _py_r1000_result_5 = _py_r1000_except_4()
-                    if _py_r1000_result_5[0] != _py_r1000_NONE:
-                        return _py_r1000_result_5
-                    return (_py_r1000_NONE, None)
-                enabled = ensemble_enabled_for_league(model_cfg, league, production_source)
-                path = ENSEMBLE_MODEL_ROOT / league / 'weights.json'
-                item = {'path': str(path), 'enabled': enabled, 'exists': path.exists(), 'valid': False, 'ensemble_version': None, 'errors': []}
-                if not path.exists():
-                    _py_r1000_result_14 = _py_r1000_if_13()
-                    if _py_r1000_result_14[0] != _py_r1000_NONE:
-                        return _py_r1000_result_14
-                try:
-                    payload = read_json_mapping(path)
-                except Exception as exc:
-                    _py_r1000_result_16 = _py_r1000_except_15()
-                    if _py_r1000_result_16[0] != _py_r1000_NONE:
-                        return _py_r1000_result_16
-                ensemble_version = clean(payload.get('ensemble_version'))
-                item['ensemble_version'] = ensemble_version or None
-                if not ensemble_version:
-                    item['errors'].append(f'{path}: ensemble_version is blank')
-                if clean(payload.get('league')).lower() not in {'', league}:
-                    item['errors'].append(f"{path}: league mismatch expected={league.upper()} actual={payload.get('league')!r}")
-                return (_py_r1000_NONE, None)
-
-            def _py_r1000_chunk_17():
-                nonlocal components, market, sdv_component
-
-                def _py_r1000_loop_18():
-                    _py_r1000_result_7 = _py_r1000_loop_6()
-                    if _py_r1000_result_7[0] == _py_r1000_RETURN:
-                        return _py_r1000_result_7
-                    if _py_r1000_result_7[0] == _py_r1000_BREAK:
-                        return (_py_r1000_BREAK, None)
-                    if _py_r1000_result_7[0] == _py_r1000_CONTINUE:
-                        return (_py_r1000_CONTINUE, None)
-                    return (_py_r1000_NONE, None)
-
-                def _py_r1000_else_20():
-                    _py_r1000_result_9 = _py_r1000_else_8()
-                    if _py_r1000_result_9[0] != _py_r1000_NONE:
-                        return _py_r1000_result_9
-                    return (_py_r1000_NONE, None)
-                for market in ('margin', 'total', 'moneyline'):
-                    _py_r1000_result_19 = _py_r1000_loop_18()
-                    if _py_r1000_result_19[0] == _py_r1000_RETURN:
-                        return _py_r1000_result_19
-                    if _py_r1000_result_19[0] == _py_r1000_BREAK:
-                        break
-                    if _py_r1000_result_19[0] == _py_r1000_CONTINUE:
-                        continue
-                components = payload.get('components')
-                sdv_component = components.get('sdv') if isinstance(components, dict) else None
-                if not isinstance(sdv_component, dict):
-                    item['errors'].append(f'{path}: components.sdv is missing')
-                else:
-                    _py_r1000_result_21 = _py_r1000_else_20()
-                    if _py_r1000_result_21[0] != _py_r1000_NONE:
-                        return _py_r1000_result_21
-                return (_py_r1000_NONE, None)
-
-            def _py_r1000_chunk_22():
-
-                def _py_r1000_if_23():
-                    _py_r1000_result_11 = _py_r1000_if_10()
-                    if _py_r1000_result_11[0] != _py_r1000_NONE:
-                        return _py_r1000_result_11
-                    return (_py_r1000_NONE, None)
-                if item['errors']:
-                    _py_r1000_result_24 = _py_r1000_if_23()
-                    if _py_r1000_result_24[0] != _py_r1000_NONE:
-                        return _py_r1000_result_24
-                else:
-                    item['valid'] = True
-                report[league] = item
-                return (_py_r1000_NONE, None)
-            for _py_r1000_block_25 in (_py_r1000_chunk_12, _py_r1000_chunk_17, _py_r1000_chunk_22):
-                _py_r1000_result_26 = _py_r1000_block_25()
-                if _py_r1000_result_26[0] != _py_r1000_NONE:
-                    return _py_r1000_result_26
-            return (_py_r1000_NONE, None)
-        report = {}
-        fatals: list[str] = []
-        warnings: list[str] = []
-        for league in LEAGUES:
-            _py_r1000_result_27 = _py_r1000_loop_1()
-            if _py_r1000_result_27[0] == _py_r1000_RETURN:
-                return _py_r1000_result_27
-            if _py_r1000_result_27[0] == _py_r1000_BREAK:
-                break
-            if _py_r1000_result_27[0] == _py_r1000_CONTINUE:
+            if not isinstance(section, dict):
+                item["errors"].append(
+                    f"{path}: missing {market} weights mapping"
+                )
                 continue
-        return (_py_r1000_RETURN, (report, fatals, warnings))
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+
+            dratings_weight = fnum(section.get("dratings_weight"))
+            sdv_weight = fnum(section.get("sdv_weight"))
+
+            if dratings_weight is None or sdv_weight is None:
+                item["errors"].append(
+                    f"{path}: {market} weights must be numeric"
+                )
+                continue
+
+            if not (0 <= dratings_weight <= 1 and 0 <= sdv_weight <= 1):
+                item["errors"].append(
+                    f"{path}: {market} weights must be between 0 and 1 "
+                    f"dratings={dratings_weight} sdv={sdv_weight}"
+                )
+
+            if abs((dratings_weight + sdv_weight) - 1.0) > 1e-9:
+                item["errors"].append(
+                    f"{path}: {market} weights must sum to 1.0 "
+                    f"actual={dratings_weight + sdv_weight}"
+                )
+
+        components = payload.get("components")
+        sdv_component = (
+            components.get("sdv")
+            if isinstance(components, dict)
+            else None
+        )
+
+        if not isinstance(sdv_component, dict):
+            item["errors"].append(f"{path}: components.sdv is missing")
+        else:
+            expected_feature = clean(
+                sdv_contexts.get(league, {}).get("feature_version")
+            )
+            expected_model = clean(
+                sdv_contexts.get(league, {}).get("model_version")
+            )
+            weight_feature = clean(sdv_component.get("feature_version"))
+            weight_model = clean(sdv_component.get("model_version"))
+
+            if expected_feature and weight_feature != expected_feature:
+                item["errors"].append(
+                    f"{path}: components.sdv.feature_version mismatch "
+                    f"model={expected_feature!r} weights={weight_feature!r}"
+                )
+
+            if expected_model and weight_model != expected_model:
+                item["errors"].append(
+                    f"{path}: components.sdv.model_version mismatch "
+                    f"model={expected_model!r} weights={weight_model!r}"
+                )
+
+        if item["errors"]:
+            target = fatals if enabled else warnings
+            target.extend(item["errors"])
+        else:
+            item["valid"] = True
+
+        report[league] = item
+
+    return report, fatals, warnings
 
 
 # =============================================================================
@@ -1620,294 +1506,595 @@ def mismatch_version_ids(
     )
 
 
-def current_sdv_league_health(league: str, now: datetime, season_config: dict[str, dict[str, int]], model_cfg: dict, production_source: str | None, sdv_context: dict, ensemble_context: dict) -> tuple[dict, list[str]]:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
+def current_sdv_league_health(
+    league: str,
+    now: datetime,
+    season_config: dict[str, dict[str, int]],
+    model_cfg: dict,
+    production_source: str | None,
+    sdv_context: dict,
+    ensemble_context: dict,
+) -> tuple[dict, list[str]]:
+    upper = LABEL[league]
+    date = now.strftime("%Y_%m_%d")
+    active = in_season(league, now, season_config)
+    ensemble_enabled = ensemble_enabled_for_league(
+        model_cfg,
+        league,
+        production_source,
+    )
 
-    def _py_r1000_impl():
-        nonlocal ensemble_context, league, model_cfg, now, production_source, sdv_context, season_config
-        active: object
-        cleaned_blanks: object
-        cleaned_dupes: object
-        cleaned_ids: object
-        cleaned_missing: object
-        cleaned_path: object
-        cleaned_rows: object
-        critical_failures: object
-        daily_path: object
-        daily_rows: object
-        date: object
-        ensemble_bad: object
-        ensemble_blanks: object
-        ensemble_dupes: object
-        ensemble_enabled: object
-        ensemble_ids: object
-        ensemble_pred_path: object
-        ensemble_rows: object
-        exc: object
-        expected_ensemble: object
-        expected_feature: object
-        expected_model: object
-        feature_bad: object
-        feature_ids: object
-        feature_info: object
-        feature_path: object
-        issues: object
-        item: object
-        merge_path: object
-        merged_rows: object
-        merged_source_bad: object
-        missing: object
-        model_bad: object
-        scheduled_blanks: object
-        scheduled_dupes: object
-        scheduled_ids: object
-        sdv_blanks: object
-        sdv_dupes: object
-        sdv_ids: object
-        sdv_pred_path: object
-        sdv_rows: object
-        source_bad: object
-        source_blanks: object
-        source_dupes: object
-        source_ids: object
-        source_missing: object
-        source_path: object
-        source_rows: object
-        unexpected: object
-        upper: object
-        version_bad: object
+    daily_path = BASE / "daily_games" / league / f"{date}_{upper}.csv"
+    feature_path = (
+        SDV_FEATURE_ROOT
+        / league
+        / f"{date}_{upper}_features.parquet"
+    )
+    sdv_pred_path = (
+        SDV_PREDICTION_ROOT
+        / league
+        / f"{date}_{upper}_predictions.csv"
+    )
+    ensemble_pred_path = (
+        ENSEMBLE_PREDICTION_ROOT
+        / league
+        / f"{date}_{upper}_predictions.csv"
+    )
+    cleaned_path = (
+        CLEANED_PREDICTION_ROOT
+        / league
+        / f"{date}_{upper}_predictions.csv"
+    )
+    merge_path = (
+        BASE
+        / "01_merge"
+        / league
+        / "moneyline"
+        / f"{date}_{upper}_moneyline.csv"
+    )
+    source_path = (
+        PRODUCTION_ROOTS[production_source]
+        / league
+        / f"{date}_{upper}_predictions.csv"
+        if production_source in PRODUCTION_ROOTS
+        else None
+    )
 
-        def _py_r1000_if_1():
-            nonlocal cleaned_blanks, cleaned_dupes, cleaned_ids, cleaned_missing, cleaned_rows, ensemble_bad, ensemble_blanks, ensemble_dupes, ensemble_ids, ensemble_rows, exc, expected_ensemble, expected_feature, expected_model, feature_bad, feature_ids, feature_info, merged_rows, merged_source_bad, missing, model_bad, sdv_blanks, sdv_dupes, sdv_ids, sdv_rows, source_bad, source_blanks, source_dupes, source_ids, source_missing, source_rows, unexpected, version_bad
+    daily_rows = read_rows(daily_path)
+    scheduled_ids, scheduled_blanks, scheduled_dupes = row_game_ids(daily_rows)
+    issues: list[str] = []
 
-            def _py_r1000_else_2():
-                nonlocal exc, expected_feature, feature_ids, feature_info, missing, unexpected, version_bad
+    item = {
+        "in_season": active,
+        "production_critical": active,
+        "ensemble_enabled": ensemble_enabled,
+        "configured_production_source": production_source,
+        "scheduled_game_count": len(scheduled_ids),
+        "scheduled_game_ids": sorted(scheduled_ids),
+        "paths": {
+            "daily_games": str(daily_path),
+            "current_features": str(feature_path),
+            "sdv_predictions": str(sdv_pred_path),
+            "ensemble_predictions": str(ensemble_pred_path),
+            "configured_source_predictions": (
+                str(source_path) if source_path else None
+            ),
+            "cleaned_predictions": str(cleaned_path),
+            "merged_moneyline": str(merge_path),
+        },
+        "feature": {
+            "exists": feature_path.exists(),
+            "row_count": None,
+            "game_ids": [],
+            "missing_scheduled_game_ids": [],
+            "unexpected_game_ids": [],
+            "blank_game_id_rows": [],
+            "duplicate_game_ids": [],
+            "feature_version_mismatch_game_ids": [],
+        },
+        "sdv_predictions": {
+            "exists": sdv_pred_path.exists(),
+            "row_count": 0,
+            "game_ids": [],
+            "missing_scheduled_game_ids": [],
+            "unexpected_game_ids": [],
+            "model_source_mismatch_game_ids": [],
+            "feature_version_mismatch_game_ids": [],
+            "model_version_mismatch_game_ids": [],
+        },
+        "ensemble_predictions": {
+            "required": ensemble_enabled,
+            "exists": ensemble_pred_path.exists(),
+            "row_count": 0,
+            "game_ids": [],
+            "missing_scheduled_game_ids": [],
+            "unexpected_game_ids": [],
+            "model_source_mismatch_game_ids": [],
+            "feature_version_mismatch_game_ids": [],
+            "ensemble_version_mismatch_game_ids": [],
+        },
+        "production_source": {
+            "raw_exists": source_path.exists() if source_path else False,
+            "raw_row_count": 0,
+            "raw_game_ids": [],
+            "raw_missing_scheduled_game_ids": [],
+            "cleaned_exists": cleaned_path.exists(),
+            "cleaned_row_count": 0,
+            "cleaned_game_ids": [],
+            "cleaned_missing_scheduled_game_ids": [],
+            "cleaned_model_source_mismatch_game_ids": [],
+            "merged_exists": merge_path.exists(),
+            "merged_row_count": 0,
+            "merged_model_source_mismatch_game_ids": [],
+            "source_confirmed_downstream": False,
+        },
+        "issues": issues,
+    }
 
-                def _py_r1000_try_else_3():
-                    nonlocal expected_feature, feature_ids, missing, unexpected, version_bad
-                    feature_ids = feature_info['game_ids']
-                    missing = sorted(scheduled_ids - feature_ids)
-                    unexpected = sorted(feature_ids - scheduled_ids)
-                    expected_feature = clean(sdv_context.get('feature_version'))
-                    version_bad = sorted((gid for gid, actual in feature_info['feature_version_by_game_id'].items() if expected_feature and actual != expected_feature))
-                    item['feature'].update({'row_count': feature_info['row_count'], 'game_ids': sorted(feature_ids), 'missing_scheduled_game_ids': missing, 'unexpected_game_ids': unexpected, 'blank_game_id_rows': feature_info['blank_game_id_rows'], 'duplicate_game_ids': feature_info['duplicate_game_ids'], 'feature_version_mismatch_game_ids': version_bad})
-                    if feature_info['row_count'] != len(scheduled_ids):
-                        issues.append(f"{upper}: current SDV feature row count mismatch file={feature_path} expected={len(scheduled_ids)} actual={feature_info['row_count']}")
-                    if feature_info['blank_game_id_rows']:
-                        issues.append(f"{upper}: current SDV feature file={feature_path} has blank game_id rows={feature_info['blank_game_id_rows']}")
-                    if feature_info['duplicate_game_ids']:
-                        issues.append(f"{upper}: current SDV feature file={feature_path} has duplicate game_ids={format_ids(feature_info['duplicate_game_ids'])}")
-                    if missing:
-                        issues.append(f'{upper}: scheduled game_ids missing from current SDV features {feature_path}: {format_ids(missing)}')
-                    if unexpected:
-                        issues.append(f'{upper}: unexpected game_ids in current SDV features {feature_path}: {format_ids(unexpected)}')
-                    if version_bad:
-                        issues.append(f'{upper}: feature/model feature_version mismatch file={feature_path} model_feature_version={expected_feature!r} game_ids={format_ids(version_bad)}')
-                    return (_py_r1000_NONE, None)
-                try:
-                    feature_info = read_current_feature_file(feature_path)
-                except Exception as exc:
-                    issues.append(f'{upper}: unable to validate current SDV feature file {feature_path}: {exc}')
-                else:
-                    _py_r1000_result_4 = _py_r1000_try_else_3()
-                    if _py_r1000_result_4[0] != _py_r1000_NONE:
-                        return _py_r1000_result_4
-                return (_py_r1000_NONE, None)
+    if scheduled_blanks:
+        issues.append(
+            f"{upper}: current daily file {daily_path} has blank game_id "
+            f"rows={scheduled_blanks}"
+        )
 
-            def _py_r1000_else_6():
-                nonlocal expected_feature, expected_model, feature_bad, missing, model_bad, sdv_blanks, sdv_dupes, sdv_ids, sdv_rows, source_bad, unexpected
-                sdv_rows = read_rows(sdv_pred_path)
-                sdv_ids, sdv_blanks, sdv_dupes = row_game_ids(sdv_rows)
-                missing = sorted(scheduled_ids - sdv_ids)
-                unexpected = sorted(sdv_ids - scheduled_ids)
-                expected_feature = clean(sdv_context.get('feature_version'))
-                expected_model = clean(sdv_context.get('model_version'))
-                source_bad = mismatch_source_ids(sdv_rows, 'sdv')
-                feature_bad = mismatch_version_ids(sdv_rows, 'feature_version', expected_feature)
-                model_bad = mismatch_version_ids(sdv_rows, 'model_version', expected_model)
-                item['sdv_predictions'].update({'row_count': len(sdv_rows), 'game_ids': sorted(sdv_ids), 'missing_scheduled_game_ids': missing, 'unexpected_game_ids': unexpected, 'model_source_mismatch_game_ids': source_bad, 'feature_version_mismatch_game_ids': feature_bad, 'model_version_mismatch_game_ids': model_bad})
-                if len(sdv_rows) != len(scheduled_ids):
-                    issues.append(f'{upper}: current SDV prediction row count mismatch file={sdv_pred_path} expected={len(scheduled_ids)} actual={len(sdv_rows)}')
-                if sdv_blanks:
-                    issues.append(f'{upper}: current SDV prediction file {sdv_pred_path} has blank game_id rows={sdv_blanks}')
-                if sdv_dupes:
-                    issues.append(f'{upper}: current SDV prediction file {sdv_pred_path} has duplicate game_ids={format_ids(sdv_dupes)}')
+    if scheduled_dupes:
+        issues.append(
+            f"{upper}: current daily file {daily_path} has duplicate "
+            f"game_ids={format_ids(scheduled_dupes)}"
+        )
+
+    # sdv_predict intentionally skips true zero-game slates.
+    if scheduled_ids:
+        # ---------------------------------------------------------------------
+        # CURRENT SDV FEATURE FILE
+        # ---------------------------------------------------------------------
+
+        if not feature_path.exists():
+            issues.append(
+                f"{upper}: missing current SDV feature file: {feature_path}"
+            )
+        else:
+            try:
+                feature_info = read_current_feature_file(feature_path)
+            except Exception as exc:
+                issues.append(
+                    f"{upper}: unable to validate current SDV feature file "
+                    f"{feature_path}: {exc}"
+                )
+            else:
+                feature_ids = feature_info["game_ids"]
+                missing = sorted(scheduled_ids - feature_ids)
+                unexpected = sorted(feature_ids - scheduled_ids)
+                expected_feature = clean(sdv_context.get("feature_version"))
+
+                version_bad = sorted(
+                    gid
+                    for gid, actual
+                    in feature_info["feature_version_by_game_id"].items()
+                    if expected_feature and actual != expected_feature
+                )
+
+                item["feature"].update({
+                    "row_count": feature_info["row_count"],
+                    "game_ids": sorted(feature_ids),
+                    "missing_scheduled_game_ids": missing,
+                    "unexpected_game_ids": unexpected,
+                    "blank_game_id_rows": (
+                        feature_info["blank_game_id_rows"]
+                    ),
+                    "duplicate_game_ids": (
+                        feature_info["duplicate_game_ids"]
+                    ),
+                    "feature_version_mismatch_game_ids": version_bad,
+                })
+
+                if feature_info["row_count"] != len(scheduled_ids):
+                    issues.append(
+                        f"{upper}: current SDV feature row count mismatch "
+                        f"file={feature_path} expected={len(scheduled_ids)} "
+                        f"actual={feature_info['row_count']}"
+                    )
+
+                if feature_info["blank_game_id_rows"]:
+                    issues.append(
+                        f"{upper}: current SDV feature file={feature_path} "
+                        "has blank game_id rows="
+                        f"{feature_info['blank_game_id_rows']}"
+                    )
+
+                if feature_info["duplicate_game_ids"]:
+                    issues.append(
+                        f"{upper}: current SDV feature file={feature_path} "
+                        "has duplicate game_ids="
+                        f"{format_ids(feature_info['duplicate_game_ids'])}"
+                    )
+
                 if missing:
-                    issues.append(f'{upper}: scheduled game_ids missing from SDV predictions {sdv_pred_path}: {format_ids(missing)}')
+                    issues.append(
+                        f"{upper}: scheduled game_ids missing from current SDV "
+                        f"features {feature_path}: {format_ids(missing)}"
+                    )
+
                 if unexpected:
-                    issues.append(f'{upper}: unexpected game_ids in SDV predictions {sdv_pred_path}: {format_ids(unexpected)}')
+                    issues.append(
+                        f"{upper}: unexpected game_ids in current SDV features "
+                        f"{feature_path}: {format_ids(unexpected)}"
+                    )
+
+                if version_bad:
+                    issues.append(
+                        f"{upper}: feature/model feature_version mismatch "
+                        f"file={feature_path} "
+                        f"model_feature_version={expected_feature!r} "
+                        f"game_ids={format_ids(version_bad)}"
+                    )
+
+        # ---------------------------------------------------------------------
+        # CURRENT SDV PREDICTIONS
+        # ---------------------------------------------------------------------
+
+        if not sdv_pred_path.exists():
+            issues.append(
+                f"{upper}: missing current SDV prediction file: {sdv_pred_path}"
+            )
+        else:
+            sdv_rows = read_rows(sdv_pred_path)
+            sdv_ids, sdv_blanks, sdv_dupes = row_game_ids(sdv_rows)
+
+            missing = sorted(scheduled_ids - sdv_ids)
+            unexpected = sorted(sdv_ids - scheduled_ids)
+
+            expected_feature = clean(sdv_context.get("feature_version"))
+            expected_model = clean(sdv_context.get("model_version"))
+
+            source_bad = mismatch_source_ids(
+                sdv_rows,
+                "sdv",
+            )
+
+            feature_bad = mismatch_version_ids(
+                sdv_rows,
+                "feature_version",
+                expected_feature,
+            )
+
+            model_bad = mismatch_version_ids(
+                sdv_rows,
+                "model_version",
+                expected_model,
+            )
+
+            item["sdv_predictions"].update({
+                "row_count": len(sdv_rows),
+                "game_ids": sorted(sdv_ids),
+                "missing_scheduled_game_ids": missing,
+                "unexpected_game_ids": unexpected,
+                "model_source_mismatch_game_ids": source_bad,
+                "feature_version_mismatch_game_ids": feature_bad,
+                "model_version_mismatch_game_ids": model_bad,
+            })
+
+            if len(sdv_rows) != len(scheduled_ids):
+                issues.append(
+                    f"{upper}: current SDV prediction row count mismatch "
+                    f"file={sdv_pred_path} expected={len(scheduled_ids)} "
+                    f"actual={len(sdv_rows)}"
+                )
+
+            if sdv_blanks:
+                issues.append(
+                    f"{upper}: current SDV prediction file {sdv_pred_path} "
+                    f"has blank game_id rows={sdv_blanks}"
+                )
+
+            if sdv_dupes:
+                issues.append(
+                    f"{upper}: current SDV prediction file {sdv_pred_path} "
+                    f"has duplicate game_ids={format_ids(sdv_dupes)}"
+                )
+
+            if missing:
+                issues.append(
+                    f"{upper}: scheduled game_ids missing from SDV predictions "
+                    f"{sdv_pred_path}: {format_ids(missing)}"
+                )
+
+            if unexpected:
+                issues.append(
+                    f"{upper}: unexpected game_ids in SDV predictions "
+                    f"{sdv_pred_path}: {format_ids(unexpected)}"
+                )
+
+            if source_bad:
+                issues.append(
+                    f"{upper}: SDV prediction model_source mismatch "
+                    f"file={sdv_pred_path} expected='sdv' "
+                    f"game_ids={format_ids(source_bad)}"
+                )
+
+            if feature_bad:
+                issues.append(
+                    f"{upper}: SDV prediction feature_version mismatch "
+                    f"file={sdv_pred_path} expected={expected_feature!r} "
+                    f"game_ids={format_ids(feature_bad)}"
+                )
+
+            if model_bad:
+                issues.append(
+                    f"{upper}: SDV prediction model_version mismatch "
+                    f"file={sdv_pred_path} expected={expected_model!r} "
+                    f"game_ids={format_ids(model_bad)}"
+                )
+
+        # ---------------------------------------------------------------------
+        # CURRENT ENSEMBLE PREDICTIONS
+        # ---------------------------------------------------------------------
+
+        if ensemble_enabled:
+            if not ensemble_pred_path.exists():
+                issues.append(
+                    f"{upper}: ensemble is enabled but current ensemble "
+                    f"prediction file is missing: {ensemble_pred_path}"
+                )
+            else:
+                ensemble_rows = read_rows(ensemble_pred_path)
+
+                (
+                    ensemble_ids,
+                    ensemble_blanks,
+                    ensemble_dupes,
+                ) = row_game_ids(ensemble_rows)
+
+                missing = sorted(scheduled_ids - ensemble_ids)
+                unexpected = sorted(ensemble_ids - scheduled_ids)
+
+                expected_feature = clean(
+                    sdv_context.get("feature_version")
+                )
+                expected_ensemble = clean(
+                    ensemble_context.get("ensemble_version")
+                )
+
+                source_bad = mismatch_source_ids(
+                    ensemble_rows,
+                    "ensemble",
+                )
+
+                feature_bad = mismatch_version_ids(
+                    ensemble_rows,
+                    "feature_version",
+                    expected_feature,
+                )
+
+                ensemble_bad = mismatch_version_ids(
+                    ensemble_rows,
+                    "ensemble_version",
+                    expected_ensemble,
+                )
+
+                item["ensemble_predictions"].update({
+                    "row_count": len(ensemble_rows),
+                    "game_ids": sorted(ensemble_ids),
+                    "missing_scheduled_game_ids": missing,
+                    "unexpected_game_ids": unexpected,
+                    "model_source_mismatch_game_ids": source_bad,
+                    "feature_version_mismatch_game_ids": feature_bad,
+                    "ensemble_version_mismatch_game_ids": ensemble_bad,
+                })
+
+                if len(ensemble_rows) != len(scheduled_ids):
+                    issues.append(
+                        f"{upper}: current ensemble prediction row count "
+                        f"mismatch file={ensemble_pred_path} "
+                        f"expected={len(scheduled_ids)} "
+                        f"actual={len(ensemble_rows)}"
+                    )
+
+                if ensemble_blanks:
+                    issues.append(
+                        f"{upper}: current ensemble prediction file "
+                        f"{ensemble_pred_path} has blank game_id "
+                        f"rows={ensemble_blanks}"
+                    )
+
+                if ensemble_dupes:
+                    issues.append(
+                        f"{upper}: current ensemble prediction file "
+                        f"{ensemble_pred_path} has duplicate game_ids="
+                        f"{format_ids(ensemble_dupes)}"
+                    )
+
+                if missing:
+                    issues.append(
+                        f"{upper}: scheduled game_ids missing from ensemble "
+                        f"predictions {ensemble_pred_path}: "
+                        f"{format_ids(missing)}"
+                    )
+
+                if unexpected:
+                    issues.append(
+                        f"{upper}: unexpected game_ids in ensemble predictions "
+                        f"{ensemble_pred_path}: {format_ids(unexpected)}"
+                    )
+
                 if source_bad:
-                    issues.append(f"{upper}: SDV prediction model_source mismatch file={sdv_pred_path} expected='sdv' game_ids={format_ids(source_bad)}")
+                    issues.append(
+                        f"{upper}: ensemble prediction model_source mismatch "
+                        f"file={ensemble_pred_path} expected='ensemble' "
+                        f"game_ids={format_ids(source_bad)}"
+                    )
+
                 if feature_bad:
-                    issues.append(f'{upper}: SDV prediction feature_version mismatch file={sdv_pred_path} expected={expected_feature!r} game_ids={format_ids(feature_bad)}')
-                if model_bad:
-                    issues.append(f'{upper}: SDV prediction model_version mismatch file={sdv_pred_path} expected={expected_model!r} game_ids={format_ids(model_bad)}')
-                return (_py_r1000_NONE, None)
+                    issues.append(
+                        f"{upper}: ensemble prediction feature_version mismatch "
+                        f"file={ensemble_pred_path} "
+                        f"expected={expected_feature!r} "
+                        f"game_ids={format_ids(feature_bad)}"
+                    )
 
-            def _py_r1000_if_8():
-                nonlocal ensemble_bad, ensemble_blanks, ensemble_dupes, ensemble_ids, ensemble_rows, expected_ensemble, expected_feature, feature_bad, missing, source_bad, unexpected
+                if ensemble_bad:
+                    issues.append(
+                        f"{upper}: ensemble prediction ensemble_version mismatch "
+                        f"file={ensemble_pred_path} "
+                        f"expected={expected_ensemble!r} "
+                        f"game_ids={format_ids(ensemble_bad)}"
+                    )
 
-                def _py_r1000_else_9():
-                    nonlocal ensemble_bad, ensemble_blanks, ensemble_dupes, ensemble_ids, ensemble_rows, expected_ensemble, expected_feature, feature_bad, missing, source_bad, unexpected
-                    ensemble_rows = read_rows(ensemble_pred_path)
-                    ensemble_ids, ensemble_blanks, ensemble_dupes = row_game_ids(ensemble_rows)
-                    missing = sorted(scheduled_ids - ensemble_ids)
-                    unexpected = sorted(ensemble_ids - scheduled_ids)
-                    expected_feature = clean(sdv_context.get('feature_version'))
-                    expected_ensemble = clean(ensemble_context.get('ensemble_version'))
-                    source_bad = mismatch_source_ids(ensemble_rows, 'ensemble')
-                    feature_bad = mismatch_version_ids(ensemble_rows, 'feature_version', expected_feature)
-                    ensemble_bad = mismatch_version_ids(ensemble_rows, 'ensemble_version', expected_ensemble)
-                    item['ensemble_predictions'].update({'row_count': len(ensemble_rows), 'game_ids': sorted(ensemble_ids), 'missing_scheduled_game_ids': missing, 'unexpected_game_ids': unexpected, 'model_source_mismatch_game_ids': source_bad, 'feature_version_mismatch_game_ids': feature_bad, 'ensemble_version_mismatch_game_ids': ensemble_bad})
-                    if len(ensemble_rows) != len(scheduled_ids):
-                        issues.append(f'{upper}: current ensemble prediction row count mismatch file={ensemble_pred_path} expected={len(scheduled_ids)} actual={len(ensemble_rows)}')
-                    if ensemble_blanks:
-                        issues.append(f'{upper}: current ensemble prediction file {ensemble_pred_path} has blank game_id rows={ensemble_blanks}')
-                    if ensemble_dupes:
-                        issues.append(f'{upper}: current ensemble prediction file {ensemble_pred_path} has duplicate game_ids={format_ids(ensemble_dupes)}')
-                    if missing:
-                        issues.append(f'{upper}: scheduled game_ids missing from ensemble predictions {ensemble_pred_path}: {format_ids(missing)}')
-                    if unexpected:
-                        issues.append(f'{upper}: unexpected game_ids in ensemble predictions {ensemble_pred_path}: {format_ids(unexpected)}')
-                    if source_bad:
-                        issues.append(f"{upper}: ensemble prediction model_source mismatch file={ensemble_pred_path} expected='ensemble' game_ids={format_ids(source_bad)}")
-                    if feature_bad:
-                        issues.append(f'{upper}: ensemble prediction feature_version mismatch file={ensemble_pred_path} expected={expected_feature!r} game_ids={format_ids(feature_bad)}')
-                    if ensemble_bad:
-                        issues.append(f'{upper}: ensemble prediction ensemble_version mismatch file={ensemble_pred_path} expected={expected_ensemble!r} game_ids={format_ids(ensemble_bad)}')
-                    return (_py_r1000_NONE, None)
-                if not ensemble_pred_path.exists():
-                    issues.append(f'{upper}: ensemble is enabled but current ensemble prediction file is missing: {ensemble_pred_path}')
-                else:
-                    _py_r1000_result_10 = _py_r1000_else_9()
-                    if _py_r1000_result_10[0] != _py_r1000_NONE:
-                        return _py_r1000_result_10
-                return (_py_r1000_NONE, None)
+        # ---------------------------------------------------------------------
+        # CONFIGURED PRODUCTION SOURCE -> DOWNSTREAM CLEANED SLATE
+        # ---------------------------------------------------------------------
 
-            def _py_r1000_else_12():
-                nonlocal source_blanks, source_dupes, source_ids, source_missing, source_rows
+        source_ids: set[str] = set()
 
-                def _py_r1000_else_13():
-                    nonlocal source_blanks, source_dupes, source_ids, source_missing, source_rows
-                    source_rows = read_rows(source_path)
-                    source_ids, source_blanks, source_dupes = row_game_ids(source_rows)
-                    source_missing = sorted(scheduled_ids - source_ids)
-                    item['production_source']['raw_row_count'] = len(source_rows)
-                    item['production_source']['raw_game_ids'] = sorted(source_ids)
-                    item['production_source']['raw_missing_scheduled_game_ids'] = source_missing
-                    if source_blanks:
-                        issues.append(f'{upper}: configured production source file {source_path} has blank game_id rows={source_blanks}')
-                    if source_dupes:
-                        issues.append(f'{upper}: configured production source file {source_path} has duplicate game_ids={format_ids(source_dupes)}')
-                    if source_missing:
-                        issues.append(f'{upper}: configured production source={production_source} is missing scheduled game_ids in {source_path}: {format_ids(source_missing)}')
-                    return (_py_r1000_NONE, None)
-                if not source_path.exists():
-                    issues.append(f'{upper}: configured production source prediction file is missing: source={production_source} path={source_path}')
-                else:
-                    _py_r1000_result_14 = _py_r1000_else_13()
-                    if _py_r1000_result_14[0] != _py_r1000_NONE:
-                        return _py_r1000_result_14
-                return (_py_r1000_NONE, None)
+        if source_path is None:
+            issues.append(
+                f"{upper}: configured production prediction source is invalid: "
+                f"{production_source!r}"
+            )
 
-            def _py_r1000_else_16():
-                nonlocal cleaned_blanks, cleaned_dupes, cleaned_ids, cleaned_missing, cleaned_rows, source_bad
-                cleaned_rows = read_rows(cleaned_path)
-                cleaned_ids, cleaned_blanks, cleaned_dupes = row_game_ids(cleaned_rows)
-                cleaned_missing = sorted(scheduled_ids - cleaned_ids)
-                source_bad = mismatch_source_ids(cleaned_rows, production_source or '')
-                item['production_source']['cleaned_row_count'] = len(cleaned_rows)
-                item['production_source']['cleaned_game_ids'] = sorted(cleaned_ids)
-                item['production_source']['cleaned_missing_scheduled_game_ids'] = cleaned_missing
-                item['production_source']['cleaned_model_source_mismatch_game_ids'] = source_bad
-                if cleaned_blanks:
-                    issues.append(f'{upper}: downstream cleaned slate {cleaned_path} has blank game_id rows={cleaned_blanks}')
-                if cleaned_dupes:
-                    issues.append(f'{upper}: downstream cleaned slate {cleaned_path} has duplicate game_ids={format_ids(cleaned_dupes)}')
-                if cleaned_missing:
-                    issues.append(f'{upper}: downstream cleaned prediction slate {cleaned_path} is missing scheduled game_ids={format_ids(cleaned_missing)}')
-                if source_bad:
-                    issues.append(f'{upper}: model_config source={production_source!r} did not produce downstream cleaned slate {cleaned_path}; model_source mismatch game_ids={format_ids(source_bad)}')
-                if source_ids and scheduled_ids <= source_ids and (scheduled_ids <= cleaned_ids) and (not source_bad):
-                    item['production_source']['source_confirmed_downstream'] = True
-                return (_py_r1000_NONE, None)
+        elif not source_path.exists():
+            issues.append(
+                f"{upper}: configured production source prediction file is "
+                f"missing: source={production_source} path={source_path}"
+            )
 
-            def _py_r1000_if_18():
-                nonlocal merged_rows, merged_source_bad
-                merged_rows = read_rows(merge_path)
-                merged_source_bad = mismatch_source_ids(merged_rows, production_source or '')
-                item['production_source']['merged_row_count'] = len(merged_rows)
-                item['production_source']['merged_model_source_mismatch_game_ids'] = merged_source_bad
-                if merged_source_bad:
-                    issues.append(f'{upper}: merged downstream slate={merge_path} does not match model_config source={production_source!r}; model_source mismatch game_ids={format_ids(merged_source_bad)}')
-                return (_py_r1000_NONE, None)
-            if not feature_path.exists():
-                issues.append(f'{upper}: missing current SDV feature file: {feature_path}')
-            else:
-                _py_r1000_result_5 = _py_r1000_else_2()
-                if _py_r1000_result_5[0] != _py_r1000_NONE:
-                    return _py_r1000_result_5
-            if not sdv_pred_path.exists():
-                issues.append(f'{upper}: missing current SDV prediction file: {sdv_pred_path}')
-            else:
-                _py_r1000_result_7 = _py_r1000_else_6()
-                if _py_r1000_result_7[0] != _py_r1000_NONE:
-                    return _py_r1000_result_7
-            if ensemble_enabled:
-                _py_r1000_result_11 = _py_r1000_if_8()
-                if _py_r1000_result_11[0] != _py_r1000_NONE:
-                    return _py_r1000_result_11
-            source_ids = set()
-            if source_path is None:
-                issues.append(f'{upper}: configured production prediction source is invalid: {production_source!r}')
-            else:
-                _py_r1000_result_15 = _py_r1000_else_12()
-                if _py_r1000_result_15[0] != _py_r1000_NONE:
-                    return _py_r1000_result_15
-            if not cleaned_path.exists():
-                issues.append(f'{upper}: downstream cleaned prediction slate is missing: {cleaned_path}')
-            else:
-                _py_r1000_result_17 = _py_r1000_else_16()
-                if _py_r1000_result_17[0] != _py_r1000_NONE:
-                    return _py_r1000_result_17
-            if merge_path.exists():
-                _py_r1000_result_19 = _py_r1000_if_18()
-                if _py_r1000_result_19[0] != _py_r1000_NONE:
-                    return _py_r1000_result_19
-            return (_py_r1000_NONE, None)
-        upper = LABEL[league]
-        date = now.strftime('%Y_%m_%d')
-        active = in_season(league, now, season_config)
-        ensemble_enabled = ensemble_enabled_for_league(model_cfg, league, production_source)
-        daily_path = BASE / 'daily_games' / league / f'{date}_{upper}.csv'
-        feature_path = SDV_FEATURE_ROOT / league / f'{date}_{upper}_features.parquet'
-        sdv_pred_path = SDV_PREDICTION_ROOT / league / f'{date}_{upper}_predictions.csv'
-        ensemble_pred_path = ENSEMBLE_PREDICTION_ROOT / league / f'{date}_{upper}_predictions.csv'
-        cleaned_path = CLEANED_PREDICTION_ROOT / league / f'{date}_{upper}_predictions.csv'
-        merge_path = BASE / '01_merge' / league / 'moneyline' / f'{date}_{upper}_moneyline.csv'
-        source_path = PRODUCTION_ROOTS[production_source] / league / f'{date}_{upper}_predictions.csv' if production_source in PRODUCTION_ROOTS else None
-        daily_rows = read_rows(daily_path)
-        scheduled_ids, scheduled_blanks, scheduled_dupes = row_game_ids(daily_rows)
-        issues: list[str] = []
-        item = {'in_season': active, 'production_critical': active, 'ensemble_enabled': ensemble_enabled, 'configured_production_source': production_source, 'scheduled_game_count': len(scheduled_ids), 'scheduled_game_ids': sorted(scheduled_ids), 'paths': {'daily_games': str(daily_path), 'current_features': str(feature_path), 'sdv_predictions': str(sdv_pred_path), 'ensemble_predictions': str(ensemble_pred_path), 'configured_source_predictions': str(source_path) if source_path else None, 'cleaned_predictions': str(cleaned_path), 'merged_moneyline': str(merge_path)}, 'feature': {'exists': feature_path.exists(), 'row_count': None, 'game_ids': [], 'missing_scheduled_game_ids': [], 'unexpected_game_ids': [], 'blank_game_id_rows': [], 'duplicate_game_ids': [], 'feature_version_mismatch_game_ids': []}, 'sdv_predictions': {'exists': sdv_pred_path.exists(), 'row_count': 0, 'game_ids': [], 'missing_scheduled_game_ids': [], 'unexpected_game_ids': [], 'model_source_mismatch_game_ids': [], 'feature_version_mismatch_game_ids': [], 'model_version_mismatch_game_ids': []}, 'ensemble_predictions': {'required': ensemble_enabled, 'exists': ensemble_pred_path.exists(), 'row_count': 0, 'game_ids': [], 'missing_scheduled_game_ids': [], 'unexpected_game_ids': [], 'model_source_mismatch_game_ids': [], 'feature_version_mismatch_game_ids': [], 'ensemble_version_mismatch_game_ids': []}, 'production_source': {'raw_exists': source_path.exists() if source_path else False, 'raw_row_count': 0, 'raw_game_ids': [], 'raw_missing_scheduled_game_ids': [], 'cleaned_exists': cleaned_path.exists(), 'cleaned_row_count': 0, 'cleaned_game_ids': [], 'cleaned_missing_scheduled_game_ids': [], 'cleaned_model_source_mismatch_game_ids': [], 'merged_exists': merge_path.exists(), 'merged_row_count': 0, 'merged_model_source_mismatch_game_ids': [], 'source_confirmed_downstream': False}, 'issues': issues}
-        if scheduled_blanks:
-            issues.append(f'{upper}: current daily file {daily_path} has blank game_id rows={scheduled_blanks}')
-        if scheduled_dupes:
-            issues.append(f'{upper}: current daily file {daily_path} has duplicate game_ids={format_ids(scheduled_dupes)}')
-        if scheduled_ids:
-            _py_r1000_result_20 = _py_r1000_if_1()
-            if _py_r1000_result_20[0] != _py_r1000_NONE:
-                return _py_r1000_result_20
-        critical_failures = list(issues) if active else []
-        item['critical_failures'] = critical_failures
-        item['valid'] = not issues
-        return (_py_r1000_RETURN, (item, critical_failures))
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+        else:
+            source_rows = read_rows(source_path)
+            source_ids, source_blanks, source_dupes = row_game_ids(source_rows)
+
+            source_missing = sorted(
+                scheduled_ids - source_ids
+            )
+
+            item["production_source"]["raw_row_count"] = len(source_rows)
+            item["production_source"]["raw_game_ids"] = sorted(source_ids)
+            item["production_source"][
+                "raw_missing_scheduled_game_ids"
+            ] = source_missing
+
+            if source_blanks:
+                issues.append(
+                    f"{upper}: configured production source file "
+                    f"{source_path} has blank game_id rows={source_blanks}"
+                )
+
+            if source_dupes:
+                issues.append(
+                    f"{upper}: configured production source file "
+                    f"{source_path} has duplicate game_ids="
+                    f"{format_ids(source_dupes)}"
+                )
+
+            if source_missing:
+                issues.append(
+                    f"{upper}: configured production source="
+                    f"{production_source} is missing scheduled game_ids in "
+                    f"{source_path}: {format_ids(source_missing)}"
+                )
+
+        if not cleaned_path.exists():
+            issues.append(
+                f"{upper}: downstream cleaned prediction slate is missing: "
+                f"{cleaned_path}"
+            )
+
+        else:
+            cleaned_rows = read_rows(cleaned_path)
+
+            (
+                cleaned_ids,
+                cleaned_blanks,
+                cleaned_dupes,
+            ) = row_game_ids(cleaned_rows)
+
+            cleaned_missing = sorted(
+                scheduled_ids - cleaned_ids
+            )
+
+            source_bad = mismatch_source_ids(
+                cleaned_rows,
+                production_source or "",
+            )
+
+            item["production_source"]["cleaned_row_count"] = len(
+                cleaned_rows
+            )
+            item["production_source"]["cleaned_game_ids"] = sorted(
+                cleaned_ids
+            )
+            item["production_source"][
+                "cleaned_missing_scheduled_game_ids"
+            ] = cleaned_missing
+            item["production_source"][
+                "cleaned_model_source_mismatch_game_ids"
+            ] = source_bad
+
+            if cleaned_blanks:
+                issues.append(
+                    f"{upper}: downstream cleaned slate {cleaned_path} has "
+                    f"blank game_id rows={cleaned_blanks}"
+                )
+
+            if cleaned_dupes:
+                issues.append(
+                    f"{upper}: downstream cleaned slate {cleaned_path} has "
+                    f"duplicate game_ids={format_ids(cleaned_dupes)}"
+                )
+
+            if cleaned_missing:
+                issues.append(
+                    f"{upper}: downstream cleaned prediction slate "
+                    f"{cleaned_path} is missing scheduled game_ids="
+                    f"{format_ids(cleaned_missing)}"
+                )
+
+            if source_bad:
+                issues.append(
+                    f"{upper}: model_config source={production_source!r} did "
+                    f"not produce downstream cleaned slate {cleaned_path}; "
+                    f"model_source mismatch game_ids={format_ids(source_bad)}"
+                )
+
+            if (
+                source_ids
+                and scheduled_ids <= source_ids
+                and scheduled_ids <= cleaned_ids
+                and not source_bad
+            ):
+                item["production_source"][
+                    "source_confirmed_downstream"
+                ] = True
+
+        # merge_intake is the first downstream consumer after cleaned inputs.
+        if merge_path.exists():
+            merged_rows = read_rows(merge_path)
+
+            merged_source_bad = mismatch_source_ids(
+                merged_rows,
+                production_source or "",
+            )
+
+            item["production_source"]["merged_row_count"] = len(
+                merged_rows
+            )
+            item["production_source"][
+                "merged_model_source_mismatch_game_ids"
+            ] = merged_source_bad
+
+            if merged_source_bad:
+                issues.append(
+                    f"{upper}: merged downstream slate={merge_path} does not "
+                    f"match model_config source={production_source!r}; "
+                    f"model_source mismatch game_ids="
+                    f"{format_ids(merged_source_bad)}"
+                )
+
+    critical_failures = list(issues) if active else []
+
+    item["critical_failures"] = critical_failures
+    item["valid"] = not issues
+
+    return item, critical_failures
 
 
 # =============================================================================
@@ -2065,114 +2252,172 @@ def load_all_csv(
 
 
 def wnba_bias_drift() -> dict:
-    _py_r1000_NONE = 0
-    _py_r1000_RETURN = 1
-    _py_r1000_BREAK = 2
-    _py_r1000_CONTINUE = 3
+    preds = load_all_csv(
+        BASE / "00_intake/predictions/predictions_cleaned/wnba",
+        "*_WNBA_predictions.csv",
+    )
 
-    def _py_r1000_impl():
-        ap: object
-        aws: object
-        final: object
-        finals: object
-        finals_by_comp: object
-        finals_by_id: object
-        gid: object
-        hp: object
-        hs: object
-        key: object
-        margin: object
-        n: object
-        prediction: object
-        preds: object
-        residuals: object
-        row: object
-        sample: object
-        total: object
-        tp: object
-        warn: object
-        warnings: object
-        windows: object
+    finals = load_all_csv(
+        BASE / "05_final_scores/results/wnba",
+        "*_final_scores_WNBA.csv",
+    )
 
-        def _py_r1000_loop_1():
-            nonlocal gid, key
-            if fnum(row.get('home_score')) is None or fnum(row.get('away_score')) is None:
-                return (_py_r1000_CONTINUE, None)
-            gid = clean_id(row.get('game_id'))
-            key = comp(row)
-            if gid:
-                finals_by_id[gid] = row
-            if all(key):
-                finals_by_comp[key] = row
-            return (_py_r1000_NONE, None)
+    finals_by_id = {}
+    finals_by_comp = {}
 
-        def _py_r1000_loop_3():
-            nonlocal ap, aws, final, gid, hp, hs, tp
-            gid = clean_id(prediction.get('game_id'))
-            final = finals_by_id.get(gid) if gid else None
-            if final is None:
-                final = finals_by_comp.get(comp(prediction))
-            if final is None:
-                return (_py_r1000_CONTINUE, None)
-            hp = fnum(prediction.get('home_projected_points'))
-            ap = fnum(prediction.get('away_projected_points'))
-            tp = fnum(prediction.get('total_projected_points'))
-            hs = fnum(final.get('home_score'))
-            aws = fnum(final.get('away_score'))
-            if None in (hp, ap, tp, hs, aws):
-                return (_py_r1000_CONTINUE, None)
-            residuals.append({'game_date': clean(prediction.get('game_date')), 'game_id': gid or clean_id(final.get('game_id')), 'margin_residual_projected_minus_actual': hp - ap - (hs - aws), 'total_residual_projected_minus_actual': tp - (hs + aws)})
-            return (_py_r1000_NONE, None)
+    for row in finals:
+        if (
+            fnum(row.get("home_score")) is None
+            or fnum(row.get("away_score")) is None
+        ):
+            continue
 
-        def _py_r1000_loop_5():
-            nonlocal margin, sample, total, warn
-            sample = residuals[-n:]
-            if not sample:
-                windows[str(n)] = {'games': 0, 'margin_mean_residual': None, 'total_mean_residual': None, 'warning': False}
-                return (_py_r1000_CONTINUE, None)
-            margin = sum((row['margin_residual_projected_minus_actual'] for row in sample)) / len(sample)
-            total = sum((row['total_residual_projected_minus_actual'] for row in sample)) / len(sample)
-            warn = len(sample) >= min(n, 25) and (abs(margin) >= DRIFT_WARN or abs(total) >= DRIFT_WARN)
-            windows[str(n)] = {'games': len(sample), 'margin_mean_residual': round(margin, 4), 'total_mean_residual': round(total, 4), 'warning': warn}
-            if warn:
-                warnings.append(f'WNBA {len(sample)}-game residual drift exceeds {DRIFT_WARN}: margin={margin:.3f}, total={total:.3f}')
-            return (_py_r1000_NONE, None)
-        preds = load_all_csv(BASE / '00_intake/predictions/predictions_cleaned/wnba', '*_WNBA_predictions.csv')
-        finals = load_all_csv(BASE / '05_final_scores/results/wnba', '*_final_scores_WNBA.csv')
-        finals_by_id = {}
-        finals_by_comp = {}
-        for row in finals:
-            _py_r1000_result_2 = _py_r1000_loop_1()
-            if _py_r1000_result_2[0] == _py_r1000_RETURN:
-                return _py_r1000_result_2
-            if _py_r1000_result_2[0] == _py_r1000_BREAK:
-                break
-            if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
-                continue
-        residuals = []
-        for prediction in preds:
-            _py_r1000_result_4 = _py_r1000_loop_3()
-            if _py_r1000_result_4[0] == _py_r1000_RETURN:
-                return _py_r1000_result_4
-            if _py_r1000_result_4[0] == _py_r1000_BREAK:
-                break
-            if _py_r1000_result_4[0] == _py_r1000_CONTINUE:
-                continue
-        residuals.sort(key=lambda sort_row: (sort_row['game_date'], sort_row['game_id']))
-        windows = {}
-        warnings = []
-        for n in DRIFT_WINDOWS:
-            _py_r1000_result_6 = _py_r1000_loop_5()
-            if _py_r1000_result_6[0] == _py_r1000_RETURN:
-                return _py_r1000_result_6
-            if _py_r1000_result_6[0] == _py_r1000_BREAK:
-                break
-            if _py_r1000_result_6[0] == _py_r1000_CONTINUE:
-                continue
-        return (_py_r1000_RETURN, {'definition': 'adjusted_projected_minus_actual', 'warning_threshold_abs_points': DRIFT_WARN, 'matched_games': len(residuals), 'windows': windows, 'warnings': warnings})
-    _py_r1000_outcome = _py_r1000_impl()
-    if _py_r1000_outcome[0] == _py_r1000_RETURN:
-        return _py_r1000_outcome[1]
+        gid = clean_id(row.get("game_id"))
+        key = comp(row)
+
+        if gid:
+            finals_by_id[gid] = row
+
+        if all(key):
+            finals_by_comp[key] = row
+
+    residuals = []
+
+    for prediction in preds:
+        gid = clean_id(prediction.get("game_id"))
+
+        final = finals_by_id.get(gid) if gid else None
+
+        if final is None:
+            final = finals_by_comp.get(
+                comp(prediction)
+            )
+
+        if final is None:
+            continue
+
+        hp = fnum(
+            prediction.get("home_projected_points")
+        )
+        ap = fnum(
+            prediction.get("away_projected_points")
+        )
+        tp = fnum(
+            prediction.get("total_projected_points")
+        )
+        hs = fnum(
+            final.get("home_score")
+        )
+        aws = fnum(
+            final.get("away_score")
+        )
+
+        if None in (
+            hp,
+            ap,
+            tp,
+            hs,
+            aws,
+        ):
+            continue
+
+        residuals.append({
+            "game_date": clean(
+                prediction.get("game_date")
+            ),
+            "game_id": (
+                gid
+                or clean_id(
+                    final.get("game_id")
+                )
+            ),
+            "margin_residual_projected_minus_actual": (
+                (hp - ap)
+                - (hs - aws)
+            ),
+            "total_residual_projected_minus_actual": (
+                tp
+                - (hs + aws)
+            ),
+        })
+
+    residuals.sort(
+        key=lambda sort_row: (
+            sort_row["game_date"],
+            sort_row["game_id"],
+        )
+    )
+
+    windows = {}
+    warnings = []
+
+    for n in DRIFT_WINDOWS:
+        sample = residuals[-n:]
+
+        if not sample:
+            windows[str(n)] = {
+                "games": 0,
+                "margin_mean_residual": None,
+                "total_mean_residual": None,
+                "warning": False,
+            }
+            continue
+
+        margin = (
+            sum(
+                row[
+                    "margin_residual_projected_minus_actual"
+                ]
+                for row in sample
+            )
+            / len(sample)
+        )
+
+        total = (
+            sum(
+                row[
+                    "total_residual_projected_minus_actual"
+                ]
+                for row in sample
+            )
+            / len(sample)
+        )
+
+        warn = (
+            len(sample) >= min(n, 25)
+            and (
+                abs(margin) >= DRIFT_WARN
+                or abs(total) >= DRIFT_WARN
+            )
+        )
+
+        windows[str(n)] = {
+            "games": len(sample),
+            "margin_mean_residual": round(
+                margin,
+                4,
+            ),
+            "total_mean_residual": round(
+                total,
+                4,
+            ),
+            "warning": warn,
+        }
+
+        if warn:
+            warnings.append(
+                f"WNBA {len(sample)}-game residual drift exceeds "
+                f"{DRIFT_WARN}: margin={margin:.3f}, "
+                f"total={total:.3f}"
+            )
+
+    return {
+        "definition": "adjusted_projected_minus_actual",
+        "warning_threshold_abs_points": DRIFT_WARN,
+        "matched_games": len(residuals),
+        "windows": windows,
+        "warnings": warnings,
+    }
 
 
 def write_wnba_drift_report(
