@@ -684,100 +684,125 @@ def game_level_rows(sub: pd.DataFrame) -> pd.DataFrame:
     return sub.drop_duplicates(keys, keep="last")
 
 
-def quality_row(
-    sub: pd.DataFrame,
-    *,
-    scope: str,
-    league: str,
-    market_type: str = "ALL",
-    model_source: str = "ALL",
-    model_version: str = "ALL",
-) -> dict:
-    p = pd.to_numeric(sub.get("bet_model_prob"), errors="coerce")
-    y = pd.to_numeric(sub.get("probability_outcome"), errors="coerce")
-    prob_valid = p.between(0, 1, inclusive="both") & y.isin([0.0, 1.0])
-    prob_n = int(prob_valid.sum())
+def quality_row(sub: pd.DataFrame, *, scope: str, league: str, market_type: str='ALL', model_source: str='ALL', model_version: str='ALL') -> dict:
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    brier = float(pd.to_numeric(sub.get("brier_component"), errors="coerce").mean()) \
-        if prob_n >= MIN_PROB_SAMPLE else np.nan
-    logloss = float(pd.to_numeric(sub.get("log_loss_component"), errors="coerce").mean()) \
-        if prob_n >= MIN_PROB_SAMPLE else np.nan
-    cal = calibration_error(sub)
+    def _py_r1000_impl():
+        nonlocal league, market_type, model_source, model_version, scope, sub
+        abs_line_dis: object
+        abs_prob_dis: object
+        avg_clv: object
+        avg_line_dis: object
+        avg_prob_dis: object
+        brier: object
+        cal: object
+        clv: object
+        clv_n: object
+        clv_units: object
+        clv_units_values: object
+        games: object
+        line_dis: object
+        line_dis_n: object
+        line_mixed: object
+        logloss: object
+        margin_mae: object
+        margin_n: object
+        margin_rmse: object
+        margin_values: object
+        market_values: object
+        p: object
+        prob_dis: object
+        prob_dis_n: object
+        prob_n: object
+        prob_valid: object
+        total_mae: object
+        total_n: object
+        total_rmse: object
+        total_values: object
+        y: object
 
-    games = game_level_rows(sub)
-    margin_values = pd.to_numeric(games.get("margin_error"), errors="coerce").dropna()
-    total_values = pd.to_numeric(games.get("total_error"), errors="coerce").dropna()
-    margin_n = len(margin_values)
-    total_n = len(total_values)
+        def _py_r1000_expr_1():
+            return float(pd.to_numeric(sub.get('brier_component'), errors='coerce').mean()) if prob_n >= MIN_PROB_SAMPLE else np.nan
 
-    margin_mae = float(margin_values.abs().mean()) if margin_n >= MIN_GAME_ERROR_SAMPLE else np.nan
-    margin_rmse = float(np.sqrt((margin_values ** 2).mean())) if margin_n >= MIN_GAME_ERROR_SAMPLE else np.nan
-    total_mae = float(total_values.abs().mean()) if total_n >= MIN_GAME_ERROR_SAMPLE else np.nan
-    total_rmse = float(np.sqrt((total_values ** 2).mean())) if total_n >= MIN_GAME_ERROR_SAMPLE else np.nan
+        def _py_r1000_expr_2():
+            return float(pd.to_numeric(sub.get('log_loss_component'), errors='coerce').mean()) if prob_n >= MIN_PROB_SAMPLE else np.nan
 
-    clv = pd.to_numeric(sub.get("clv"), errors="coerce").dropna()
-    clv_n = len(clv)
-    clv_units_values = sorted({
-        str(x) for x in sub.loc[pd.to_numeric(sub.get("clv"), errors="coerce").notna(), "clv_units"].dropna()
-        if str(x).strip()
-    }) if "clv_units" in sub.columns else []
-    clv_units = clv_units_values[0] if len(clv_units_values) == 1 else ("mixed" if clv_units_values else "")
-    avg_clv = (
-        float(clv.mean())
-        if clv_n >= MIN_CLV_SAMPLE and clv_units != "mixed"
-        else np.nan
-    )
+        def _py_r1000_expr_3():
+            return float(margin_values.abs().mean()) if margin_n >= MIN_GAME_ERROR_SAMPLE else np.nan
 
-    prob_dis = pd.to_numeric(sub.get("model_vs_market_prob_pp"), errors="coerce").dropna()
-    prob_dis_n = len(prob_dis)
-    avg_prob_dis = float(prob_dis.mean()) if prob_dis_n >= MIN_DISAGREEMENT_SAMPLE else np.nan
-    abs_prob_dis = float(prob_dis.abs().mean()) if prob_dis_n >= MIN_DISAGREEMENT_SAMPLE else np.nan
+        def _py_r1000_expr_4():
+            return float(np.sqrt((margin_values ** 2).mean())) if margin_n >= MIN_GAME_ERROR_SAMPLE else np.nan
 
-    line_dis = pd.to_numeric(sub.get("model_vs_market_line"), errors="coerce").dropna()
-    line_dis_n = len(line_dis)
-    market_values = {
-        str(x).lower()
-        for x in sub.loc[pd.to_numeric(sub.get("model_vs_market_line"), errors="coerce").notna(), "market_type"].dropna()
-    } if "market_type" in sub.columns else set()
-    line_mixed = len(market_values) > 1
-    avg_line_dis = (
-        float(line_dis.mean())
-        if line_dis_n >= MIN_DISAGREEMENT_SAMPLE and not line_mixed
-        else np.nan
-    )
-    abs_line_dis = (
-        float(line_dis.abs().mean())
-        if line_dis_n >= MIN_DISAGREEMENT_SAMPLE and not line_mixed
-        else np.nan
-    )
+        def _py_r1000_expr_5():
+            return float(total_values.abs().mean()) if total_n >= MIN_GAME_ERROR_SAMPLE else np.nan
 
-    return {
-        "scope": scope,
-        "league": league.upper(),
-        "market_type": market_type,
-        "model_source": model_source,
-        "model_version": model_version,
-        "rows": len(sub),
-        "probability_n": prob_n,
-        "brier_score": brier,
-        "log_loss": logloss,
-        "calibration_error": cal,
-        "margin_n": margin_n,
-        "margin_mae": margin_mae,
-        "margin_rmse": margin_rmse,
-        "total_n": total_n,
-        "total_mae": total_mae,
-        "total_rmse": total_rmse,
-        "clv_n": clv_n,
-        "avg_clv": avg_clv,
-        "clv_units": clv_units,
-        "prob_disagreement_n": prob_dis_n,
-        "avg_model_vs_market_prob_pp": avg_prob_dis,
-        "mean_abs_model_vs_market_prob_pp": abs_prob_dis,
-        "line_disagreement_n": line_dis_n,
-        "avg_model_vs_market_line": avg_line_dis,
-        "mean_abs_model_vs_market_line": abs_line_dis,
-    }
+        def _py_r1000_expr_6():
+            return float(np.sqrt((total_values ** 2).mean())) if total_n >= MIN_GAME_ERROR_SAMPLE else np.nan
+
+        def _py_r1000_expr_7():
+            return sorted({str(x) for x in sub.loc[pd.to_numeric(sub.get('clv'), errors='coerce').notna(), 'clv_units'].dropna() if str(x).strip()}) if 'clv_units' in sub.columns else []
+
+        def _py_r1000_expr_8():
+            return 'mixed' if clv_units_values else ''
+
+        def _py_r1000_expr_9():
+            return clv_units_values[0] if len(clv_units_values) == 1 else _py_r1000_expr_8()
+
+        def _py_r1000_expr_10():
+            return float(clv.mean()) if clv_n >= MIN_CLV_SAMPLE and clv_units != 'mixed' else np.nan
+
+        def _py_r1000_expr_11():
+            return float(prob_dis.mean()) if prob_dis_n >= MIN_DISAGREEMENT_SAMPLE else np.nan
+
+        def _py_r1000_expr_12():
+            return float(prob_dis.abs().mean()) if prob_dis_n >= MIN_DISAGREEMENT_SAMPLE else np.nan
+
+        def _py_r1000_expr_13():
+            return {str(x).lower() for x in sub.loc[pd.to_numeric(sub.get('model_vs_market_line'), errors='coerce').notna(), 'market_type'].dropna()} if 'market_type' in sub.columns else set()
+
+        def _py_r1000_expr_14():
+            return float(line_dis.mean()) if line_dis_n >= MIN_DISAGREEMENT_SAMPLE and (not line_mixed) else np.nan
+
+        def _py_r1000_expr_15():
+            return float(line_dis.abs().mean()) if line_dis_n >= MIN_DISAGREEMENT_SAMPLE and (not line_mixed) else np.nan
+        p = pd.to_numeric(sub.get('bet_model_prob'), errors='coerce')
+        y = pd.to_numeric(sub.get('probability_outcome'), errors='coerce')
+        prob_valid = p.between(0, 1, inclusive='both') & y.isin([0.0, 1.0])
+        prob_n = int(prob_valid.sum())
+        brier = _py_r1000_expr_1()
+        logloss = _py_r1000_expr_2()
+        cal = calibration_error(sub)
+        games = game_level_rows(sub)
+        margin_values = pd.to_numeric(games.get('margin_error'), errors='coerce').dropna()
+        total_values = pd.to_numeric(games.get('total_error'), errors='coerce').dropna()
+        margin_n = len(margin_values)
+        total_n = len(total_values)
+        margin_mae = _py_r1000_expr_3()
+        margin_rmse = _py_r1000_expr_4()
+        total_mae = _py_r1000_expr_5()
+        total_rmse = _py_r1000_expr_6()
+        clv = pd.to_numeric(sub.get('clv'), errors='coerce').dropna()
+        clv_n = len(clv)
+        clv_units_values = _py_r1000_expr_7()
+        clv_units = _py_r1000_expr_9()
+        avg_clv = _py_r1000_expr_10()
+        prob_dis = pd.to_numeric(sub.get('model_vs_market_prob_pp'), errors='coerce').dropna()
+        prob_dis_n = len(prob_dis)
+        avg_prob_dis = _py_r1000_expr_11()
+        abs_prob_dis = _py_r1000_expr_12()
+        line_dis = pd.to_numeric(sub.get('model_vs_market_line'), errors='coerce').dropna()
+        line_dis_n = len(line_dis)
+        market_values = _py_r1000_expr_13()
+        line_mixed = len(market_values) > 1
+        avg_line_dis = _py_r1000_expr_14()
+        abs_line_dis = _py_r1000_expr_15()
+        return (_py_r1000_RETURN, {'scope': scope, 'league': league.upper(), 'market_type': market_type, 'model_source': model_source, 'model_version': model_version, 'rows': len(sub), 'probability_n': prob_n, 'brier_score': brier, 'log_loss': logloss, 'calibration_error': cal, 'margin_n': margin_n, 'margin_mae': margin_mae, 'margin_rmse': margin_rmse, 'total_n': total_n, 'total_mae': total_mae, 'total_rmse': total_rmse, 'clv_n': clv_n, 'avg_clv': avg_clv, 'clv_units': clv_units, 'prob_disagreement_n': prob_dis_n, 'avg_model_vs_market_prob_pp': avg_prob_dis, 'mean_abs_model_vs_market_prob_pp': abs_prob_dis, 'line_disagreement_n': line_dis_n, 'avg_model_vs_market_line': avg_line_dis, 'mean_abs_model_vs_market_line': abs_line_dis})
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 def build_quality_metrics(work: pd.DataFrame, league: str) -> pd.DataFrame:
@@ -865,85 +890,109 @@ def build_quality_metrics(work: pd.DataFrame, league: str) -> pd.DataFrame:
 # =========================
 
 def prepare(df: pd.DataFrame, league_label: str) -> pd.DataFrame:
-    work = df.copy()
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    # Normalize string columns
-    if "market_type" in work.columns:
-        work["market_type"] = work["market_type"].astype(str).str.strip().str.lower()
-    if "bet_side" in work.columns:
-        work["bet_side"] = work["bet_side"].astype(str).str.strip().str.lower()
-    if "bet_result" in work.columns:
-        work["bet_result"] = work["bet_result"].astype(str).str.strip().str.title()
+    def _py_r1000_impl():
+        nonlocal df, league_label
+        column: object
+        spread_for_row: object
+        total_for_row: object
+        work: object
 
-    # Tag with league
-    work["market"] = league_label
+        def _py_r1000_loop_1():
+            if column not in work.columns:
+                work[column] = pd.NA
+            return (_py_r1000_NONE, None)
 
-    # Preserve model provenance explicitly. Historical rows remain blank rather
-    # than being assigned invented versions.
-    for column in MODEL_METADATA_COLUMNS:
-        if column not in work.columns:
-            work[column] = pd.NA
+        def _py_r1000_chunk_3():
+            nonlocal column, work
 
-    # Side grouping (HOME/AWAY/OVER/UNDER)
-    work["side_group"] = work.apply(build_side_group, axis=1)
+            def _py_r1000_loop_4():
+                _py_r1000_result_2 = _py_r1000_loop_1()
+                if _py_r1000_result_2[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_2
+                if _py_r1000_result_2[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            work = df.copy()
+            if 'market_type' in work.columns:
+                work['market_type'] = work['market_type'].astype(str).str.strip().str.lower()
+            if 'bet_side' in work.columns:
+                work['bet_side'] = work['bet_side'].astype(str).str.strip().str.lower()
+            if 'bet_result' in work.columns:
+                work['bet_result'] = work['bet_result'].astype(str).str.strip().str.title()
+            work['market'] = league_label
+            for column in MODEL_METADATA_COLUMNS:
+                _py_r1000_result_5 = _py_r1000_loop_4()
+                if _py_r1000_result_5[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_5
+                if _py_r1000_result_5[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_5[0] == _py_r1000_CONTINUE:
+                    continue
+            work['side_group'] = work.apply(build_side_group, axis=1)
+            return (_py_r1000_NONE, None)
 
-    # Source columns (use bet_* directly — already on the row from stage 04)
-    if "bet_ev" not in work.columns:
-        work["bet_ev"] = pd.NA
-    if "bet_edge_vs_market" not in work.columns:
-        work["bet_edge_vs_market"] = pd.NA
-    if "bet_kelly" not in work.columns:
-        work["bet_kelly"] = pd.NA
-    if "bet_model_prob" not in work.columns:
-        work["bet_model_prob"] = pd.NA
-    if "bet_odds_american" not in work.columns:
-        work["bet_odds_american"] = pd.NA
-    if "bet_line" not in work.columns:
-        work["bet_line"] = pd.NA
-    if "bet_stake_pct" not in work.columns:
-        work["bet_stake_pct"] = pd.NA
+        def _py_r1000_chunk_6():
+            if 'bet_ev' not in work.columns:
+                work['bet_ev'] = pd.NA
+            if 'bet_edge_vs_market' not in work.columns:
+                work['bet_edge_vs_market'] = pd.NA
+            if 'bet_kelly' not in work.columns:
+                work['bet_kelly'] = pd.NA
+            if 'bet_model_prob' not in work.columns:
+                work['bet_model_prob'] = pd.NA
+            if 'bet_odds_american' not in work.columns:
+                work['bet_odds_american'] = pd.NA
+            if 'bet_line' not in work.columns:
+                work['bet_line'] = pd.NA
+            if 'bet_stake_pct' not in work.columns:
+                work['bet_stake_pct'] = pd.NA
+            return (_py_r1000_NONE, None)
 
-    # profit_unit and profit_kelly should already be on the row from script 01;
-    # if missing, leave them missing rather than try to recompute here.
-    if "profit_unit" not in work.columns:
-        work["profit_unit"] = pd.NA
-    if "profit_kelly" not in work.columns:
-        work["profit_kelly"] = pd.NA
+        def _py_r1000_chunk_7():
+            nonlocal spread_for_row, total_for_row
+            if 'profit_unit' not in work.columns:
+                work['profit_unit'] = pd.NA
+            if 'profit_kelly' not in work.columns:
+                work['profit_kelly'] = pd.NA
+            work['ev_bucket'] = work['bet_ev'].apply(ev_bucket)
+            work['edge_vs_market_bucket'] = work['bet_edge_vs_market'].apply(edge_vs_market_bucket)
+            work['kelly_bucket'] = work['bet_kelly'].apply(kelly_bucket)
+            work['model_prob_bucket'] = work['bet_model_prob'].apply(model_prob_bucket)
+            work['odds_bucket'] = work['bet_odds_american'].apply(odds_bucket)
 
-    # Bucket columns
-    work["ev_bucket"]              = work["bet_ev"].apply(ev_bucket)
-    work["edge_vs_market_bucket"]  = work["bet_edge_vs_market"].apply(edge_vs_market_bucket)
-    work["kelly_bucket"]           = work["bet_kelly"].apply(kelly_bucket)
-    work["model_prob_bucket"]      = work["bet_model_prob"].apply(model_prob_bucket)
+            def spread_for_row(row):
+                if str(row.get('market_type', '')).lower() == 'spread':
+                    return spread_bucket(row.get('bet_line'))
+                return 'UNBUCKETED'
 
-    # odds_bucket only applies cleanly to moneyline rows — but compute for all
-    # so the column exists; rows where it doesn't apply will be UNBUCKETED.
-    work["odds_bucket"] = work["bet_odds_american"].apply(odds_bucket)
-
-    # spread_bucket only meaningful for spread rows; total_bucket only for total rows.
-    # Compute selectively so unrelated markets get UNBUCKETED rather than nonsense.
-    def spread_for_row(row):
-        if str(row.get("market_type", "")).lower() == "spread":
-            return spread_bucket(row.get("bet_line"))
-        return "UNBUCKETED"
-
-    def total_for_row(row):
-        if str(row.get("market_type", "")).lower() == "total":
-            return total_bucket(row.get("bet_line"))
-        return "UNBUCKETED"
-
-    work["spread_bucket"] = work.apply(spread_for_row, axis=1)
-    work["total_bucket"]  = work.apply(total_for_row,  axis=1)
-
-    # Date buckets from game_date
-    if "game_date" in work.columns:
-        work["dow_bucket"]   = work["game_date"].apply(dow_bucket)
-        work["month_bucket"] = work["game_date"].apply(month_bucket)
-    else:
-        work["dow_bucket"]   = "UNBUCKETED"
-        work["month_bucket"] = "UNBUCKETED"
-
-    return work
+            def total_for_row(row):
+                if str(row.get('market_type', '')).lower() == 'total':
+                    return total_bucket(row.get('bet_line'))
+                return 'UNBUCKETED'
+            work['spread_bucket'] = work.apply(spread_for_row, axis=1)
+            work['total_bucket'] = work.apply(total_for_row, axis=1)
+            if 'game_date' in work.columns:
+                work['dow_bucket'] = work['game_date'].apply(dow_bucket)
+                work['month_bucket'] = work['game_date'].apply(month_bucket)
+            else:
+                work['dow_bucket'] = 'UNBUCKETED'
+                work['month_bucket'] = 'UNBUCKETED'
+            return (_py_r1000_RETURN, work)
+        for _py_r1000_block_8 in (_py_r1000_chunk_3, _py_r1000_chunk_6, _py_r1000_chunk_7):
+            _py_r1000_result_9 = _py_r1000_block_8()
+            if _py_r1000_result_9[0] != _py_r1000_NONE:
+                return _py_r1000_result_9
+        return (_py_r1000_NONE, None)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 # =========================
