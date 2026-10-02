@@ -893,11 +893,7 @@ def load_nba_stats_schedule(
     )
 
 
-def build_nba_legacy_schedule_crosswalk(
-    cfg: dict[str, Any],
-    internal_season: int,
-    sdv_season: int,
-):
+def build_nba_legacy_schedule_crosswalk(cfg: dict[str, Any], internal_season: int, sdv_season: int):
     """Map historical NBA Stats game IDs to canonical ESPN game IDs.
 
     SportsDataVerse 0.0.75 does not support load_nba_schedule_crosswalk
@@ -913,1140 +909,628 @@ def build_nba_legacy_schedule_crosswalk(
     schedule supplies the final home/away orientation. Scores are used only as
     a deterministic disambiguator if more than one canonical candidate remains.
     """
-    pl_module = pl()
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    (
-        stats_schedule,
-        stats_source,
-    ) = load_nba_stats_schedule(
-        internal_season,
-        sdv_season,
-    )
+    def _py_r1000_impl():
+        nonlocal cfg, internal_season, sdv_season
+        ambiguous: object
+        away_name_columns: object
+        away_pts: object
+        away_score: object
+        away_variants: object
+        bad_date_ids: object
+        by_date: object
+        candidate: object
+        candidate_variants: object
+        candidates: object
+        canonical_bad_dates: object
+        canonical_columns: object
+        chosen: object
+        columns: object
+        conflict_found: object
+        conflicting_duplicate_ids: object
+        date_key: object
+        duplicate_espn: object
+        duplicate_found: object
+        duplicate_native: object
+        espn_game_id: object
+        exact_duplicate_rows: object
+        existing: object
+        existing_side: object
+        game: object
+        game_id: object
+        game_identity: object
+        game_row_required: object
+        games: object
+        games_file: object
+        has_game_rows: object
+        has_team_rows: object
+        home_name_columns: object
+        home_pts: object
+        home_score: object
+        home_variants: object
+        incomplete_ids: object
+        mappings: object
+        match_records: object
+        maybe_float: object
+        method: object
+        missing_games: object
+        native_game_id: object
+        optional_column: object
+        orientation_match: object
+        orientations: object
+        pl_module: object
+        raw_game: object
+        raw_games: object
+        record: object
+        required_games: object
+        root: object
+        row: object
+        schema_used: object
+        score_column: object
+        score_matches: object
+        selected_columns: object
+        side: object
+        side_identity: object
+        side_payload: object
+        side_team_identity: object
+        side_variants: object
+        stats_away_variants: object
+        stats_games: object
+        stats_home_variants: object
+        stats_schedule: object
+        stats_source: object
+        team_a_pts: object
+        team_b_pts: object
+        team_row_required: object
+        teams: object
+        unmatched: object
+        unordered_orientations: object
+        unordered_team_row_games: object
+        xwalk: object
 
-    columns = set(
-        stats_schedule.columns
-    )
+        def _py_r1000_if_1():
+            nonlocal date_key, exact_duplicate_rows, existing, game, native_game_id, optional_column, row, schema_used, selected_columns
 
-    team_row_required = {
-        "game_id",
-        "game_date",
-        "team_name",
-        "team_abbreviation",
-    }
+            def _py_r1000_loop_2():
+                if optional_column in columns:
+                    selected_columns.append(optional_column)
+                return (_py_r1000_NONE, None)
 
-    game_row_required = {
-        "game_id",
-        "game_date",
-        "home_team_name",
-        "home_team_abbreviation",
-        "away_team_name",
-        "away_team_abbreviation",
-    }
-
-    has_team_rows = (
-        team_row_required
-        <= columns
-    )
-
-    has_game_rows = (
-        game_row_required
-        <= columns
-    )
-
-    if not (
-        has_team_rows
-        or has_game_rows
-    ):
-        raise RuntimeError(
-            "NBA Stats schedule has unsupported schema; "
-            f"columns={stats_schedule.columns}"
-        )
-
-    stats_games: dict[
-        str,
-        dict[str, Any],
-    ] = {}
-
-    bad_date_ids: set[str] = set()
-    conflicting_duplicate_ids: set[str] = set()
-    incomplete_ids: set[str] = set()
-
-    exact_duplicate_rows = 0
-    unordered_team_row_games = 0
-
-    def maybe_float(
-        value: Any,
-    ) -> float | None:
-        if value is None:
-            return None
-
-        text = clean(value)
-
-        if not text:
-            return None
-
-        try:
-            return float(text)
-        except (
-            TypeError,
-            ValueError,
-        ):
-            return None
-
-    def side_payload(
-        *,
-        team_name: Any,
-        team_abbreviation: Any,
-        pts: Any,
-    ) -> dict[str, Any]:
-        return {
-            "team_name": clean(
-                team_name
-            ),
-            "team_abbreviation": clean(
-                team_abbreviation
-            ),
-            "pts": maybe_float(
-                pts
-            ),
-        }
-
-    def side_identity(
-        side_data: dict[str, Any] | None,
-    ) -> tuple[Any, ...] | None:
-        if side_data is None:
-            return None
-
-        return (
-            clean(
-                side_data.get(
-                    "team_name"
-                )
-            ).lower(),
-            clean(
-                side_data.get(
-                    "team_abbreviation"
-                )
-            ).lower(),
-            side_data.get(
-                "pts"
-            ),
-        )
-
-    def side_team_identity(
-        side_data: dict[str, Any] | None,
-    ) -> tuple[str, str] | None:
-        if side_data is None:
-            return None
-
-        return (
-            clean(
-                side_data.get(
-                    "team_name"
-                )
-            ).lower(),
-            clean(
-                side_data.get(
-                    "team_abbreviation"
-                )
-            ).lower(),
-        )
-
-    def side_variants(
-        side_data: dict[str, Any] | None,
-    ) -> set[str]:
-        if side_data is None:
-            return set()
-
-        return (
-            team_variants(
-                side_data.get(
-                    "team_name"
-                )
-            )
-            | team_variants(
-                side_data.get(
-                    "team_abbreviation"
-                )
-            )
-        )
-
-    def game_identity(
-        game_data: dict[str, Any],
-    ) -> tuple[Any, ...]:
-        return (
-            clean(
-                game_data.get(
-                    "game_date_key"
-                )
-            ),
-            clean(
-                game_data.get(
-                    "match_mode"
-                )
-            ),
-            side_identity(
-                game_data.get(
-                    "home"
-                )
-            ),
-            side_identity(
-                game_data.get(
-                    "away"
-                )
-            ),
-            side_identity(
-                game_data.get(
-                    "team_a"
-                )
-            ),
-            side_identity(
-                game_data.get(
-                    "team_b"
-                )
-            ),
-        )
-
-    if has_game_rows:
-        schema_used = "game_rows"
-
-        selected_columns = [
-            "game_id",
-            "game_date",
-            "home_team_name",
-            "home_team_abbreviation",
-            "away_team_name",
-            "away_team_abbreviation",
-        ]
-
-        for optional_column in (
-            "home_pts",
-            "away_pts",
-        ):
-            if optional_column in columns:
-                selected_columns.append(
-                    optional_column
-                )
-
-        for row in (
-            stats_schedule
-            .select(
-                selected_columns
-            )
-            .iter_rows(
-                named=True
-            )
-        ):
-            native_game_id = clean(
-                row.get(
-                    "game_id"
-                )
-            )
-
-            if not native_game_id:
-                continue
-
-            date_key = normalize_legacy_schedule_date(
-                row.get(
-                    "game_date"
-                )
-            )
-
-            if not date_key:
-                bad_date_ids.add(
-                    native_game_id
-                )
-                continue
-
-            game = {
-                "game_date_key": date_key,
-                "match_mode": "explicit_home_away",
-                "home": side_payload(
-                    team_name=row.get(
-                        "home_team_name"
-                    ),
-                    team_abbreviation=row.get(
-                        "home_team_abbreviation"
-                    ),
-                    pts=row.get(
-                        "home_pts"
-                    ),
-                ),
-                "away": side_payload(
-                    team_name=row.get(
-                        "away_team_name"
-                    ),
-                    team_abbreviation=row.get(
-                        "away_team_abbreviation"
-                    ),
-                    pts=row.get(
-                        "away_pts"
-                    ),
-                ),
-                "team_a": None,
-                "team_b": None,
-            }
-
-            if (
-                not side_variants(
-                    game[
-                        "home"
-                    ]
-                )
-                or not side_variants(
-                    game[
-                        "away"
-                    ]
-                )
-            ):
-                incomplete_ids.add(
-                    native_game_id
-                )
-                continue
-
-            existing = stats_games.get(
-                native_game_id
-            )
-
-            if existing is None:
-                stats_games[
-                    native_game_id
-                ] = game
-                continue
-
-            if (
-                game_identity(
-                    existing
-                )
-                == game_identity(
-                    game
-                )
-            ):
-                exact_duplicate_rows += 1
-            else:
-                conflicting_duplicate_ids.add(
-                    native_game_id
-                )
-
-    else:
-        schema_used = "team_rows"
-
-        selected_columns = [
-            "game_id",
-            "game_date",
-            "team_name",
-            "team_abbreviation",
-        ]
-
-        if "pts" in columns:
-            selected_columns.append(
-                "pts"
-            )
-
-        raw_games: dict[
-            str,
-            dict[str, Any],
-        ] = {}
-
-        for row in (
-            stats_schedule
-            .select(
-                selected_columns
-            )
-            .iter_rows(
-                named=True
-            )
-        ):
-            native_game_id = clean(
-                row.get(
-                    "game_id"
-                )
-            )
-
-            if not native_game_id:
-                continue
-
-            date_key = normalize_legacy_schedule_date(
-                row.get(
-                    "game_date"
-                )
-            )
-
-            if not date_key:
-                bad_date_ids.add(
-                    native_game_id
-                )
-                continue
-
-            side = side_payload(
-                team_name=row.get(
-                    "team_name"
-                ),
-                team_abbreviation=row.get(
-                    "team_abbreviation"
-                ),
-                pts=row.get(
-                    "pts"
-                ),
-            )
-
-            if not side_variants(
-                side
-            ):
-                incomplete_ids.add(
-                    native_game_id
-                )
-                continue
-
-            raw_game = raw_games.setdefault(
-                native_game_id,
-                {
-                    "game_date_key": date_key,
-                    "teams": [],
-                },
-            )
-
-            if (
-                raw_game[
-                    "game_date_key"
-                ]
-                != date_key
-            ):
-                conflicting_duplicate_ids.add(
-                    native_game_id
-                )
-                continue
-
-            duplicate_found = False
-            conflict_found = False
-
-            for existing_side in raw_game[
-                "teams"
-            ]:
-                if (
-                    side_team_identity(
-                        existing_side
-                    )
-                    != side_team_identity(
-                        side
-                    )
-                ):
-                    continue
-
-                if (
-                    side_identity(
-                        existing_side
-                    )
-                    == side_identity(
-                        side
-                    )
-                ):
-                    duplicate_found = True
+            def _py_r1000_loop_4():
+                nonlocal date_key, exact_duplicate_rows, existing, game, native_game_id
+                native_game_id = clean(row.get('game_id'))
+                if not native_game_id:
+                    return (_py_r1000_CONTINUE, None)
+                date_key = normalize_legacy_schedule_date(row.get('game_date'))
+                if not date_key:
+                    bad_date_ids.add(native_game_id)
+                    return (_py_r1000_CONTINUE, None)
+                game = {'game_date_key': date_key, 'match_mode': 'explicit_home_away', 'home': side_payload(team_name=row.get('home_team_name'), team_abbreviation=row.get('home_team_abbreviation'), pts=row.get('home_pts')), 'away': side_payload(team_name=row.get('away_team_name'), team_abbreviation=row.get('away_team_abbreviation'), pts=row.get('away_pts')), 'team_a': None, 'team_b': None}
+                if not side_variants(game['home']) or not side_variants(game['away']):
+                    incomplete_ids.add(native_game_id)
+                    return (_py_r1000_CONTINUE, None)
+                existing = stats_games.get(native_game_id)
+                if existing is None:
+                    stats_games[native_game_id] = game
+                    return (_py_r1000_CONTINUE, None)
+                if game_identity(existing) == game_identity(game):
+                    exact_duplicate_rows += 1
                 else:
-                    conflict_found = True
-
-                break
-
-            if duplicate_found:
-                exact_duplicate_rows += 1
-                continue
-
-            if conflict_found:
-                conflicting_duplicate_ids.add(
-                    native_game_id
-                )
-                continue
-
-            raw_game[
-                "teams"
-            ].append(
-                side
-            )
-
-        for (
-            native_game_id,
-            raw_game,
-        ) in raw_games.items():
-            if (
-                native_game_id
-                in conflicting_duplicate_ids
-            ):
-                continue
-
-            teams = raw_game[
-                "teams"
-            ]
-
-            if len(
-                teams
-            ) != 2:
-                incomplete_ids.add(
-                    native_game_id
-                )
-                continue
-
-            if (
-                side_team_identity(
-                    teams[0]
-                )
-                == side_team_identity(
-                    teams[1]
-                )
-            ):
-                incomplete_ids.add(
-                    native_game_id
-                )
-                continue
-
-            stats_games[
-                native_game_id
-            ] = {
-                "game_date_key": raw_game[
-                    "game_date_key"
-                ],
-                "match_mode": "unordered_teams",
-                "home": None,
-                "away": None,
-                "team_a": teams[0],
-                "team_b": teams[1],
-            }
-
-            unordered_team_row_games += 1
-
-    if bad_date_ids:
-        raise RuntimeError(
-            "NBA Stats schedule has unparseable "
-            "game_date values for game_ids="
-            f"{sorted(bad_date_ids)[:20]}"
-        )
-
-    if conflicting_duplicate_ids:
-        raise RuntimeError(
-            "NBA Stats schedule has conflicting duplicate "
-            "team rows for game_ids="
-            f"{sorted(conflicting_duplicate_ids)[:20]}"
-        )
-
-    if incomplete_ids:
-        raise RuntimeError(
-            "NBA Stats schedule cannot identify exactly "
-            "two unique teams for game_ids="
-            f"{sorted(incomplete_ids)[:20]}"
-        )
-
-    if not stats_games:
-        raise RuntimeError(
-            "NBA Stats schedule produced zero usable games "
-            f"for SDV season={sdv_season}"
-        )
-
-    log(
-        "NBA STATS SCHEDULE SCHEMA | "
-        f"internal={internal_season} "
-        f"sdv={sdv_season} "
-        f"schema={schema_used} "
-        f"rows={stats_schedule.height} "
-        f"games={len(stats_games)} "
-        f"unordered_team_row_games={unordered_team_row_games} "
-        f"exact_duplicate_rows_ignored={exact_duplicate_rows}"
-    )
-
-    root = storage_root(
-        cfg
-    )
-
-    games_file = table_path(
-        root,
-        "nba",
-        internal_season,
-        "games",
-    )
-
-    if not games_file.exists():
-        raise RuntimeError(
-            "NBA canonical games file missing: "
-            f"{games_file}"
-        )
-
-    games = pl_module.read_parquet(
-        games_file
-    )
-
-    required_games = {
-        "game_id",
-        "game_date",
-    }
-
-    missing_games = sorted(
-        required_games
-        - set(
-            games.columns
-        )
-    )
-
-    if missing_games:
-        raise RuntimeError(
-            "NBA games.parquet "
-            f"missing columns={missing_games}"
-        )
-
-    home_name_columns = [
-        column
-        for column
-        in (
-            "home_display_name",
-            "home_name",
-            "home_short_display_name",
-            "home_location",
-            "home_abbreviation",
-        )
-        if column
-        in games.columns
-    ]
-
-    away_name_columns = [
-        column
-        for column
-        in (
-            "away_display_name",
-            "away_name",
-            "away_short_display_name",
-            "away_location",
-            "away_abbreviation",
-        )
-        if column
-        in games.columns
-    ]
-
-    if (
-        not home_name_columns
-        or not away_name_columns
-    ):
-        raise RuntimeError(
-            "NBA games.parquet does not expose usable "
-            "home/away team-name columns"
-        )
-
-    canonical_columns = [
-        "game_id",
-        "game_date",
-        *home_name_columns,
-        *away_name_columns,
-    ]
-
-    for score_column in (
-        "home_score",
-        "away_score",
-    ):
-        if score_column in games.columns:
-            canonical_columns.append(
-                score_column
-            )
-
-    by_date: dict[
-        str,
-        list[dict[str, Any]],
-    ] = {}
-
-    canonical_bad_dates: list[str] = []
-
-    for row in (
-        games
-        .select(
-            canonical_columns
-        )
-        .iter_rows(
-            named=True
-        )
-    ):
-        espn_game_id = clean(
-            row.get(
-                "game_id"
-            )
-        )
-
-        date_key = normalize_legacy_schedule_date(
-            row.get(
-                "game_date"
-            )
-        )
-
-        if not date_key:
-            if espn_game_id:
-                canonical_bad_dates.append(
-                    espn_game_id
-                )
-            continue
-
-        by_date.setdefault(
-            date_key,
-            [],
-        ).append(
-            row
-        )
-
-    if canonical_bad_dates:
-        raise RuntimeError(
-            "NBA games.parquet has unparseable game_date "
-            "values for game_ids="
-            f"{sorted(canonical_bad_dates)[:20]}"
-        )
-
-    def candidate_variants(
-        candidate_row: dict[str, Any],
-        name_columns: list[str],
-    ) -> set[str]:
-        variants: set[str] = set()
-
-        for column in name_columns:
-            variants.update(
-                team_variants(
-                    candidate_row.get(
-                        column
-                    )
-                )
-            )
-
-        return variants
-
-    def unordered_orientations(
-        team_a: dict[str, Any],
-        team_b: dict[str, Any],
-        candidate_row: dict[str, Any],
-    ) -> set[str]:
-        team_a_variants = side_variants(
-            team_a
-        )
-
-        team_b_variants = side_variants(
-            team_b
-        )
-
-        candidate_home_variants = candidate_variants(
-            candidate_row,
-            home_name_columns,
-        )
-
-        candidate_away_variants = candidate_variants(
-            candidate_row,
-            away_name_columns,
-        )
-
-        matched_orientations: set[str] = set()
-
-        if (
-            team_a_variants
-            & candidate_home_variants
-            and team_b_variants
-            & candidate_away_variants
-        ):
-            matched_orientations.add(
-                "a_home"
-            )
-
-        if (
-            team_a_variants
-            & candidate_away_variants
-            and team_b_variants
-            & candidate_home_variants
-        ):
-            matched_orientations.add(
-                "a_away"
-            )
-
-        return matched_orientations
-
-    mappings: list[
-        dict[str, str]
-    ] = []
-
-    unmatched: list[str] = []
-    ambiguous: list[str] = []
-
-    for native_game_id in sorted(
-        stats_games
-    ):
-        game = stats_games[
-            native_game_id
-        ]
-
-        candidates = by_date.get(
-            game[
-                "game_date_key"
-            ],
-            [],
-        )
-
-        match_records: list[
-            dict[str, Any]
-        ] = []
-
-        if (
-            game[
-                "match_mode"
-            ]
-            == "unordered_teams"
-        ):
-            for candidate in candidates:
-                orientations = unordered_orientations(
-                    game[
-                        "team_a"
-                    ],
-                    game[
-                        "team_b"
-                    ],
-                    candidate,
-                )
-
-                if orientations:
-                    match_records.append(
-                        {
-                            "candidate": candidate,
-                            "orientations": orientations,
-                        }
-                    )
-
-        else:
-            stats_home_variants = side_variants(
-                game[
-                    "home"
-                ]
-            )
-
-            stats_away_variants = side_variants(
-                game[
-                    "away"
-                ]
-            )
-
-            for candidate in candidates:
-                home_variants = candidate_variants(
-                    candidate,
-                    home_name_columns,
-                )
-
-                away_variants = candidate_variants(
-                    candidate,
-                    away_name_columns,
-                )
-
-                if (
-                    stats_home_variants
-                    & home_variants
-                    and stats_away_variants
-                    & away_variants
-                ):
-                    match_records.append(
-                        {
-                            "candidate": candidate,
-                            "orientations": {
-                                "home_away"
-                            },
-                        }
-                    )
-
-        chosen = None
-        method = ""
-
-        if len(
-            match_records
-        ) == 1:
-            chosen = match_records[
-                0
-            ][
-                "candidate"
-            ]
-
-            if (
-                game[
-                    "match_mode"
-                ]
-                == "unordered_teams"
-            ):
-                method = (
-                    "date_unordered_team_pair_"
-                    "canonical_home_away"
-                )
-            else:
-                method = (
-                    "date_home_away_team"
-                )
-
-        elif len(
-            match_records
-        ) > 1:
-            score_matches: list[
-                dict[str, Any]
-            ] = []
-
-            for record in match_records:
-                candidate = record[
-                    "candidate"
-                ]
-
-                try:
-                    home_score = float(
-                        candidate.get(
-                            "home_score"
-                        )
-                    )
-
-                    away_score = float(
-                        candidate.get(
-                            "away_score"
-                        )
-                    )
-
-                except (
-                    TypeError,
-                    ValueError,
-                ):
+                    conflicting_duplicate_ids.add(native_game_id)
+                return (_py_r1000_NONE, None)
+            schema_used = 'game_rows'
+            selected_columns = ['game_id', 'game_date', 'home_team_name', 'home_team_abbreviation', 'away_team_name', 'away_team_abbreviation']
+            for optional_column in ('home_pts', 'away_pts'):
+                _py_r1000_result_3 = _py_r1000_loop_2()
+                if _py_r1000_result_3[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_3
+                if _py_r1000_result_3[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_3[0] == _py_r1000_CONTINUE:
                     continue
+            for row in stats_schedule.select(selected_columns).iter_rows(named=True):
+                _py_r1000_result_5 = _py_r1000_loop_4()
+                if _py_r1000_result_5[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_5
+                if _py_r1000_result_5[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_5[0] == _py_r1000_CONTINUE:
+                    continue
+            return (_py_r1000_NONE, None)
 
-                if (
-                    game[
-                        "match_mode"
-                    ]
-                    == "unordered_teams"
-                ):
-                    team_a_pts = game[
-                        "team_a"
-                    ].get(
-                        "pts"
-                    )
+        def _py_r1000_else_7():
+            nonlocal conflict_found, date_key, duplicate_found, exact_duplicate_rows, existing_side, native_game_id, raw_game, raw_games, row, schema_used, selected_columns, side, teams, unordered_team_row_games
 
-                    team_b_pts = game[
-                        "team_b"
-                    ].get(
-                        "pts"
-                    )
+            def _py_r1000_loop_8():
+                nonlocal conflict_found, date_key, duplicate_found, exact_duplicate_rows, existing_side, native_game_id, raw_game, side
 
-                    if (
-                        team_a_pts is None
-                        or team_b_pts is None
-                    ):
+                def _py_r1000_loop_9():
+                    nonlocal conflict_found, duplicate_found
+                    if side_team_identity(existing_side) != side_team_identity(side):
+                        return (_py_r1000_CONTINUE, None)
+                    if side_identity(existing_side) == side_identity(side):
+                        duplicate_found = True
+                    else:
+                        conflict_found = True
+                    return (_py_r1000_BREAK, None)
+                native_game_id = clean(row.get('game_id'))
+                if not native_game_id:
+                    return (_py_r1000_CONTINUE, None)
+                date_key = normalize_legacy_schedule_date(row.get('game_date'))
+                if not date_key:
+                    bad_date_ids.add(native_game_id)
+                    return (_py_r1000_CONTINUE, None)
+                side = side_payload(team_name=row.get('team_name'), team_abbreviation=row.get('team_abbreviation'), pts=row.get('pts'))
+                if not side_variants(side):
+                    incomplete_ids.add(native_game_id)
+                    return (_py_r1000_CONTINUE, None)
+                raw_game = raw_games.setdefault(native_game_id, {'game_date_key': date_key, 'teams': []})
+                if raw_game['game_date_key'] != date_key:
+                    conflicting_duplicate_ids.add(native_game_id)
+                    return (_py_r1000_CONTINUE, None)
+                duplicate_found = False
+                conflict_found = False
+                for existing_side in raw_game['teams']:
+                    _py_r1000_result_10 = _py_r1000_loop_9()
+                    if _py_r1000_result_10[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_10
+                    if _py_r1000_result_10[0] == _py_r1000_BREAK:
+                        break
+                    if _py_r1000_result_10[0] == _py_r1000_CONTINUE:
                         continue
+                if duplicate_found:
+                    exact_duplicate_rows += 1
+                    return (_py_r1000_CONTINUE, None)
+                if conflict_found:
+                    conflicting_duplicate_ids.add(native_game_id)
+                    return (_py_r1000_CONTINUE, None)
+                raw_game['teams'].append(side)
+                return (_py_r1000_NONE, None)
 
-                    orientation_match = False
+            def _py_r1000_loop_12():
+                nonlocal teams, unordered_team_row_games
+                if native_game_id in conflicting_duplicate_ids:
+                    return (_py_r1000_CONTINUE, None)
+                teams = raw_game['teams']
+                if len(teams) != 2:
+                    incomplete_ids.add(native_game_id)
+                    return (_py_r1000_CONTINUE, None)
+                if side_team_identity(teams[0]) == side_team_identity(teams[1]):
+                    incomplete_ids.add(native_game_id)
+                    return (_py_r1000_CONTINUE, None)
+                stats_games[native_game_id] = {'game_date_key': raw_game['game_date_key'], 'match_mode': 'unordered_teams', 'home': None, 'away': None, 'team_a': teams[0], 'team_b': teams[1]}
+                unordered_team_row_games += 1
+                return (_py_r1000_NONE, None)
+            schema_used = 'team_rows'
+            selected_columns = ['game_id', 'game_date', 'team_name', 'team_abbreviation']
+            if 'pts' in columns:
+                selected_columns.append('pts')
+            raw_games = {}
+            for row in stats_schedule.select(selected_columns).iter_rows(named=True):
+                _py_r1000_result_11 = _py_r1000_loop_8()
+                if _py_r1000_result_11[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_11
+                if _py_r1000_result_11[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_11[0] == _py_r1000_CONTINUE:
+                    continue
+            for native_game_id, raw_game in raw_games.items():
+                _py_r1000_result_13 = _py_r1000_loop_12()
+                if _py_r1000_result_13[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_13
+                if _py_r1000_result_13[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_13[0] == _py_r1000_CONTINUE:
+                    continue
+            return (_py_r1000_NONE, None)
 
-                    if (
-                        "a_home"
-                        in record[
-                            "orientations"
-                        ]
-                        and home_score
-                        == team_a_pts
-                        and away_score
-                        == team_b_pts
-                    ):
-                        orientation_match = True
+        def _py_r1000_loop_15():
+            if score_column in games.columns:
+                canonical_columns.append(score_column)
+            return (_py_r1000_NONE, None)
 
-                    if (
-                        "a_away"
-                        in record[
-                            "orientations"
-                        ]
-                        and home_score
-                        == team_b_pts
-                        and away_score
-                        == team_a_pts
-                    ):
-                        orientation_match = True
+        def _py_r1000_loop_17():
+            nonlocal date_key, espn_game_id
 
-                    if orientation_match:
-                        score_matches.append(
-                            record
-                        )
+            def _py_r1000_if_18():
+                if espn_game_id:
+                    canonical_bad_dates.append(espn_game_id)
+                return (_py_r1000_CONTINUE, None)
+            espn_game_id = clean(row.get('game_id'))
+            date_key = normalize_legacy_schedule_date(row.get('game_date'))
+            if not date_key:
+                _py_r1000_result_19 = _py_r1000_if_18()
+                if _py_r1000_result_19[0] != _py_r1000_NONE:
+                    return _py_r1000_result_19
+            by_date.setdefault(date_key, []).append(row)
+            return (_py_r1000_NONE, None)
 
+        def _py_r1000_loop_21():
+            nonlocal away_pts, away_score, away_variants, candidate, candidates, chosen, espn_game_id, game, home_pts, home_score, home_variants, match_records, method, orientation_match, orientations, record, score_matches, stats_away_variants, stats_home_variants, team_a_pts, team_b_pts
+
+            def _py_r1000_if_22():
+                nonlocal candidate, orientations
+
+                def _py_r1000_loop_23():
+                    nonlocal orientations
+                    orientations = unordered_orientations(game['team_a'], game['team_b'], candidate)
+                    if orientations:
+                        match_records.append({'candidate': candidate, 'orientations': orientations})
+                    return (_py_r1000_NONE, None)
+                for candidate in candidates:
+                    _py_r1000_result_24 = _py_r1000_loop_23()
+                    if _py_r1000_result_24[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_24
+                    if _py_r1000_result_24[0] == _py_r1000_BREAK:
+                        break
+                    if _py_r1000_result_24[0] == _py_r1000_CONTINUE:
+                        continue
+                return (_py_r1000_NONE, None)
+
+            def _py_r1000_else_26():
+                nonlocal away_variants, candidate, home_variants, stats_away_variants, stats_home_variants
+
+                def _py_r1000_loop_27():
+                    nonlocal away_variants, home_variants
+                    home_variants = candidate_variants(candidate, home_name_columns)
+                    away_variants = candidate_variants(candidate, away_name_columns)
+                    if stats_home_variants & home_variants and stats_away_variants & away_variants:
+                        match_records.append({'candidate': candidate, 'orientations': {'home_away'}})
+                    return (_py_r1000_NONE, None)
+                stats_home_variants = side_variants(game['home'])
+                stats_away_variants = side_variants(game['away'])
+                for candidate in candidates:
+                    _py_r1000_result_28 = _py_r1000_loop_27()
+                    if _py_r1000_result_28[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_28
+                    if _py_r1000_result_28[0] == _py_r1000_BREAK:
+                        break
+                    if _py_r1000_result_28[0] == _py_r1000_CONTINUE:
+                        continue
+                return (_py_r1000_NONE, None)
+
+            def _py_r1000_if_30():
+                nonlocal chosen, method
+                chosen = match_records[0]['candidate']
+                if game['match_mode'] == 'unordered_teams':
+                    method = 'date_unordered_team_pair_canonical_home_away'
                 else:
-                    home_pts = game[
-                        "home"
-                    ].get(
-                        "pts"
-                    )
+                    method = 'date_home_away_team'
+                return (_py_r1000_NONE, None)
 
-                    away_pts = game[
-                        "away"
-                    ].get(
-                        "pts"
-                    )
+            def _py_r1000_else_32():
+                nonlocal away_pts, away_score, candidate, chosen, home_pts, home_score, method, orientation_match, record, score_matches, team_a_pts, team_b_pts
 
-                    if (
-                        home_pts is not None
-                        and away_pts is not None
-                        and home_score
-                        == home_pts
-                        and away_score
-                        == away_pts
-                    ):
-                        score_matches.append(
-                            record
-                        )
+                def _py_r1000_if_33():
+                    nonlocal away_pts, away_score, candidate, chosen, home_pts, home_score, method, orientation_match, record, score_matches, team_a_pts, team_b_pts
 
-            if len(
-                score_matches
-            ) == 1:
-                chosen = score_matches[
-                    0
-                ][
-                    "candidate"
-                ]
+                    def _py_r1000_loop_34():
+                        nonlocal away_pts, away_score, candidate, home_pts, home_score, orientation_match, team_a_pts, team_b_pts
 
-                if (
-                    game[
-                        "match_mode"
-                    ]
-                    == "unordered_teams"
-                ):
-                    method = (
-                        "date_unordered_team_pair_score_"
-                        "canonical_home_away"
-                    )
+                        def _py_r1000_if_35():
+                            nonlocal orientation_match, team_a_pts, team_b_pts
+                            team_a_pts = game['team_a'].get('pts')
+                            team_b_pts = game['team_b'].get('pts')
+                            if team_a_pts is None or team_b_pts is None:
+                                return (_py_r1000_CONTINUE, None)
+                            orientation_match = False
+                            if 'a_home' in record['orientations'] and home_score == team_a_pts and (away_score == team_b_pts):
+                                orientation_match = True
+                            if 'a_away' in record['orientations'] and home_score == team_b_pts and (away_score == team_a_pts):
+                                orientation_match = True
+                            if orientation_match:
+                                score_matches.append(record)
+                            return (_py_r1000_NONE, None)
+
+                        def _py_r1000_else_37():
+                            nonlocal away_pts, home_pts
+                            home_pts = game['home'].get('pts')
+                            away_pts = game['away'].get('pts')
+                            if home_pts is not None and away_pts is not None and (home_score == home_pts) and (away_score == away_pts):
+                                score_matches.append(record)
+                            return (_py_r1000_NONE, None)
+                        candidate = record['candidate']
+                        try:
+                            home_score = float(candidate.get('home_score'))
+                            away_score = float(candidate.get('away_score'))
+                        except (TypeError, ValueError):
+                            return (_py_r1000_CONTINUE, None)
+                        if game['match_mode'] == 'unordered_teams':
+                            _py_r1000_result_36 = _py_r1000_if_35()
+                            if _py_r1000_result_36[0] != _py_r1000_NONE:
+                                return _py_r1000_result_36
+                        else:
+                            _py_r1000_result_38 = _py_r1000_else_37()
+                            if _py_r1000_result_38[0] != _py_r1000_NONE:
+                                return _py_r1000_result_38
+                        return (_py_r1000_NONE, None)
+
+                    def _py_r1000_if_40():
+                        nonlocal chosen, method
+                        chosen = score_matches[0]['candidate']
+                        if game['match_mode'] == 'unordered_teams':
+                            method = 'date_unordered_team_pair_score_canonical_home_away'
+                        else:
+                            method = 'date_home_away_team_score'
+                        return (_py_r1000_NONE, None)
+                    score_matches = []
+                    for record in match_records:
+                        _py_r1000_result_39 = _py_r1000_loop_34()
+                        if _py_r1000_result_39[0] == _py_r1000_RETURN:
+                            return _py_r1000_result_39
+                        if _py_r1000_result_39[0] == _py_r1000_BREAK:
+                            break
+                        if _py_r1000_result_39[0] == _py_r1000_CONTINUE:
+                            continue
+                    if len(score_matches) == 1:
+                        _py_r1000_result_41 = _py_r1000_if_40()
+                        if _py_r1000_result_41[0] != _py_r1000_NONE:
+                            return _py_r1000_result_41
+                    return (_py_r1000_NONE, None)
+                if len(match_records) > 1:
+                    _py_r1000_result_42 = _py_r1000_if_33()
+                    if _py_r1000_result_42[0] != _py_r1000_NONE:
+                        return _py_r1000_result_42
+                return (_py_r1000_NONE, None)
+
+            def _py_r1000_if_44():
+                if len(match_records) > 1:
+                    ambiguous.append(native_game_id)
                 else:
-                    method = (
-                        "date_home_away_team_score"
-                    )
-
-        if chosen is None:
-            if len(
-                match_records
-            ) > 1:
-                ambiguous.append(
-                    native_game_id
-                )
+                    unmatched.append(native_game_id)
+                return (_py_r1000_CONTINUE, None)
+            game = stats_games[native_game_id]
+            candidates = by_date.get(game['game_date_key'], [])
+            match_records = []
+            if game['match_mode'] == 'unordered_teams':
+                _py_r1000_result_25 = _py_r1000_if_22()
+                if _py_r1000_result_25[0] != _py_r1000_NONE:
+                    return _py_r1000_result_25
             else:
-                unmatched.append(
-                    native_game_id
-                )
+                _py_r1000_result_29 = _py_r1000_else_26()
+                if _py_r1000_result_29[0] != _py_r1000_NONE:
+                    return _py_r1000_result_29
+            chosen = None
+            method = ''
+            if len(match_records) == 1:
+                _py_r1000_result_31 = _py_r1000_if_30()
+                if _py_r1000_result_31[0] != _py_r1000_NONE:
+                    return _py_r1000_result_31
+            else:
+                _py_r1000_result_43 = _py_r1000_else_32()
+                if _py_r1000_result_43[0] != _py_r1000_NONE:
+                    return _py_r1000_result_43
+            if chosen is None:
+                _py_r1000_result_45 = _py_r1000_if_44()
+                if _py_r1000_result_45[0] != _py_r1000_NONE:
+                    return _py_r1000_result_45
+            espn_game_id = clean(chosen.get('game_id'))
+            if not espn_game_id:
+                unmatched.append(native_game_id)
+                return (_py_r1000_CONTINUE, None)
+            mappings.append({'nba_game_id': native_game_id, 'espn_game_id': espn_game_id, 'match_method': method})
+            return (_py_r1000_NONE, None)
 
-            continue
+        def _py_r1000_chunk_47():
+            nonlocal bad_date_ids, columns, conflicting_duplicate_ids, exact_duplicate_rows, game_identity, game_row_required, has_game_rows, has_team_rows, incomplete_ids, maybe_float, pl_module, side_identity, side_payload, side_team_identity, side_variants, stats_games, stats_schedule, stats_source, team_row_required, unordered_team_row_games
 
-        espn_game_id = clean(
-            chosen.get(
-                "game_id"
-            )
-        )
+            def _py_r1000_if_48():
+                _py_r1000_result_6 = _py_r1000_if_1()
+                if _py_r1000_result_6[0] != _py_r1000_NONE:
+                    return _py_r1000_result_6
+                return (_py_r1000_NONE, None)
 
-        if not espn_game_id:
-            unmatched.append(
-                native_game_id
-            )
-            continue
+            def _py_r1000_else_50():
+                _py_r1000_result_14 = _py_r1000_else_7()
+                if _py_r1000_result_14[0] != _py_r1000_NONE:
+                    return _py_r1000_result_14
+                return (_py_r1000_NONE, None)
+            pl_module = pl()
+            stats_schedule, stats_source = load_nba_stats_schedule(internal_season, sdv_season)
+            columns = set(stats_schedule.columns)
+            team_row_required = {'game_id', 'game_date', 'team_name', 'team_abbreviation'}
+            game_row_required = {'game_id', 'game_date', 'home_team_name', 'home_team_abbreviation', 'away_team_name', 'away_team_abbreviation'}
+            has_team_rows = team_row_required <= columns
+            has_game_rows = game_row_required <= columns
+            if not (has_team_rows or has_game_rows):
+                raise RuntimeError(f'NBA Stats schedule has unsupported schema; columns={stats_schedule.columns}')
+            stats_games = {}
+            bad_date_ids = set()
+            conflicting_duplicate_ids = set()
+            incomplete_ids = set()
+            exact_duplicate_rows = 0
+            unordered_team_row_games = 0
 
-        mappings.append(
-            {
-                "nba_game_id": native_game_id,
-                "espn_game_id": espn_game_id,
-                "match_method": method,
-            }
-        )
+            def maybe_float(value: Any) -> float | None:
+                if value is None:
+                    return None
+                text = clean(value)
+                if not text:
+                    return None
+                try:
+                    return float(text)
+                except (TypeError, ValueError):
+                    return None
 
-    if not mappings:
-        raise RuntimeError(
-            "NBA historical Stats->ESPN crosswalk "
-            "produced zero mapped games for "
-            f"internal={internal_season} sdv={sdv_season}"
-        )
+            def side_payload(*, team_name: Any, team_abbreviation: Any, pts: Any) -> dict[str, Any]:
+                return {'team_name': clean(team_name), 'team_abbreviation': clean(team_abbreviation), 'pts': maybe_float(pts)}
 
-    xwalk = pl_module.DataFrame(
-        mappings
-    )
+            def side_identity(side_data: dict[str, Any] | None) -> tuple[Any, ...] | None:
+                if side_data is None:
+                    return None
+                return (clean(side_data.get('team_name')).lower(), clean(side_data.get('team_abbreviation')).lower(), side_data.get('pts'))
 
-    duplicate_native = (
-        xwalk
-        .group_by(
-            "nba_game_id"
-        )
-        .agg(
-            pl_module.col(
-                "espn_game_id"
-            )
-            .n_unique()
-            .alias(
-                "n"
-            )
-        )
-        .filter(
-            pl_module.col(
-                "n"
-            )
-            > 1
-        )
-    )
+            def side_team_identity(side_data: dict[str, Any] | None) -> tuple[str, str] | None:
+                if side_data is None:
+                    return None
+                return (clean(side_data.get('team_name')).lower(), clean(side_data.get('team_abbreviation')).lower())
 
-    duplicate_espn = (
-        xwalk
-        .group_by(
-            "espn_game_id"
-        )
-        .agg(
-            pl_module.col(
-                "nba_game_id"
-            )
-            .n_unique()
-            .alias(
-                "n"
-            )
-        )
-        .filter(
-            pl_module.col(
-                "n"
-            )
-            > 1
-        )
-    )
+            def side_variants(side_data: dict[str, Any] | None) -> set[str]:
+                if side_data is None:
+                    return set()
+                return team_variants(side_data.get('team_name')) | team_variants(side_data.get('team_abbreviation'))
 
-    if (
-        duplicate_native.height
-        or duplicate_espn.height
-    ):
-        raise RuntimeError(
-            "NBA historical Stats->ESPN crosswalk "
-            "is not one-to-one"
-        )
+            def game_identity(game_data: dict[str, Any]) -> tuple[Any, ...]:
+                return (clean(game_data.get('game_date_key')), clean(game_data.get('match_mode')), side_identity(game_data.get('home')), side_identity(game_data.get('away')), side_identity(game_data.get('team_a')), side_identity(game_data.get('team_b')))
+            if has_game_rows:
+                _py_r1000_result_49 = _py_r1000_if_48()
+                if _py_r1000_result_49[0] != _py_r1000_NONE:
+                    return _py_r1000_result_49
+            else:
+                _py_r1000_result_51 = _py_r1000_else_50()
+                if _py_r1000_result_51[0] != _py_r1000_NONE:
+                    return _py_r1000_result_51
+            if bad_date_ids:
+                raise RuntimeError(f'NBA Stats schedule has unparseable game_date values for game_ids={sorted(bad_date_ids)[:20]}')
+            if conflicting_duplicate_ids:
+                raise RuntimeError(f'NBA Stats schedule has conflicting duplicate team rows for game_ids={sorted(conflicting_duplicate_ids)[:20]}')
+            return (_py_r1000_NONE, None)
 
-    for game_id in sorted(
-        unmatched
-    ):
-        log(
-            "NBA GAME UNMAPPED | "
-            f"nba_game_id={game_id} "
-            "reason=no_unique_date_unordered_team_match"
-        )
+        def _py_r1000_chunk_52():
+            nonlocal games, games_file, home_name_columns, missing_games, required_games, root
+            if incomplete_ids:
+                raise RuntimeError(f'NBA Stats schedule cannot identify exactly two unique teams for game_ids={sorted(incomplete_ids)[:20]}')
+            if not stats_games:
+                raise RuntimeError(f'NBA Stats schedule produced zero usable games for SDV season={sdv_season}')
+            log(f'NBA STATS SCHEDULE SCHEMA | internal={internal_season} sdv={sdv_season} schema={schema_used} rows={stats_schedule.height} games={len(stats_games)} unordered_team_row_games={unordered_team_row_games} exact_duplicate_rows_ignored={exact_duplicate_rows}')
+            root = storage_root(cfg)
+            games_file = table_path(root, 'nba', internal_season, 'games')
+            if not games_file.exists():
+                raise RuntimeError(f'NBA canonical games file missing: {games_file}')
+            games = pl_module.read_parquet(games_file)
+            required_games = {'game_id', 'game_date'}
+            missing_games = sorted(required_games - set(games.columns))
+            if missing_games:
+                raise RuntimeError(f'NBA games.parquet missing columns={missing_games}')
+            home_name_columns = [column for column in ('home_display_name', 'home_name', 'home_short_display_name', 'home_location', 'home_abbreviation') if column in games.columns]
+            return (_py_r1000_NONE, None)
 
-    for game_id in sorted(
-        ambiguous
-    ):
-        log(
-            "NBA GAME AMBIGUOUS | "
-            f"nba_game_id={game_id} "
-            "reason=multiple_date_unordered_team_matches"
-        )
+        def _py_r1000_chunk_53():
+            nonlocal away_name_columns, canonical_columns
+            away_name_columns = [column for column in ('away_display_name', 'away_name', 'away_short_display_name', 'away_location', 'away_abbreviation') if column in games.columns]
+            if not home_name_columns or not away_name_columns:
+                raise RuntimeError('NBA games.parquet does not expose usable home/away team-name columns')
+            canonical_columns = ['game_id', 'game_date', *home_name_columns, *away_name_columns]
+            return (_py_r1000_NONE, None)
 
-    log(
-        "NBA LEGACY GAME CROSSWALK | "
-        f"internal={internal_season} "
-        f"sdv={sdv_season} "
-        f"stats_games={len(stats_games)} "
-        f"unordered_team_row_games={unordered_team_row_games} "
-        f"mapped={xwalk.height} "
-        f"unmatched={len(unmatched)} "
-        f"ambiguous={len(ambiguous)} "
-        f"source={stats_source}"
-    )
+        def _py_r1000_chunk_54():
+            nonlocal by_date, canonical_bad_dates, score_column
 
-    return (
-        xwalk.select(
-            "nba_game_id",
-            "espn_game_id",
-        ),
-        (
-            f"{stats_source} -> deterministic "
-            "game_date/unordered-team-pair match with "
-            "canonical ESPN home-away orientation"
-        ),
-        "nba_game_id",
-    )
+            def _py_r1000_loop_55():
+                _py_r1000_result_16 = _py_r1000_loop_15()
+                if _py_r1000_result_16[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_16
+                if _py_r1000_result_16[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_16[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            for score_column in ('home_score', 'away_score'):
+                _py_r1000_result_56 = _py_r1000_loop_55()
+                if _py_r1000_result_56[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_56
+                if _py_r1000_result_56[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_56[0] == _py_r1000_CONTINUE:
+                    continue
+            by_date = {}
+            canonical_bad_dates = []
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_chunk_57():
+            nonlocal ambiguous, candidate_variants, mappings, row, unmatched, unordered_orientations
+
+            def _py_r1000_loop_58():
+                _py_r1000_result_20 = _py_r1000_loop_17()
+                if _py_r1000_result_20[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_20
+                if _py_r1000_result_20[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_20[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            for row in games.select(canonical_columns).iter_rows(named=True):
+                _py_r1000_result_59 = _py_r1000_loop_58()
+                if _py_r1000_result_59[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_59
+                if _py_r1000_result_59[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_59[0] == _py_r1000_CONTINUE:
+                    continue
+            if canonical_bad_dates:
+                raise RuntimeError(f'NBA games.parquet has unparseable game_date values for game_ids={sorted(canonical_bad_dates)[:20]}')
+
+            def candidate_variants(candidate_row: dict[str, Any], name_columns: list[str]) -> set[str]:
+                variants: set[str] = set()
+                for column in name_columns:
+                    variants.update(team_variants(candidate_row.get(column)))
+                return variants
+
+            def unordered_orientations(team_a: dict[str, Any], team_b: dict[str, Any], candidate_row: dict[str, Any]) -> set[str]:
+                team_a_variants = side_variants(team_a)
+                team_b_variants = side_variants(team_b)
+                candidate_home_variants = candidate_variants(candidate_row, home_name_columns)
+                candidate_away_variants = candidate_variants(candidate_row, away_name_columns)
+                matched_orientations: set[str] = set()
+                if team_a_variants & candidate_home_variants and team_b_variants & candidate_away_variants:
+                    matched_orientations.add('a_home')
+                if team_a_variants & candidate_away_variants and team_b_variants & candidate_home_variants:
+                    matched_orientations.add('a_away')
+                return matched_orientations
+            mappings = []
+            unmatched = []
+            ambiguous = []
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_chunk_60():
+            nonlocal duplicate_espn, duplicate_native, native_game_id, xwalk
+
+            def _py_r1000_loop_61():
+                _py_r1000_result_46 = _py_r1000_loop_21()
+                if _py_r1000_result_46[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_46
+                if _py_r1000_result_46[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_46[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            for native_game_id in sorted(stats_games):
+                _py_r1000_result_62 = _py_r1000_loop_61()
+                if _py_r1000_result_62[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_62
+                if _py_r1000_result_62[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_62[0] == _py_r1000_CONTINUE:
+                    continue
+            if not mappings:
+                raise RuntimeError(f'NBA historical Stats->ESPN crosswalk produced zero mapped games for internal={internal_season} sdv={sdv_season}')
+            xwalk = pl_module.DataFrame(mappings)
+            duplicate_native = xwalk.group_by('nba_game_id').agg(pl_module.col('espn_game_id').n_unique().alias('n')).filter(pl_module.col('n') > 1)
+            duplicate_espn = xwalk.group_by('espn_game_id').agg(pl_module.col('nba_game_id').n_unique().alias('n')).filter(pl_module.col('n') > 1)
+            if duplicate_native.height or duplicate_espn.height:
+                raise RuntimeError('NBA historical Stats->ESPN crosswalk is not one-to-one')
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_chunk_63():
+            nonlocal game_id
+            for game_id in sorted(unmatched):
+                log(f'NBA GAME UNMAPPED | nba_game_id={game_id} reason=no_unique_date_unordered_team_match')
+            for game_id in sorted(ambiguous):
+                log(f'NBA GAME AMBIGUOUS | nba_game_id={game_id} reason=multiple_date_unordered_team_matches')
+            log(f'NBA LEGACY GAME CROSSWALK | internal={internal_season} sdv={sdv_season} stats_games={len(stats_games)} unordered_team_row_games={unordered_team_row_games} mapped={xwalk.height} unmatched={len(unmatched)} ambiguous={len(ambiguous)} source={stats_source}')
+            return (_py_r1000_RETURN, (xwalk.select('nba_game_id', 'espn_game_id'), f'{stats_source} -> deterministic game_date/unordered-team-pair match with canonical ESPN home-away orientation', 'nba_game_id'))
+        for _py_r1000_block_64 in (_py_r1000_chunk_47, _py_r1000_chunk_52, _py_r1000_chunk_53, _py_r1000_chunk_54, _py_r1000_chunk_57, _py_r1000_chunk_60, _py_r1000_chunk_63):
+            _py_r1000_result_65 = _py_r1000_block_64()
+            if _py_r1000_result_65[0] != _py_r1000_NONE:
+                return _py_r1000_result_65
+        return (_py_r1000_NONE, None)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 def load_wnba_stats_schedule(
@@ -2149,770 +1633,281 @@ def load_wnba_stats_schedule(
     )
 
 
-def build_wnba_legacy_schedule_crosswalk(
-    cfg: dict[str, Any],
-    internal_season: int,
-    sdv_season: int,
-):
-    pl_module = pl()
+def build_wnba_legacy_schedule_crosswalk(cfg: dict[str, Any], internal_season: int, sdv_season: int):
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    (
-        stats_schedule,
-        stats_source,
-    ) = load_wnba_stats_schedule(
-        sdv_season
-    )
+    def _py_r1000_impl():
+        nonlocal cfg, internal_season, sdv_season
+        ambiguous: object
+        away_name_columns: object
+        away_score: object
+        away_variants: object
+        by_date: object
+        candidate: object
+        candidates: object
+        chosen: object
+        column: object
+        date_key: object
+        duplicate_espn: object
+        duplicate_native: object
+        expressions: object
+        game_id: object
+        game_rows: object
+        games: object
+        games_file: object
+        grouped: object
+        home_name_columns: object
+        home_score: object
+        home_variants: object
+        ids: object
+        incomplete: object
+        mappings: object
+        method: object
+        missing: object
+        missing_games: object
+        name_matches: object
+        native_game_id: object
+        pl_module: object
+        required: object
+        required_games: object
+        root: object
+        row: object
+        score_matches: object
+        stats_away_variants: object
+        stats_home_variants: object
+        stats_schedule: object
+        stats_source: object
+        unclassified: object
+        unmatched: object
+        xwalk: object
 
-    required = {
-        "game_id",
-        "game_date",
-        "team_name",
-        "team_abbreviation",
-        "matchup",
-    }
+        def _py_r1000_loop_1():
+            nonlocal date_key
+            date_key = normalize_date_key(row.get('game_date'))
+            if not date_key:
+                return (_py_r1000_CONTINUE, None)
+            by_date.setdefault(date_key, []).append(row)
+            return (_py_r1000_NONE, None)
 
-    missing = sorted(
-        required
-        - set(
-            stats_schedule.columns
-        )
-    )
+        def _py_r1000_loop_3():
+            nonlocal away_score, away_variants, candidate, candidates, chosen, column, date_key, home_score, home_variants, method, name_matches, native_game_id, score_matches, stats_away_variants, stats_home_variants
 
-    if missing:
-        raise RuntimeError(
-            "WNBA Stats schedule "
-            f"missing columns={missing}; "
-            f"columns={stats_schedule.columns}"
-        )
+            def _py_r1000_loop_4():
+                nonlocal away_variants, column, home_variants
+                home_variants = set()
+                for column in home_name_columns:
+                    home_variants.update(team_variants(candidate.get(column)))
+                away_variants = set()
+                for column in away_name_columns:
+                    away_variants.update(team_variants(candidate.get(column)))
+                if stats_home_variants & home_variants and stats_away_variants & away_variants:
+                    name_matches.append(candidate)
+                return (_py_r1000_NONE, None)
 
-    expressions = [
-        pl_module.col(
-            "game_id"
-        )
-        .cast(
-            pl_module.Utf8,
-            strict=False,
-        )
-        .str.strip_chars()
-        .alias(
-            "game_id"
-        ),
-        pl_module.col(
-            "game_date"
-        )
-        .cast(
-            pl_module.Utf8,
-            strict=False,
-        )
-        .str.slice(
-            0,
-            10,
-        )
-        .alias(
-            "game_date_key"
-        ),
-        pl_module.col(
-            "team_name"
-        )
-        .cast(
-            pl_module.Utf8,
-            strict=False,
-        )
-        .alias(
-            "team_name"
-        ),
-        pl_module.col(
-            "team_abbreviation"
-        )
-        .cast(
-            pl_module.Utf8,
-            strict=False,
-        )
-        .alias(
-            "team_abbreviation"
-        ),
-        pl_module.col(
-            "matchup"
-        )
-        .cast(
-            pl_module.Utf8,
-            strict=False,
-        )
-        .alias(
-            "matchup"
-        ),
-    ]
+            def _py_r1000_else_6():
+                nonlocal candidates
+                if len(name_matches) > 1:
+                    candidates = name_matches
+                return (_py_r1000_NONE, None)
 
-    if (
-        "pts"
-        in stats_schedule.columns
-    ):
-        expressions.append(
-            pl_module.col(
-                "pts"
-            )
-            .cast(
-                pl_module.Float64,
-                strict=False,
-            )
-            .alias(
-                "pts"
-            )
-        )
-    else:
-        expressions.append(
-            pl_module.lit(
-                None,
-                dtype=pl_module.Float64,
-            ).alias(
-                "pts"
-            )
-        )
+            def _py_r1000_if_8():
+                nonlocal away_score, candidate, chosen, home_score, method, score_matches
 
-    stats_schedule = (
-        stats_schedule
-        .select(
-            expressions
-        )
-        .filter(
-            pl_module.col(
-                "game_id"
-            ).is_not_null()
-            & (
-                pl_module.col(
-                    "game_id"
-                )
-                != ""
-            )
-        )
-        .with_columns(
-            pl_module.when(
-                pl_module.col(
-                    "matchup"
-                )
-                .str.contains(
-                    "@",
-                    literal=True,
-                )
-            )
-            .then(
-                pl_module.lit(
-                    "away"
-                )
-            )
-            .when(
-                pl_module.col(
-                    "matchup"
-                )
-                .str.to_lowercase()
-                .str.contains(
-                    "vs",
-                    literal=True,
-                )
-            )
-            .then(
-                pl_module.lit(
-                    "home"
-                )
-            )
-            .otherwise(
-                pl_module.lit(
-                    None,
-                    dtype=pl_module.Utf8,
-                )
-            )
-            .alias(
-                "home_away"
-            )
-        )
-    )
+                def _py_r1000_loop_9():
+                    nonlocal away_score, home_score
+                    try:
+                        home_score = float(clean(candidate.get('home_score')))
+                        away_score = float(clean(candidate.get('away_score')))
+                    except (TypeError, ValueError):
+                        return (_py_r1000_CONTINUE, None)
+                    if home_score == float(row['home_pts']) and away_score == float(row['away_pts']):
+                        score_matches.append(candidate)
+                    return (_py_r1000_NONE, None)
 
-    unclassified = (
-        stats_schedule
-        .filter(
-            pl_module.col(
-                "home_away"
-            ).is_null()
-        )
-        .select(
-            "game_id"
-        )
-        .unique()
-    )
+                def _py_r1000_else_11():
+                    if len(score_matches) > 1:
+                        ambiguous.append(native_game_id)
+                        return (_py_r1000_CONTINUE, None)
+                    return (_py_r1000_NONE, None)
+                score_matches = []
+                for candidate in candidates:
+                    _py_r1000_result_10 = _py_r1000_loop_9()
+                    if _py_r1000_result_10[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_10
+                    if _py_r1000_result_10[0] == _py_r1000_BREAK:
+                        break
+                    if _py_r1000_result_10[0] == _py_r1000_CONTINUE:
+                        continue
+                if len(score_matches) == 1:
+                    chosen = score_matches[0]
+                    method = 'date_home_away_score'
+                else:
+                    _py_r1000_result_12 = _py_r1000_else_11()
+                    if _py_r1000_result_12[0] != _py_r1000_NONE:
+                        return _py_r1000_result_12
+                return (_py_r1000_NONE, None)
 
-    if unclassified.height:
-        ids = (
-            unclassified
-            .get_column(
-                "game_id"
-            )
-            .to_list()[:20]
-        )
-
-        raise RuntimeError(
-            "WNBA Stats schedule has "
-            "unrecognized matchup format "
-            f"for game_ids={ids}"
-        )
-
-    grouped = (
-        stats_schedule
-        .group_by(
-            "game_id",
-            maintain_order=False,
-        )
-        .agg(
-            pl_module.col(
-                "game_date_key"
-            )
-            .drop_nulls()
-            .first()
-            .alias(
-                "game_date_key"
-            ),
-            pl_module.col(
-                "team_name"
-            )
-            .filter(
-                pl_module.col(
-                    "home_away"
-                )
-                == "home"
-            )
-            .first()
-            .alias(
-                "home_team_name"
-            ),
-            pl_module.col(
-                "team_abbreviation"
-            )
-            .filter(
-                pl_module.col(
-                    "home_away"
-                )
-                == "home"
-            )
-            .first()
-            .alias(
-                "home_team_abbreviation"
-            ),
-            pl_module.col(
-                "pts"
-            )
-            .filter(
-                pl_module.col(
-                    "home_away"
-                )
-                == "home"
-            )
-            .first()
-            .alias(
-                "home_pts"
-            ),
-            pl_module.col(
-                "team_name"
-            )
-            .filter(
-                pl_module.col(
-                    "home_away"
-                )
-                == "away"
-            )
-            .first()
-            .alias(
-                "away_team_name"
-            ),
-            pl_module.col(
-                "team_abbreviation"
-            )
-            .filter(
-                pl_module.col(
-                    "home_away"
-                )
-                == "away"
-            )
-            .first()
-            .alias(
-                "away_team_abbreviation"
-            ),
-            pl_module.col(
-                "pts"
-            )
-            .filter(
-                pl_module.col(
-                    "home_away"
-                )
-                == "away"
-            )
-            .first()
-            .alias(
-                "away_pts"
-            ),
-        )
-    )
-
-    incomplete = (
-        grouped
-        .filter(
-            pl_module.col(
-                "game_date_key"
-            ).is_null()
-            | pl_module.col(
-                "home_team_name"
-            ).is_null()
-            | pl_module.col(
-                "away_team_name"
-            ).is_null()
-        )
-    )
-
-    if incomplete.height:
-        ids = (
-            incomplete
-            .get_column(
-                "game_id"
-            )
-            .to_list()[:20]
-        )
-
-        raise RuntimeError(
-            "WNBA Stats schedule cannot "
-            "identify both teams for "
-            f"game_ids={ids}"
-        )
-
-    root = storage_root(cfg)
-
-    games_file = table_path(
-        root,
-        "wnba",
-        internal_season,
-        "games",
-    )
-
-    if not games_file.exists():
-        raise RuntimeError(
-            "WNBA canonical games file "
-            f"missing: {games_file}"
-        )
-
-    games = pl_module.read_parquet(
-        games_file
-    )
-
-    required_games = {
-        "game_id",
-        "game_date",
-    }
-
-    missing_games = sorted(
-        required_games
-        - set(
-            games.columns
-        )
-    )
-
-    if missing_games:
-        raise RuntimeError(
-            "WNBA games.parquet "
-            f"missing columns={missing_games}"
-        )
-
-    home_name_columns = [
-        column
-        for column
-        in (
-            "home_display_name",
-            "home_name",
-            "home_short_display_name",
-            "home_location",
-            "home_abbreviation",
-        )
-        if column
-        in games.columns
-    ]
-
-    away_name_columns = [
-        column
-        for column
-        in (
-            "away_display_name",
-            "away_name",
-            "away_short_display_name",
-            "away_location",
-            "away_abbreviation",
-        )
-        if column
-        in games.columns
-    ]
-
-    if (
-        not home_name_columns
-        or not away_name_columns
-    ):
-        raise RuntimeError(
-            "WNBA games.parquet does not "
-            "expose usable home/away "
-            "team-name columns"
-        )
-
-    game_rows = (
-        games
-        .select(
-            [
-                "game_id",
-                "game_date",
-                *home_name_columns,
-                *away_name_columns,
-                *[
-                    column
-                    for column
-                    in (
-                        "home_score",
-                        "away_score",
-                    )
-                    if column
-                    in games.columns
-                ],
-            ]
-        )
-        .iter_rows(
-            named=True
-        )
-    )
-
-    by_date: dict[
-        str,
-        list[
-            dict[str, Any]
-        ],
-    ] = {}
-
-    for row in game_rows:
-        date_key = normalize_date_key(
-            row.get(
-                "game_date"
-            )
-        )
-
-        if not date_key:
-            continue
-
-        by_date.setdefault(
-            date_key,
-            [],
-        ).append(row)
-
-    mappings: list[
-        dict[str, str]
-    ] = []
-
-    unmatched: list[str] = []
-    ambiguous: list[str] = []
-
-    for row in grouped.iter_rows(
-        named=True
-    ):
-        native_game_id = clean(
-            row.get(
-                "game_id"
-            )
-        )
-
-        date_key = clean(
-            row.get(
-                "game_date_key"
-            )
-        )
-
-        candidates = by_date.get(
-            date_key,
-            [],
-        )
-
-        stats_home_variants = set()
-
-        stats_home_variants.update(
-            team_variants(
-                row.get(
-                    "home_team_name"
-                )
-            )
-        )
-
-        stats_home_variants.update(
-            team_variants(
-                row.get(
-                    "home_team_abbreviation"
-                )
-            )
-        )
-
-        stats_away_variants = set()
-
-        stats_away_variants.update(
-            team_variants(
-                row.get(
-                    "away_team_name"
-                )
-            )
-        )
-
-        stats_away_variants.update(
-            team_variants(
-                row.get(
-                    "away_team_abbreviation"
-                )
-            )
-        )
-
-        name_matches = []
-
-        for candidate in candidates:
-            home_variants = set()
-
-            for column in home_name_columns:
-                home_variants.update(
-                    team_variants(
-                        candidate.get(
-                            column
-                        )
-                    )
-                )
-
-            away_variants = set()
-
-            for column in away_name_columns:
-                away_variants.update(
-                    team_variants(
-                        candidate.get(
-                            column
-                        )
-                    )
-                )
-
-            if (
-                stats_home_variants
-                & home_variants
-                and stats_away_variants
-                & away_variants
-            ):
-                name_matches.append(
-                    candidate
-                )
-
-        chosen = None
-        method = ""
-
-        if len(name_matches) == 1:
-            chosen = name_matches[0]
-            method = (
-                "date_home_away_team"
-            )
-
-        elif len(name_matches) > 1:
-            candidates = name_matches
-
-        if (
-            chosen is None
-            and row.get(
-                "home_pts"
-            )
-            is not None
-            and row.get(
-                "away_pts"
-            )
-            is not None
-        ):
-            score_matches = []
-
+            def _py_r1000_if_14():
+                if len(name_matches) > 1:
+                    ambiguous.append(native_game_id)
+                else:
+                    unmatched.append(native_game_id)
+                return (_py_r1000_CONTINUE, None)
+            native_game_id = clean(row.get('game_id'))
+            date_key = clean(row.get('game_date_key'))
+            candidates = by_date.get(date_key, [])
+            stats_home_variants = set()
+            stats_home_variants.update(team_variants(row.get('home_team_name')))
+            stats_home_variants.update(team_variants(row.get('home_team_abbreviation')))
+            stats_away_variants = set()
+            stats_away_variants.update(team_variants(row.get('away_team_name')))
+            stats_away_variants.update(team_variants(row.get('away_team_abbreviation')))
+            name_matches = []
             for candidate in candidates:
-                try:
-                    home_score = float(
-                        clean(
-                            candidate.get(
-                                "home_score"
-                            )
-                        )
-                    )
-
-                    away_score = float(
-                        clean(
-                            candidate.get(
-                                "away_score"
-                            )
-                        )
-                    )
-
-                except (
-                    TypeError,
-                    ValueError,
-                ):
+                _py_r1000_result_5 = _py_r1000_loop_4()
+                if _py_r1000_result_5[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_5
+                if _py_r1000_result_5[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_5[0] == _py_r1000_CONTINUE:
                     continue
-
-                if (
-                    home_score
-                    == float(
-                        row[
-                            "home_pts"
-                        ]
-                    )
-                    and away_score
-                    == float(
-                        row[
-                            "away_pts"
-                        ]
-                    )
-                ):
-                    score_matches.append(
-                        candidate
-                    )
-
-            if len(score_matches) == 1:
-                chosen = score_matches[0]
-                method = (
-                    "date_home_away_score"
-                )
-
-            elif len(score_matches) > 1:
-                ambiguous.append(
-                    native_game_id
-                )
-                continue
-
-        if chosen is None:
-            if len(name_matches) > 1:
-                ambiguous.append(
-                    native_game_id
-                )
+            chosen = None
+            method = ''
+            if len(name_matches) == 1:
+                chosen = name_matches[0]
+                method = 'date_home_away_team'
             else:
-                unmatched.append(
-                    native_game_id
-                )
+                _py_r1000_result_7 = _py_r1000_else_6()
+                if _py_r1000_result_7[0] != _py_r1000_NONE:
+                    return _py_r1000_result_7
+            if chosen is None and row.get('home_pts') is not None and (row.get('away_pts') is not None):
+                _py_r1000_result_13 = _py_r1000_if_8()
+                if _py_r1000_result_13[0] != _py_r1000_NONE:
+                    return _py_r1000_result_13
+            if chosen is None:
+                _py_r1000_result_15 = _py_r1000_if_14()
+                if _py_r1000_result_15[0] != _py_r1000_NONE:
+                    return _py_r1000_result_15
+            mappings.append({'wnba_game_id': native_game_id, 'espn_game_id': clean(chosen.get('game_id')), 'match_method': method})
+            return (_py_r1000_NONE, None)
 
-            continue
+        def _py_r1000_chunk_17():
+            nonlocal expressions, games, games_file, grouped, ids, incomplete, missing, missing_games, pl_module, required, required_games, root, stats_schedule, stats_source, unclassified
+            pl_module = pl()
+            stats_schedule, stats_source = load_wnba_stats_schedule(sdv_season)
+            required = {'game_id', 'game_date', 'team_name', 'team_abbreviation', 'matchup'}
+            missing = sorted(required - set(stats_schedule.columns))
+            if missing:
+                raise RuntimeError(f'WNBA Stats schedule missing columns={missing}; columns={stats_schedule.columns}')
+            expressions = [pl_module.col('game_id').cast(pl_module.Utf8, strict=False).str.strip_chars().alias('game_id'), pl_module.col('game_date').cast(pl_module.Utf8, strict=False).str.slice(0, 10).alias('game_date_key'), pl_module.col('team_name').cast(pl_module.Utf8, strict=False).alias('team_name'), pl_module.col('team_abbreviation').cast(pl_module.Utf8, strict=False).alias('team_abbreviation'), pl_module.col('matchup').cast(pl_module.Utf8, strict=False).alias('matchup')]
+            if 'pts' in stats_schedule.columns:
+                expressions.append(pl_module.col('pts').cast(pl_module.Float64, strict=False).alias('pts'))
+            else:
+                expressions.append(pl_module.lit(None, dtype=pl_module.Float64).alias('pts'))
+            stats_schedule = stats_schedule.select(expressions).filter(pl_module.col('game_id').is_not_null() & (pl_module.col('game_id') != '')).with_columns(pl_module.when(pl_module.col('matchup').str.contains('@', literal=True)).then(pl_module.lit('away')).when(pl_module.col('matchup').str.to_lowercase().str.contains('vs', literal=True)).then(pl_module.lit('home')).otherwise(pl_module.lit(None, dtype=pl_module.Utf8)).alias('home_away'))
+            unclassified = stats_schedule.filter(pl_module.col('home_away').is_null()).select('game_id').unique()
+            if unclassified.height:
+                ids = unclassified.get_column('game_id').to_list()[:20]
+                raise RuntimeError(f'WNBA Stats schedule has unrecognized matchup format for game_ids={ids}')
+            grouped = stats_schedule.group_by('game_id', maintain_order=False).agg(pl_module.col('game_date_key').drop_nulls().first().alias('game_date_key'), pl_module.col('team_name').filter(pl_module.col('home_away') == 'home').first().alias('home_team_name'), pl_module.col('team_abbreviation').filter(pl_module.col('home_away') == 'home').first().alias('home_team_abbreviation'), pl_module.col('pts').filter(pl_module.col('home_away') == 'home').first().alias('home_pts'), pl_module.col('team_name').filter(pl_module.col('home_away') == 'away').first().alias('away_team_name'), pl_module.col('team_abbreviation').filter(pl_module.col('home_away') == 'away').first().alias('away_team_abbreviation'), pl_module.col('pts').filter(pl_module.col('home_away') == 'away').first().alias('away_pts'))
+            incomplete = grouped.filter(pl_module.col('game_date_key').is_null() | pl_module.col('home_team_name').is_null() | pl_module.col('away_team_name').is_null())
+            if incomplete.height:
+                ids = incomplete.get_column('game_id').to_list()[:20]
+                raise RuntimeError(f'WNBA Stats schedule cannot identify both teams for game_ids={ids}')
+            root = storage_root(cfg)
+            games_file = table_path(root, 'wnba', internal_season, 'games')
+            if not games_file.exists():
+                raise RuntimeError(f'WNBA canonical games file missing: {games_file}')
+            games = pl_module.read_parquet(games_file)
+            required_games = {'game_id', 'game_date'}
+            missing_games = sorted(required_games - set(games.columns))
+            if missing_games:
+                raise RuntimeError(f'WNBA games.parquet missing columns={missing_games}')
+            return (_py_r1000_NONE, None)
 
-        mappings.append(
-            {
-                "wnba_game_id": (
-                    native_game_id
-                ),
-                "espn_game_id": clean(
-                    chosen.get(
-                        "game_id"
-                    )
-                ),
-                "match_method": (
-                    method
-                ),
-            }
-        )
+        def _py_r1000_chunk_18():
+            nonlocal away_name_columns, home_name_columns
+            home_name_columns = [column for column in ('home_display_name', 'home_name', 'home_short_display_name', 'home_location', 'home_abbreviation') if column in games.columns]
+            away_name_columns = [column for column in ('away_display_name', 'away_name', 'away_short_display_name', 'away_location', 'away_abbreviation') if column in games.columns]
+            if not home_name_columns or not away_name_columns:
+                raise RuntimeError('WNBA games.parquet does not expose usable home/away team-name columns')
+            return (_py_r1000_NONE, None)
 
-    if not mappings:
-        raise RuntimeError(
-            "WNBA Stats->ESPN "
-            "crosswalk produced zero "
-            "mapped games"
-        )
+        def _py_r1000_chunk_19():
+            nonlocal ambiguous, by_date, game_rows, mappings, row, unmatched
 
-    xwalk = pl_module.DataFrame(
-        mappings
-    )
+            def _py_r1000_loop_20():
+                _py_r1000_result_2 = _py_r1000_loop_1()
+                if _py_r1000_result_2[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_2
+                if _py_r1000_result_2[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            game_rows = games.select(['game_id', 'game_date', *home_name_columns, *away_name_columns, *[column for column in ('home_score', 'away_score') if column in games.columns]]).iter_rows(named=True)
+            by_date = {}
+            for row in game_rows:
+                _py_r1000_result_21 = _py_r1000_loop_20()
+                if _py_r1000_result_21[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_21
+                if _py_r1000_result_21[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_21[0] == _py_r1000_CONTINUE:
+                    continue
+            mappings = []
+            unmatched = []
+            ambiguous = []
+            return (_py_r1000_NONE, None)
 
-    duplicate_native = (
-        xwalk
-        .group_by(
-            "wnba_game_id"
-        )
-        .agg(
-            pl_module.col(
-                "espn_game_id"
-            )
-            .n_unique()
-            .alias(
-                "n"
-            )
-        )
-        .filter(
-            pl_module.col(
-                "n"
-            )
-            > 1
-        )
-    )
+        def _py_r1000_chunk_22():
+            nonlocal duplicate_espn, duplicate_native, row, xwalk
 
-    duplicate_espn = (
-        xwalk
-        .group_by(
-            "espn_game_id"
-        )
-        .agg(
-            pl_module.col(
-                "wnba_game_id"
-            )
-            .n_unique()
-            .alias(
-                "n"
-            )
-        )
-        .filter(
-            pl_module.col(
-                "n"
-            )
-            > 1
-        )
-    )
+            def _py_r1000_loop_23():
+                _py_r1000_result_16 = _py_r1000_loop_3()
+                if _py_r1000_result_16[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_16
+                if _py_r1000_result_16[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_16[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            for row in grouped.iter_rows(named=True):
+                _py_r1000_result_24 = _py_r1000_loop_23()
+                if _py_r1000_result_24[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_24
+                if _py_r1000_result_24[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_24[0] == _py_r1000_CONTINUE:
+                    continue
+            if not mappings:
+                raise RuntimeError('WNBA Stats->ESPN crosswalk produced zero mapped games')
+            xwalk = pl_module.DataFrame(mappings)
+            duplicate_native = xwalk.group_by('wnba_game_id').agg(pl_module.col('espn_game_id').n_unique().alias('n')).filter(pl_module.col('n') > 1)
+            duplicate_espn = xwalk.group_by('espn_game_id').agg(pl_module.col('wnba_game_id').n_unique().alias('n')).filter(pl_module.col('n') > 1)
+            if duplicate_native.height or duplicate_espn.height:
+                raise RuntimeError('WNBA Stats->ESPN crosswalk is not one-to-one')
+            return (_py_r1000_NONE, None)
 
-    if (
-        duplicate_native.height
-        or duplicate_espn.height
-    ):
-        raise RuntimeError(
-            "WNBA Stats->ESPN "
-            "crosswalk is not one-to-one"
-        )
-
-    for game_id in sorted(
-        unmatched
-    ):
-        log(
-            "WNBA GAME UNMAPPED | "
-            f"wnba_game_id={game_id} "
-            "reason=no_unique_date_team_or_score_match"
-        )
-
-    for game_id in sorted(
-        ambiguous
-    ):
-        log(
-            "WNBA GAME AMBIGUOUS | "
-            f"wnba_game_id={game_id} "
-            "reason=multiple_canonical_matches"
-        )
-
-    log(
-        "WNBA LEGACY GAME CROSSWALK | "
-        f"internal={internal_season} "
-        f"sdv={sdv_season} "
-        f"stats_games={grouped.height} "
-        f"mapped={xwalk.height} "
-        f"unmatched={len(unmatched)} "
-        f"ambiguous={len(ambiguous)} "
-        f"source={stats_source}"
-    )
-
-    return (
-        xwalk.select(
-            "wnba_game_id",
-            "espn_game_id",
-        ),
-        (
-            f"{stats_source} -> "
-            "deterministic game_date/"
-            "home-away team/score match"
-        ),
-        "wnba_game_id",
-    )
+        def _py_r1000_chunk_25():
+            nonlocal game_id
+            for game_id in sorted(unmatched):
+                log(f'WNBA GAME UNMAPPED | wnba_game_id={game_id} reason=no_unique_date_team_or_score_match')
+            for game_id in sorted(ambiguous):
+                log(f'WNBA GAME AMBIGUOUS | wnba_game_id={game_id} reason=multiple_canonical_matches')
+            log(f'WNBA LEGACY GAME CROSSWALK | internal={internal_season} sdv={sdv_season} stats_games={grouped.height} mapped={xwalk.height} unmatched={len(unmatched)} ambiguous={len(ambiguous)} source={stats_source}')
+            return (_py_r1000_RETURN, (xwalk.select('wnba_game_id', 'espn_game_id'), f'{stats_source} -> deterministic game_date/home-away team/score match', 'wnba_game_id'))
+        for _py_r1000_block_26 in (_py_r1000_chunk_17, _py_r1000_chunk_18, _py_r1000_chunk_19, _py_r1000_chunk_22, _py_r1000_chunk_25):
+            _py_r1000_result_27 = _py_r1000_block_26()
+            if _py_r1000_result_27[0] != _py_r1000_NONE:
+                return _py_r1000_result_27
+        return (_py_r1000_NONE, None)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 def load_pro_schedule_crosswalk(
@@ -3810,178 +2805,97 @@ def call_loader(
 
 
 
-def normalize(
-    frame,
-    *,
-    table: str,
-    league: str,
-    internal_season: int,
-    sdv_season: int,
-    source: str,
-    ingested_at_utc: str,
-):
-    pl_module = pl()
+def normalize(frame, *, table: str, league: str, internal_season: int, sdv_season: int, source: str, ingested_at_utc: str):
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    df = to_pl(frame)
+    def _py_r1000_impl():
+        nonlocal frame, ingested_at_utc, internal_season, league, sdv_season, source, table
+        candidates: object
+        canonical: object
+        df: object
+        front: object
+        id_columns: object
+        new_columns: object
+        old_columns: object
+        pl_module: object
+        source_column: object
 
-    old_columns = list(
-        df.columns
-    )
+        def _py_r1000_loop_1():
+            nonlocal df, source_column
+            if canonical in df.columns:
+                return (_py_r1000_CONTINUE, None)
+            source_column = next((candidate for candidate in candidates if candidate in df.columns), None)
+            if source_column is not None:
+                df = df.with_columns(pl_module.col(source_column).alias(canonical))
+            return (_py_r1000_NONE, None)
 
-    new_columns = [
-        snake(column)
-        for column
-        in old_columns
-    ]
+        def _py_r1000_if_3():
+            nonlocal df
+            df = df.with_columns([pl_module.col(column).cast(pl_module.Utf8, strict=False).alias(column) for column in id_columns])
+            return (_py_r1000_NONE, None)
 
-    if (
-        len(new_columns)
-        != len(set(new_columns))
-    ):
-        raise ValueError(
-            "column collision after "
-            f"normalization in {table}"
-        )
+        def _py_r1000_chunk_5():
+            nonlocal candidates, canonical, df, new_columns, old_columns, pl_module
 
-    if old_columns != new_columns:
-        df = df.rename(
-            dict(
-                zip(
-                    old_columns,
-                    new_columns,
-                )
-            )
-        )
+            def _py_r1000_loop_6():
+                _py_r1000_result_2 = _py_r1000_loop_1()
+                if _py_r1000_result_2[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_2
+                if _py_r1000_result_2[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            pl_module = pl()
+            df = to_pl(frame)
+            old_columns = list(df.columns)
+            new_columns = [snake(column) for column in old_columns]
+            if len(new_columns) != len(set(new_columns)):
+                raise ValueError(f'column collision after normalization in {table}')
+            if old_columns != new_columns:
+                df = df.rename(dict(zip(old_columns, new_columns)))
+            for canonical, candidates in ALIASES.get(table, {}).items():
+                _py_r1000_result_7 = _py_r1000_loop_6()
+                if _py_r1000_result_7[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_7
+                if _py_r1000_result_7[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_7[0] == _py_r1000_CONTINUE:
+                    continue
+            return (_py_r1000_NONE, None)
 
-    for (
-        canonical,
-        candidates,
-    ) in ALIASES.get(
-        table,
-        {},
-    ).items():
-        if canonical in df.columns:
-            continue
+        def _py_r1000_chunk_8():
+            nonlocal df, front, id_columns
 
-        source_column = next(
-            (
-                candidate
-                for candidate
-                in candidates
-                if candidate
-                in df.columns
-            ),
-            None,
-        )
+            def _py_r1000_if_9():
+                _py_r1000_result_4 = _py_r1000_if_3()
+                if _py_r1000_result_4[0] != _py_r1000_NONE:
+                    return _py_r1000_result_4
+                return (_py_r1000_NONE, None)
+            id_columns = [column for column in df.columns if column.endswith('_id') or column in {'game_id', 'play_id', 'shot_id'}]
+            if id_columns:
+                _py_r1000_result_10 = _py_r1000_if_9()
+                if _py_r1000_result_10[0] != _py_r1000_NONE:
+                    return _py_r1000_result_10
+            if df.height == 0:
+                raise RuntimeError(f'{league}.{table}: loader returned zero rows')
+            df = df.with_columns(pl_module.lit(league.upper()).alias('league'), pl_module.lit(int(internal_season)).cast(pl_module.Int32).alias('internal_season'), pl_module.lit(int(sdv_season)).cast(pl_module.Int32).alias('sdv_season'), pl_module.lit(source).alias('source_loader'), pl_module.lit(ingested_at_utc).alias('ingested_at_utc'))
+            front = ['league', 'internal_season', 'sdv_season', 'source_loader', 'ingested_at_utc']
+            return (_py_r1000_NONE, None)
 
-        if source_column is not None:
-            df = df.with_columns(
-                pl_module.col(
-                    source_column
-                ).alias(
-                    canonical
-                )
-            )
-
-    id_columns = [
-        column
-        for column
-        in df.columns
-        if (
-            column.endswith(
-                "_id"
-            )
-            or column
-            in {
-                "game_id",
-                "play_id",
-                "shot_id",
-            }
-        )
-    ]
-
-    if id_columns:
-        df = df.with_columns(
-            [
-                pl_module.col(
-                    column
-                )
-                .cast(
-                    pl_module.Utf8,
-                    strict=False,
-                )
-                .alias(
-                    column
-                )
-                for column
-                in id_columns
-            ]
-        )
-
-    if df.height == 0:
-        raise RuntimeError(
-            f"{league}.{table}: "
-            "loader returned zero rows"
-        )
-
-    df = df.with_columns(
-        pl_module.lit(
-            league.upper()
-        ).alias(
-            "league"
-        ),
-        pl_module.lit(
-            int(
-                internal_season
-            )
-        )
-        .cast(
-            pl_module.Int32
-        )
-        .alias(
-            "internal_season"
-        ),
-        pl_module.lit(
-            int(
-                sdv_season
-            )
-        )
-        .cast(
-            pl_module.Int32
-        )
-        .alias(
-            "sdv_season"
-        ),
-        pl_module.lit(
-            source
-        ).alias(
-            "source_loader"
-        ),
-        pl_module.lit(
-            ingested_at_utc
-        ).alias(
-            "ingested_at_utc"
-        ),
-    )
-
-    front = [
-        "league",
-        "internal_season",
-        "sdv_season",
-        "source_loader",
-        "ingested_at_utc",
-    ]
-
-    return df.select(
-        front
-        + [
-            column
-            for column
-            in df.columns
-            if column
-            not in front
-        ]
-    )
+        def _py_r1000_chunk_11():
+            return (_py_r1000_RETURN, df.select(front + [column for column in df.columns if column not in front]))
+        for _py_r1000_block_12 in (_py_r1000_chunk_5, _py_r1000_chunk_8, _py_r1000_chunk_11):
+            _py_r1000_result_13 = _py_r1000_block_12()
+            if _py_r1000_result_13[0] != _py_r1000_NONE:
+                return _py_r1000_result_13
+        return (_py_r1000_NONE, None)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 def write_parquet(
@@ -4446,728 +3360,263 @@ def stamp_ncaam_derived_ids(
     )
 
 
-def build_ncaam_derived_tables(
-    cfg: dict[str, Any],
-    internal_season: int,
-    sdv_season: int,
-    ingested_at_utc: str,
-    force: bool,
-) -> dict[str, dict[str, Any]]:
-    pl_module = pl()
-
-    root = storage_root(cfg)
-
-    out_possessions = table_path(
-        root,
-        "ncaam",
-        internal_season,
-        "possessions",
-    )
-
-    out_lineups = table_path(
-        root,
-        "ncaam",
-        internal_season,
-        "lineups",
-    )
-
-    possession_source = (
-        "sportsdataverse/ncaa-mbb-hoops-data:"
-        "stats.ncaa.org PBP -> "
-        "sportsdataverse.mbb."
-        "ncaa_mbb_possessions"
-    )
-
-    lineup_source = (
-        "sportsdataverse/ncaa-mbb-hoops-data:"
-        "stats.ncaa.org PBP -> "
-        "sportsdataverse.mbb."
-        "ncaa_mbb_lineups"
-    )
-
-    if (
-        out_possessions.exists()
-        and out_lineups.exists()
-        and not force
-    ):
-        return {
-            "possessions": manifest_entry(
-                pl_module.read_parquet(
-                    out_possessions
-                ),
-                out_possessions,
-                possession_source,
-                "existing_not_rebuilt",
-            ),
-            "lineups": manifest_entry(
-                pl_module.read_parquet(
-                    out_lineups
-                ),
-                out_lineups,
-                lineup_source,
-                "existing_not_rebuilt",
-            ),
-        }
-
-    games_file = table_path(
-        root,
-        "ncaam",
-        internal_season,
-        "games",
-    )
-
-    if not games_file.exists():
-        raise RuntimeError(
-            "NCAAM games parquet missing: "
-            f"{games_file}"
-        )
-
-    games = pl_module.read_parquet(
-        games_file
-    )
-
-    if "game_id" not in games.columns:
-        raise RuntimeError(
-            "NCAAM games.parquet "
-            "missing game_id"
-        )
-
-    espn_game_ids = set(
-        games
-        .get_column(
-            "game_id"
-        )
-        .cast(
-            pl_module.Utf8,
-            strict=False,
-        )
-        .drop_nulls()
-        .to_list()
-    )
-
-    if not espn_game_ids:
-        raise RuntimeError(
-            "NCAAM games.parquet contains "
-            "zero usable game_id values"
-        )
-
-    canonical_game_count = len(
-        espn_game_ids
-    )
-
-    (
-        xwalk,
-        xwalk_url,
-    ) = load_ncaam_game_crosswalk(
-        sdv_season
-    )
-
-    xwalk = xwalk.filter(
-        pl_module.col(
-            "game_id"
-        ).is_in(
-            sorted(
-                espn_game_ids
-            )
-        )
-    )
-
-    if xwalk.height == 0:
-        raise RuntimeError(
-            "No NCAA contest ids map "
-            "to NCAAM games for "
-            f"SDV season={sdv_season}"
-        )
-
-    mapped_espn_ids = set(
-        xwalk
-        .get_column(
-            "game_id"
-        )
-        .to_list()
-    )
-
-    missing_espn_ids = sorted(
-        espn_game_ids
-        - mapped_espn_ids
-    )
-
-    log(
-        "NCAAM CROSSWALK | "
-        f"internal={internal_season} "
-        f"sdv={sdv_season} "
-        f"espn_games={canonical_game_count} "
-        f"mapped={len(mapped_espn_ids)} "
-        f"unmapped={len(missing_espn_ids)} "
-        f"source={xwalk_url}"
-    )
-
-    for game_id in missing_espn_ids:
-        log(
-            "NCAAM GAME UNMAPPED | "
-            f"game_id={game_id} "
-            "ncaa_game_id=UNRESOLVED"
-        )
-
-    ncaa_pbp_url = (
-        NCAAM_NCAA_PBP_URL.format(
-            season=sdv_season
-        )
-    )
-
-    log(
-        "NCAAM NCAA PBP DOWNLOAD START | "
-        f"internal={internal_season} "
-        f"sdv={sdv_season} "
-        f"url={ncaa_pbp_url}"
-    )
-
-    ncaa_pbp = download_parquet(
-        ncaa_pbp_url
-    )
-
-    if ncaa_pbp.height == 0:
-        raise RuntimeError(
-            "Published NCAA PBP "
-            "returned zero rows: "
-            f"{ncaa_pbp_url}"
-        )
-
-    if (
-        "contest_id"
-        not in ncaa_pbp.columns
-    ):
-        raise RuntimeError(
-            "Published NCAA PBP "
-            "missing contest_id; "
-            f"columns={ncaa_pbp.columns}"
-        )
-
-    ncaa_pbp = (
-        ncaa_pbp
-        .with_columns(
-            pl_module.col(
-                "contest_id"
-            )
-            .cast(
-                pl_module.Utf8,
-                strict=False,
-            )
-            .alias(
-                "contest_id"
-            )
-        )
-    )
-
-    mapped_ncaa_ids = set(
-        xwalk
-        .get_column(
-            "ncaa_game_id"
-        )
-        .to_list()
-    )
-
-    ncaa_pbp = (
-        ncaa_pbp
-        .filter(
-            pl_module.col(
-                "contest_id"
-            )
-            .is_in(
-                sorted(
-                    mapped_ncaa_ids
-                )
-            )
-        )
-    )
-
-    if ncaa_pbp.height == 0:
-        raise RuntimeError(
-            "Published NCAA PBP has "
-            "zero rows for mapped NCAAM games"
-        )
-
-    game_partitions = {
-        clean(
-            part
-            .get_column(
-                "contest_id"
-            )[0]
-        ): part
-        for part
-        in ncaa_pbp.partition_by(
-            "contest_id",
-            maintain_order=False,
-        )
-        if part.height
-    }
-
-    log(
-        "NCAAM NCAA PBP DOWNLOAD COMPLETE | "
-        f"rows={ncaa_pbp.height} "
-        f"games={len(game_partitions)}"
-    )
-
-    mbb = importlib.import_module(
-        "sportsdataverse.mbb"
-    )
-
-    required_functions = (
-        "ncaa_mbb_possessions",
-        "ncaa_mbb_lineups",
-    )
-
-    for function_name in required_functions:
-        if not hasattr(
-            mbb,
-            function_name,
-        ):
-            raise RuntimeError(
-                "SportsDataVerse function missing: "
-                "sportsdataverse.mbb."
-                f"{function_name}"
-            )
-
-    possession_frames = []
-    lineup_frames = []
-
-    missing_pbp_games: list[
-        dict[str, str]
-    ] = []
-
-    possession_failed_games: list[
-        dict[str, str]
-    ] = []
-
-    lineup_failed_games: list[
-        dict[str, str]
-    ] = []
-
-    zero_possession_games: list[
-        dict[str, str]
-    ] = []
-
-    zero_lineup_games: list[
-        dict[str, str]
-    ] = []
-
-    possession_game_count = 0
-    lineup_game_count = 0
-
-    xwalk_rows = (
-        xwalk
-        .sort(
-            "game_id"
-        )
-        .iter_rows(
-            named=True
-        )
-    )
-
-    for mapping in xwalk_rows:
-        espn_game_id = clean(
-            mapping[
-                "game_id"
-            ]
-        )
-
-        ncaa_game_id = clean(
-            mapping[
-                "ncaa_game_id"
-            ]
-        )
-
-        game_identity = {
-            "game_id": espn_game_id,
-            "ncaa_game_id": ncaa_game_id,
-        }
-
-        game_pbp = (
-            game_partitions.get(
-                ncaa_game_id
-            )
-        )
-
-        if (
-            game_pbp is None
-            or game_pbp.height == 0
-        ):
-            missing_pbp_games.append(
-                game_identity
-            )
-
-            log(
-                "NCAAM GAME NO NCAA PBP | "
-                f"game_id={espn_game_id} "
-                f"ncaa_game_id={ncaa_game_id} "
-                "action=skipped"
-            )
-
-            continue
-
-        try:
-            transform_pbp = (
-                prepare_ncaa_pbp_for_transform(
-                    game_pbp
-                )
-            )
-
-        except Exception as exc:
-            possession_failed_games.append(
-                {
-                    **game_identity,
-                    "error": str(exc),
-                }
-            )
-
-            lineup_failed_games.append(
-                {
-                    **game_identity,
-                    "error": str(exc),
-                }
-            )
-
-            log(
-                "NCAAM GAME PBP PREP FAILED | "
-                f"game_id={espn_game_id} "
-                f"ncaa_game_id={ncaa_game_id} "
-                f"error={exc} "
-                "action=skipped"
-            )
-
-            continue
-
-        try:
-            possessions = (
-                mbb.ncaa_mbb_possessions(
-                    transform_pbp,
-                    simple=False,
-                    fix_cross_game_leak=True,
-                    return_as_pandas=False,
-                )
-            )
-
-            possessions = (
-                stamp_ncaam_derived_ids(
-                    possessions,
-                    espn_game_id=espn_game_id,
-                    ncaa_game_id=ncaa_game_id,
-                )
-            )
-
-            if possessions.height == 0:
-                zero_possession_games.append(
-                    game_identity
-                )
-
-                log(
-                    "NCAAM GAME ZERO POSSESSIONS | "
-                    f"game_id={espn_game_id} "
-                    f"ncaa_game_id={ncaa_game_id} "
-                    "action=skipped"
-                )
-
-            else:
-                possession_frames.append(
-                    possessions
-                )
-
-                possession_game_count += 1
-
-        except Exception as exc:
-            possession_failed_games.append(
-                {
-                    **game_identity,
-                    "error": str(exc),
-                }
-            )
-
-            log(
-                "NCAAM GAME POSSESSIONS FAILED | "
-                f"game_id={espn_game_id} "
-                f"ncaa_game_id={ncaa_game_id} "
-                f"error={exc} "
-                "action=skipped"
-            )
-
-        try:
-            lineups = (
-                mbb.ncaa_mbb_lineups(
-                    transform_pbp,
-                    include_transition=False,
-                    fix_tip_in=True,
-                    return_as_pandas=False,
-                )
-            )
-
-            lineups = (
-                stamp_ncaam_derived_ids(
-                    lineups,
-                    espn_game_id=espn_game_id,
-                    ncaa_game_id=ncaa_game_id,
-                )
-            )
-
-            if lineups.height == 0:
-                zero_lineup_games.append(
-                    game_identity
-                )
-
-                log(
-                    "NCAAM GAME ZERO LINEUPS | "
-                    f"game_id={espn_game_id} "
-                    f"ncaa_game_id={ncaa_game_id} "
-                    "action=skipped"
-                )
-
-            else:
-                lineup_frames.append(
-                    lineups
-                )
-
-                lineup_game_count += 1
-
-        except Exception as exc:
-            lineup_failed_games.append(
-                {
-                    **game_identity,
-                    "error": str(exc),
-                }
-            )
-
-            log(
-                "NCAAM GAME LINEUPS FAILED | "
-                f"game_id={espn_game_id} "
-                f"ncaa_game_id={ncaa_game_id} "
-                f"error={exc} "
-                "action=skipped"
-            )
-
-    if not possession_frames:
-        raise RuntimeError(
-            "NCAAM possessions produced "
-            "zero usable season rows"
-        )
-
-    if not lineup_frames:
-        raise RuntimeError(
-            "NCAAM lineups produced "
-            "zero usable season rows"
-        )
-
-    possessions = pl_module.concat(
-        possession_frames,
-        how="diagonal_relaxed",
-    )
-
-    lineups = pl_module.concat(
-        lineup_frames,
-        how="diagonal_relaxed",
-    )
-
-    possessions = normalize(
-        possessions,
-        table="possessions",
-        league="ncaam",
-        internal_season=internal_season,
-        sdv_season=sdv_season,
-        source=possession_source,
-        ingested_at_utc=ingested_at_utc,
-    )
-
-    lineups = normalize(
-        lineups,
-        table="lineups",
-        league="ncaam",
-        internal_season=internal_season,
-        sdv_season=sdv_season,
-        source=lineup_source,
-        ingested_at_utc=ingested_at_utc,
-    )
-
-    write_parquet(
-        possessions,
-        out_possessions,
-        compression(cfg),
-    )
-
-    write_parquet(
-        lineups,
-        out_lineups,
-        compression(cfg),
-    )
-
-    possession_skipped_ids = sorted(
-        {
-            *missing_espn_ids,
-            *[
-                item[
-                    "game_id"
-                ]
-                for item
-                in missing_pbp_games
-            ],
-            *[
-                item[
-                    "game_id"
-                ]
-                for item
-                in possession_failed_games
-            ],
-            *[
-                item[
-                    "game_id"
-                ]
-                for item
-                in zero_possession_games
-            ],
-        }
-    )
-
-    lineup_skipped_ids = sorted(
-        {
-            *missing_espn_ids,
-            *[
-                item[
-                    "game_id"
-                ]
-                for item
-                in missing_pbp_games
-            ],
-            *[
-                item[
-                    "game_id"
-                ]
-                for item
-                in lineup_failed_games
-            ],
-            *[
-                item[
-                    "game_id"
-                ]
-                for item
-                in zero_lineup_games
-            ],
-        }
-    )
-
-    possession_coverage = (
-        "complete"
-        if not possession_skipped_ids
-        else "partial_source_coverage"
-    )
-
-    lineup_coverage = (
-        "complete"
-        if not lineup_skipped_ids
-        else "partial_source_coverage"
-    )
-
-    possession_extra = {
-        "coverage_status": possession_coverage,
-        "canonical_games": canonical_game_count,
-        "crosswalk_mapped_games": int(
-            xwalk.height
-        ),
-        "transformed_games": possession_game_count,
-        "unmapped_games": len(
-            missing_espn_ids
-        ),
-        "missing_pbp_games": len(
-            missing_pbp_games
-        ),
-        "transform_failed_games": len(
-            possession_failed_games
-        ),
-        "zero_output_games": len(
-            zero_possession_games
-        ),
-        "skipped_game_ids": possession_skipped_ids,
-        "source_pbp_url": ncaa_pbp_url,
-        "crosswalk_url": xwalk_url,
-    }
-
-    lineup_extra = {
-        "coverage_status": lineup_coverage,
-        "canonical_games": canonical_game_count,
-        "crosswalk_mapped_games": int(
-            xwalk.height
-        ),
-        "transformed_games": lineup_game_count,
-        "unmapped_games": len(
-            missing_espn_ids
-        ),
-        "missing_pbp_games": len(
-            missing_pbp_games
-        ),
-        "transform_failed_games": len(
-            lineup_failed_games
-        ),
-        "zero_output_games": len(
-            zero_lineup_games
-        ),
-        "skipped_game_ids": lineup_skipped_ids,
-        "source_pbp_url": ncaa_pbp_url,
-        "crosswalk_url": xwalk_url,
-    }
-
-    log(
-        "LOAD COMPLETE | "
-        "league=ncaam "
-        f"internal={internal_season} "
-        "table=possessions "
-        f"rows={possessions.height} "
-        f"games={possession_game_count} "
-        f"coverage={possession_coverage} "
-        f"skipped_games={len(possession_skipped_ids)} "
-        "status=ready "
-        f"file={out_possessions}"
-    )
-
-    log(
-        "LOAD COMPLETE | "
-        "league=ncaam "
-        f"internal={internal_season} "
-        "table=lineups "
-        f"rows={lineups.height} "
-        f"games={lineup_game_count} "
-        f"coverage={lineup_coverage} "
-        f"skipped_games={len(lineup_skipped_ids)} "
-        "status=ready "
-        f"file={out_lineups}"
-    )
-
-    log(
-        "NCAAM DERIVED COMPLETE | "
-        f"canonical_games={canonical_game_count} "
-        f"crosswalk_mapped={xwalk.height} "
-        f"unmapped={len(missing_espn_ids)} "
-        f"published_pbp_games={len(game_partitions)} "
-        f"missing_pbp={len(missing_pbp_games)} "
-        f"possession_games={possession_game_count} "
-        f"possession_failures={len(possession_failed_games)} "
-        f"possession_zero={len(zero_possession_games)} "
-        f"lineup_games={lineup_game_count} "
-        f"lineup_failures={len(lineup_failed_games)} "
-        f"lineup_zero={len(zero_lineup_games)}"
-    )
-
-    return {
-        "possessions": manifest_entry(
-            possessions,
-            out_possessions,
-            possession_source,
-            "ready",
-            possession_extra,
-        ),
-        "lineups": manifest_entry(
-            lineups,
-            out_lineups,
-            lineup_source,
-            "ready",
-            lineup_extra,
-        ),
-    }
+def build_ncaam_derived_tables(cfg: dict[str, Any], internal_season: int, sdv_season: int, ingested_at_utc: str, force: bool) -> dict[str, dict[str, Any]]:
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
+
+    def _py_r1000_impl():
+        nonlocal cfg, force, ingested_at_utc, internal_season, sdv_season
+        canonical_game_count: object
+        espn_game_id: object
+        espn_game_ids: object
+        exc: object
+        function_name: object
+        game_id: object
+        game_identity: object
+        game_partitions: object
+        game_pbp: object
+        games: object
+        games_file: object
+        lineup_coverage: object
+        lineup_extra: object
+        lineup_failed_games: object
+        lineup_frames: object
+        lineup_game_count: object
+        lineup_skipped_ids: object
+        lineup_source: object
+        lineups: object
+        mapped_espn_ids: object
+        mapped_ncaa_ids: object
+        mapping: object
+        mbb: object
+        missing_espn_ids: object
+        missing_pbp_games: object
+        ncaa_game_id: object
+        ncaa_pbp: object
+        ncaa_pbp_url: object
+        out_lineups: object
+        out_possessions: object
+        pl_module: object
+        possession_coverage: object
+        possession_extra: object
+        possession_failed_games: object
+        possession_frames: object
+        possession_game_count: object
+        possession_skipped_ids: object
+        possession_source: object
+        possessions: object
+        required_functions: object
+        root: object
+        transform_pbp: object
+        xwalk: object
+        xwalk_rows: object
+        xwalk_url: object
+        zero_lineup_games: object
+        zero_possession_games: object
+
+        def _py_r1000_loop_1():
+            if not hasattr(mbb, function_name):
+                raise RuntimeError(f'SportsDataVerse function missing: sportsdataverse.mbb.{function_name}')
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_loop_3():
+            nonlocal espn_game_id, exc, game_identity, game_pbp, lineup_game_count, lineups, ncaa_game_id, possession_game_count, possessions, transform_pbp
+
+            def _py_r1000_try_4():
+                nonlocal possession_game_count, possessions
+                possessions = mbb.ncaa_mbb_possessions(transform_pbp, simple=False, fix_cross_game_leak=True, return_as_pandas=False)
+                possessions = stamp_ncaam_derived_ids(possessions, espn_game_id=espn_game_id, ncaa_game_id=ncaa_game_id)
+                if possessions.height == 0:
+                    zero_possession_games.append(game_identity)
+                    log(f'NCAAM GAME ZERO POSSESSIONS | game_id={espn_game_id} ncaa_game_id={ncaa_game_id} action=skipped')
+                else:
+                    possession_frames.append(possessions)
+                    possession_game_count += 1
+                return (_py_r1000_NONE, None)
+
+            def _py_r1000_try_6():
+                nonlocal lineup_game_count, lineups
+                lineups = mbb.ncaa_mbb_lineups(transform_pbp, include_transition=False, fix_tip_in=True, return_as_pandas=False)
+                lineups = stamp_ncaam_derived_ids(lineups, espn_game_id=espn_game_id, ncaa_game_id=ncaa_game_id)
+                if lineups.height == 0:
+                    zero_lineup_games.append(game_identity)
+                    log(f'NCAAM GAME ZERO LINEUPS | game_id={espn_game_id} ncaa_game_id={ncaa_game_id} action=skipped')
+                else:
+                    lineup_frames.append(lineups)
+                    lineup_game_count += 1
+                return (_py_r1000_NONE, None)
+            espn_game_id = clean(mapping['game_id'])
+            ncaa_game_id = clean(mapping['ncaa_game_id'])
+            game_identity = {'game_id': espn_game_id, 'ncaa_game_id': ncaa_game_id}
+            game_pbp = game_partitions.get(ncaa_game_id)
+            if game_pbp is None or game_pbp.height == 0:
+                missing_pbp_games.append(game_identity)
+                log(f'NCAAM GAME NO NCAA PBP | game_id={espn_game_id} ncaa_game_id={ncaa_game_id} action=skipped')
+                return (_py_r1000_CONTINUE, None)
+            try:
+                transform_pbp = prepare_ncaa_pbp_for_transform(game_pbp)
+            except Exception as exc:
+                possession_failed_games.append({**game_identity, 'error': str(exc)})
+                lineup_failed_games.append({**game_identity, 'error': str(exc)})
+                log(f'NCAAM GAME PBP PREP FAILED | game_id={espn_game_id} ncaa_game_id={ncaa_game_id} error={exc} action=skipped')
+                return (_py_r1000_CONTINUE, None)
+            try:
+                _py_r1000_result_5 = _py_r1000_try_4()
+                if _py_r1000_result_5[0] != _py_r1000_NONE:
+                    return _py_r1000_result_5
+            except Exception as exc:
+                possession_failed_games.append({**game_identity, 'error': str(exc)})
+                log(f'NCAAM GAME POSSESSIONS FAILED | game_id={espn_game_id} ncaa_game_id={ncaa_game_id} error={exc} action=skipped')
+            try:
+                _py_r1000_result_7 = _py_r1000_try_6()
+                if _py_r1000_result_7[0] != _py_r1000_NONE:
+                    return _py_r1000_result_7
+            except Exception as exc:
+                lineup_failed_games.append({**game_identity, 'error': str(exc)})
+                log(f'NCAAM GAME LINEUPS FAILED | game_id={espn_game_id} ncaa_game_id={ncaa_game_id} error={exc} action=skipped')
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_chunk_9():
+            nonlocal canonical_game_count, espn_game_ids, games, games_file, lineup_source, mapped_espn_ids, missing_espn_ids, out_lineups, out_possessions, pl_module, possession_source, root, xwalk, xwalk_url
+            pl_module = pl()
+            root = storage_root(cfg)
+            out_possessions = table_path(root, 'ncaam', internal_season, 'possessions')
+            out_lineups = table_path(root, 'ncaam', internal_season, 'lineups')
+            possession_source = 'sportsdataverse/ncaa-mbb-hoops-data:stats.ncaa.org PBP -> sportsdataverse.mbb.ncaa_mbb_possessions'
+            lineup_source = 'sportsdataverse/ncaa-mbb-hoops-data:stats.ncaa.org PBP -> sportsdataverse.mbb.ncaa_mbb_lineups'
+            if out_possessions.exists() and out_lineups.exists() and (not force):
+                return (_py_r1000_RETURN, {'possessions': manifest_entry(pl_module.read_parquet(out_possessions), out_possessions, possession_source, 'existing_not_rebuilt'), 'lineups': manifest_entry(pl_module.read_parquet(out_lineups), out_lineups, lineup_source, 'existing_not_rebuilt')})
+            games_file = table_path(root, 'ncaam', internal_season, 'games')
+            if not games_file.exists():
+                raise RuntimeError(f'NCAAM games parquet missing: {games_file}')
+            games = pl_module.read_parquet(games_file)
+            if 'game_id' not in games.columns:
+                raise RuntimeError('NCAAM games.parquet missing game_id')
+            espn_game_ids = set(games.get_column('game_id').cast(pl_module.Utf8, strict=False).drop_nulls().to_list())
+            if not espn_game_ids:
+                raise RuntimeError('NCAAM games.parquet contains zero usable game_id values')
+            canonical_game_count = len(espn_game_ids)
+            xwalk, xwalk_url = load_ncaam_game_crosswalk(sdv_season)
+            xwalk = xwalk.filter(pl_module.col('game_id').is_in(sorted(espn_game_ids)))
+            if xwalk.height == 0:
+                raise RuntimeError(f'No NCAA contest ids map to NCAAM games for SDV season={sdv_season}')
+            mapped_espn_ids = set(xwalk.get_column('game_id').to_list())
+            missing_espn_ids = sorted(espn_game_ids - mapped_espn_ids)
+            log(f'NCAAM CROSSWALK | internal={internal_season} sdv={sdv_season} espn_games={canonical_game_count} mapped={len(mapped_espn_ids)} unmapped={len(missing_espn_ids)} source={xwalk_url}')
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_chunk_10():
+            nonlocal game_id, game_partitions, mapped_ncaa_ids, mbb, ncaa_pbp, ncaa_pbp_url, required_functions
+            for game_id in missing_espn_ids:
+                log(f'NCAAM GAME UNMAPPED | game_id={game_id} ncaa_game_id=UNRESOLVED')
+            ncaa_pbp_url = NCAAM_NCAA_PBP_URL.format(season=sdv_season)
+            log(f'NCAAM NCAA PBP DOWNLOAD START | internal={internal_season} sdv={sdv_season} url={ncaa_pbp_url}')
+            ncaa_pbp = download_parquet(ncaa_pbp_url)
+            if ncaa_pbp.height == 0:
+                raise RuntimeError(f'Published NCAA PBP returned zero rows: {ncaa_pbp_url}')
+            if 'contest_id' not in ncaa_pbp.columns:
+                raise RuntimeError(f'Published NCAA PBP missing contest_id; columns={ncaa_pbp.columns}')
+            ncaa_pbp = ncaa_pbp.with_columns(pl_module.col('contest_id').cast(pl_module.Utf8, strict=False).alias('contest_id'))
+            mapped_ncaa_ids = set(xwalk.get_column('ncaa_game_id').to_list())
+            ncaa_pbp = ncaa_pbp.filter(pl_module.col('contest_id').is_in(sorted(mapped_ncaa_ids)))
+            if ncaa_pbp.height == 0:
+                raise RuntimeError('Published NCAA PBP has zero rows for mapped NCAAM games')
+            game_partitions = {clean(part.get_column('contest_id')[0]): part for part in ncaa_pbp.partition_by('contest_id', maintain_order=False) if part.height}
+            log(f'NCAAM NCAA PBP DOWNLOAD COMPLETE | rows={ncaa_pbp.height} games={len(game_partitions)}')
+            mbb = importlib.import_module('sportsdataverse.mbb')
+            required_functions = ('ncaa_mbb_possessions', 'ncaa_mbb_lineups')
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_chunk_11():
+            nonlocal function_name, lineup_failed_games, lineup_frames, lineup_game_count, missing_pbp_games, possession_failed_games, possession_frames, possession_game_count, xwalk_rows, zero_lineup_games, zero_possession_games
+
+            def _py_r1000_loop_12():
+                _py_r1000_result_2 = _py_r1000_loop_1()
+                if _py_r1000_result_2[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_2
+                if _py_r1000_result_2[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            for function_name in required_functions:
+                _py_r1000_result_13 = _py_r1000_loop_12()
+                if _py_r1000_result_13[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_13
+                if _py_r1000_result_13[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_13[0] == _py_r1000_CONTINUE:
+                    continue
+            possession_frames = []
+            lineup_frames = []
+            missing_pbp_games = []
+            possession_failed_games = []
+            lineup_failed_games = []
+            zero_possession_games = []
+            zero_lineup_games = []
+            possession_game_count = 0
+            lineup_game_count = 0
+            xwalk_rows = xwalk.sort('game_id').iter_rows(named=True)
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_chunk_14():
+            nonlocal lineups, mapping, possessions
+
+            def _py_r1000_loop_15():
+                _py_r1000_result_8 = _py_r1000_loop_3()
+                if _py_r1000_result_8[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_8
+                if _py_r1000_result_8[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_8[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            for mapping in xwalk_rows:
+                _py_r1000_result_16 = _py_r1000_loop_15()
+                if _py_r1000_result_16[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_16
+                if _py_r1000_result_16[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_16[0] == _py_r1000_CONTINUE:
+                    continue
+            if not possession_frames:
+                raise RuntimeError('NCAAM possessions produced zero usable season rows')
+            if not lineup_frames:
+                raise RuntimeError('NCAAM lineups produced zero usable season rows')
+            possessions = pl_module.concat(possession_frames, how='diagonal_relaxed')
+            lineups = pl_module.concat(lineup_frames, how='diagonal_relaxed')
+            possessions = normalize(possessions, table='possessions', league='ncaam', internal_season=internal_season, sdv_season=sdv_season, source=possession_source, ingested_at_utc=ingested_at_utc)
+            lineups = normalize(lineups, table='lineups', league='ncaam', internal_season=internal_season, sdv_season=sdv_season, source=lineup_source, ingested_at_utc=ingested_at_utc)
+            write_parquet(possessions, out_possessions, compression(cfg))
+            write_parquet(lineups, out_lineups, compression(cfg))
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_chunk_17():
+            nonlocal lineup_skipped_ids, possession_coverage, possession_skipped_ids
+            possession_skipped_ids = sorted({*missing_espn_ids, *[item['game_id'] for item in missing_pbp_games], *[item['game_id'] for item in possession_failed_games], *[item['game_id'] for item in zero_possession_games]})
+            lineup_skipped_ids = sorted({*missing_espn_ids, *[item['game_id'] for item in missing_pbp_games], *[item['game_id'] for item in lineup_failed_games], *[item['game_id'] for item in zero_lineup_games]})
+            possession_coverage = 'complete' if not possession_skipped_ids else 'partial_source_coverage'
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_chunk_18():
+            nonlocal lineup_coverage, lineup_extra, possession_extra
+            lineup_coverage = 'complete' if not lineup_skipped_ids else 'partial_source_coverage'
+            possession_extra = {'coverage_status': possession_coverage, 'canonical_games': canonical_game_count, 'crosswalk_mapped_games': int(xwalk.height), 'transformed_games': possession_game_count, 'unmapped_games': len(missing_espn_ids), 'missing_pbp_games': len(missing_pbp_games), 'transform_failed_games': len(possession_failed_games), 'zero_output_games': len(zero_possession_games), 'skipped_game_ids': possession_skipped_ids, 'source_pbp_url': ncaa_pbp_url, 'crosswalk_url': xwalk_url}
+            lineup_extra = {'coverage_status': lineup_coverage, 'canonical_games': canonical_game_count, 'crosswalk_mapped_games': int(xwalk.height), 'transformed_games': lineup_game_count, 'unmapped_games': len(missing_espn_ids), 'missing_pbp_games': len(missing_pbp_games), 'transform_failed_games': len(lineup_failed_games), 'zero_output_games': len(zero_lineup_games), 'skipped_game_ids': lineup_skipped_ids, 'source_pbp_url': ncaa_pbp_url, 'crosswalk_url': xwalk_url}
+            log(f'LOAD COMPLETE | league=ncaam internal={internal_season} table=possessions rows={possessions.height} games={possession_game_count} coverage={possession_coverage} skipped_games={len(possession_skipped_ids)} status=ready file={out_possessions}')
+            log(f'LOAD COMPLETE | league=ncaam internal={internal_season} table=lineups rows={lineups.height} games={lineup_game_count} coverage={lineup_coverage} skipped_games={len(lineup_skipped_ids)} status=ready file={out_lineups}')
+            log(f'NCAAM DERIVED COMPLETE | canonical_games={canonical_game_count} crosswalk_mapped={xwalk.height} unmapped={len(missing_espn_ids)} published_pbp_games={len(game_partitions)} missing_pbp={len(missing_pbp_games)} possession_games={possession_game_count} possession_failures={len(possession_failed_games)} possession_zero={len(zero_possession_games)} lineup_games={lineup_game_count} lineup_failures={len(lineup_failed_games)} lineup_zero={len(zero_lineup_games)}')
+            return (_py_r1000_RETURN, {'possessions': manifest_entry(possessions, out_possessions, possession_source, 'ready', possession_extra), 'lineups': manifest_entry(lineups, out_lineups, lineup_source, 'ready', lineup_extra)})
+        for _py_r1000_block_19 in (_py_r1000_chunk_9, _py_r1000_chunk_10, _py_r1000_chunk_11, _py_r1000_chunk_14, _py_r1000_chunk_17, _py_r1000_chunk_18):
+            _py_r1000_result_20 = _py_r1000_block_19()
+            if _py_r1000_result_20[0] != _py_r1000_NONE:
+                return _py_r1000_result_20
+        return (_py_r1000_NONE, None)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 def build_season(
