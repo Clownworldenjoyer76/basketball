@@ -168,6 +168,82 @@ def _append_mismatch_section(report, title, rows, formatter):
         )
 
 
+def _rewrite_mismatch_counts(
+    lines,
+    daily_missing_count,
+    prediction_missing_count,
+    duplicate_count,
+):
+    replacements = (
+        (
+            "Sportsbook rows with no prediction match:",
+            "Current-date daily games with no prediction match:",
+            daily_missing_count,
+        ),
+        (
+            "Prediction rows with no sportsbook match:",
+            "Current-date prediction rows with no daily-game match:",
+            prediction_missing_count,
+        ),
+        (
+            "Duplicate key rows:",
+            "Current-date duplicate key rows:",
+            duplicate_count,
+        ),
+    )
+
+    for idx, line in enumerate(lines):
+        if " | " not in line:
+            continue
+        for old_label, new_label, count in replacements:
+            if old_label in line:
+                prefix = line.split(old_label, 1)[0]
+                lines[idx] = f"{prefix}{new_label} {count}"
+                break
+
+
+def _find_mismatch_status(lines):
+    marker_index = next(
+        (
+            index
+            for index, line in enumerate(lines)
+            if "--- SMALL MISMATCH REPORT ---" in line
+        ),
+        None,
+    )
+    if marker_index is None:
+        raise RuntimeError(
+            "Unable to locate mismatch report/status markers "
+            "in basketball_game_id log"
+        )
+
+    status_index = next(
+        (
+            index
+            for index in range(len(lines) - 1, marker_index, -1)
+            if "STATUS:" in lines[index]
+        ),
+        None,
+    )
+    if status_index is None:
+        raise RuntimeError(
+            "Unable to locate mismatch report/status markers "
+            "in basketball_game_id log"
+        )
+    return marker_index, status_index
+
+
+def _append_mismatch_section(report, title, rows, formatter):
+    report.append(f"{datetime.now().isoformat()} | {title}")
+    if not rows:
+        report.append(f"{datetime.now().isoformat()} |   none")
+        return
+    for row in rows:
+        report.append(
+            f"{datetime.now().isoformat()} |   {formatter(row)}"
+        )
+
+
 def rewrite_operational_log(log_path: Path, original_text: str) -> None:
     game_date, daily_missing, prediction_missing, duplicates = current_mismatches()
     lines = original_text.splitlines()

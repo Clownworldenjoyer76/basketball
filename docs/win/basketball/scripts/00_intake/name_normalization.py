@@ -48,6 +48,43 @@ def _write_signal_summary(summary_dir, ts, df):
         audit_handle.write("\n" + "=" * 30 + "\n")
 
 
+def _write_signal_summary(summary_dir, ts, df):
+    play_cols = [
+        column
+        for column in (
+            "home_play",
+            "away_play",
+            "over_play",
+            "under_play",
+        )
+        if column in df.columns
+    ]
+    if not play_cols:
+        return
+
+    signals = df[df[play_cols].any(axis=1)].copy()
+    if signals.empty:
+        return
+
+    base_cols = ["game_date", "home_team", "away_team"]
+    edge_cols = [
+        column
+        for column in df.columns
+        if "edge_pct" in column
+    ]
+    final_cols = [
+        column
+        for column in base_cols + edge_cols
+        if column in signals.columns
+    ]
+
+    summary_path = summary_dir / "condensed_summary.txt"
+    with summary_path.open("a", encoding="utf-8") as audit_handle:
+        audit_handle.write(f"\n--- BETTING SIGNALS: {ts} ---\n")
+        audit_handle.write(signals[final_cols].to_string(index=False))
+        audit_handle.write("\n" + "=" * 30 + "\n")
+
+
 def audit(log_path, stage, status, msg="", df=None):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_path = Path(log_path)
