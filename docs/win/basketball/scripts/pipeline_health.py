@@ -1269,13 +1269,16 @@ def validate_sdv_models(
                     f"artifact={feature_version!r}"
                 )
 
-            if model_version and expected_model_version:
-                if model_version != expected_model_version:
-                    item["errors"].append(
-                        f"{path}: model_version mismatch "
-                        f"configured={expected_model_version!r} "
-                        f"artifact={model_version!r}"
-                    )
+            if (
+                model_version
+                and expected_model_version
+                and model_version != expected_model_version
+            ):
+                item["errors"].append(
+                    f"{path}: model_version mismatch "
+                    f"configured={expected_model_version!r} "
+                    f"artifact={model_version!r}"
+                )
 
         contexts[league] = {
             "feature_version": metadata_feature or expected_feature_version,

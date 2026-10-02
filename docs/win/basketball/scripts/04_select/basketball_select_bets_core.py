@@ -195,30 +195,46 @@ def date_ok(game_date, months, exclude_dow):
 
 
 def passes_filters(values: dict, scfg: dict, game_date: str) -> bool:
-    if "odds_bands" in scfg:
-        if not in_any_band(values.get("odds"), scfg["odds_bands"]):
-            DEBUG_COUNTS["fail_odds"] += 1
-            return False
-    if "line_bands" in scfg and values.get("line") is not None:
-        if not in_any_band(values.get("line"), scfg["line_bands"]):
-            DEBUG_COUNTS["fail_line"] += 1
-            return False
-    if "ev_bands" in scfg:
-        if not in_any_band(values.get("ev"), scfg["ev_bands"]):
-            DEBUG_COUNTS["fail_ev"] += 1
-            return False
-    if "kelly_bands" in scfg:
-        if not in_any_band(values.get("kelly"), scfg["kelly_bands"]):
-            DEBUG_COUNTS["fail_kelly"] += 1
-            return False
-    if "model_prob_bands" in scfg:
-        if not in_any_band(values.get("model_prob"), scfg["model_prob_bands"]):
-            DEBUG_COUNTS["fail_model_prob"] += 1
-            return False
-    if "edge_vs_market_bands" in scfg:
-        if not in_any_band(values.get("edge_vs_market_pct"), scfg["edge_vs_market_bands"]):
-            DEBUG_COUNTS["fail_edge_vs_market"] += 1
-            return False
+    if (
+        "odds_bands" in scfg
+        and not in_any_band(values.get("odds"), scfg["odds_bands"])
+    ):
+        DEBUG_COUNTS["fail_odds"] += 1
+        return False
+    if (
+        "line_bands" in scfg
+        and values.get("line") is not None
+        and not in_any_band(values.get("line"), scfg["line_bands"])
+    ):
+        DEBUG_COUNTS["fail_line"] += 1
+        return False
+    if (
+        "ev_bands" in scfg
+        and not in_any_band(values.get("ev"), scfg["ev_bands"])
+    ):
+        DEBUG_COUNTS["fail_ev"] += 1
+        return False
+    if (
+        "kelly_bands" in scfg
+        and not in_any_band(values.get("kelly"), scfg["kelly_bands"])
+    ):
+        DEBUG_COUNTS["fail_kelly"] += 1
+        return False
+    if (
+        "model_prob_bands" in scfg
+        and not in_any_band(values.get("model_prob"), scfg["model_prob_bands"])
+    ):
+        DEBUG_COUNTS["fail_model_prob"] += 1
+        return False
+    if (
+        "edge_vs_market_bands" in scfg
+        and not in_any_band(
+            values.get("edge_vs_market_pct"),
+            scfg["edge_vs_market_bands"],
+        )
+    ):
+        DEBUG_COUNTS["fail_edge_vs_market"] += 1
+        return False
     if not date_ok(game_date, scfg.get("months", []) or [],
                    scfg.get("exclude_days_of_week", []) or []):
         return False

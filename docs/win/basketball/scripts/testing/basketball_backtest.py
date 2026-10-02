@@ -1323,36 +1323,38 @@ def complementary_calibration_cfg(
         )
     )
 
-    if opposite_cfg not in (
-        None,
-        {},
-        "none",
-        "raw",
-    ):
-        if isinstance(
+    if (
+        opposite_cfg not in (
+            None,
+            {},
+            "none",
+            "raw",
+        )
+        and isinstance(
             opposite_cfg,
             dict,
-        ):
-            opposite_method = str(
-                opposite_cfg.get(
-                    "method",
-                    "none",
-                )
-            ).strip().lower()
-
-            if opposite_method not in {
+        )
+    ):
+        opposite_method = str(
+            opposite_cfg.get(
+                "method",
                 "none",
-                "raw",
-                "",
-            }:
-                raise ValueError(
-                    f"calibration.{market}."
-                    f"{opposite_side} must "
-                    "not define an independent "
-                    "calibration when "
-                    "complementary calibration "
-                    "is enabled"
-                )
+            )
+        ).strip().lower()
+
+        if opposite_method not in {
+            "none",
+            "raw",
+            "",
+        }:
+            raise ValueError(
+                f"calibration.{market}."
+                f"{opposite_side} must "
+                "not define an independent "
+                "calibration when "
+                "complementary calibration "
+                "is enabled"
+            )
 
     return {
         "canonical_side": canonical_side,

@@ -9552,21 +9552,23 @@ def apply_selected_config(
             ],
         )
 
-    if fitted.get(
-        'complementary_calibration',
-        False,
-    ):
-        if not np.allclose(
+    if (
+        fitted.get(
+            'complementary_calibration',
+            False,
+        )
+        and not np.allclose(
             p1 + p2,
             1.0,
             atol=1e-12,
             equal_nan=True,
-        ):
-            raise ValueError(
-                f"{fitted['market']} "
-                'calibrated probabilities '
-                'are not complementary'
-            )
+        )
+    ):
+        raise ValueError(
+            f"{fitted['market']} "
+            'calibrated probabilities '
+            'are not complementary'
+        )
 
     return {
         **base,

@@ -362,12 +362,15 @@ def resolve_bias_values() -> dict:
                     configured_window = rule.get("window_games")
                     state_window = state_component.get("window_games")
 
-                    if configured_window is not None and state_window is not None:
-                        if int(configured_window) != int(state_window):
-                            raise ValueError(
-                                f"{league} {component} rolling window mismatch: "
-                                f"config={configured_window} state={state_window}"
-                            )
+                    if (
+                        configured_window is not None
+                        and state_window is not None
+                        and int(configured_window) != int(state_window)
+                    ):
+                        raise ValueError(
+                            f"{league} {component} rolling window mismatch: "
+                            f"config={configured_window} state={state_window}"
+                        )
 
                     window_games = (
                         int(configured_window)
