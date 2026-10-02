@@ -74,7 +74,10 @@ def sanitize_file(path: Path) -> list[dict[str, str]]:
     if not lines:
         return []
 
-    header_values = next(csv.reader([lines[0].rstrip("\r\n")]))
+    try:
+        header_values = next(csv.reader([lines[0].rstrip("\r\n")]))
+    except StopIteration:
+        return []
     required = {"home_projected_points", "away_projected_points", "total_projected_points"}
     if not required.issubset(set(header_values)):
         return []
@@ -86,7 +89,11 @@ def sanitize_file(path: Path) -> list[dict[str, str]]:
         if not record_text:
             kept.append(original_line)
             continue
-        values = next(csv.reader([record_text]))
+        try:
+            values = next(csv.reader([record_text]))
+        except StopIteration:
+            kept.append(original_line)
+            continue
         if len(values) != len(header_values):
             kept.append(original_line)
             continue
