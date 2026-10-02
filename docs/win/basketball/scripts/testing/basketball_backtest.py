@@ -4065,14 +4065,12 @@ def summarize_group(
             .sum()
         )
 
-        record = {
-            c: v
-            for c, v
-            in zip(
+        record = dict(
+            zip(
                 group_cols,
                 keys,
             )
-        }
+        )
 
         record.update({
             "bets": bets,
