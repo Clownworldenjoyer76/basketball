@@ -2,13 +2,13 @@
 # docs/win/basketball/scripts/00_intake/basketball_odds_core.py
 
 import csv
+import http.client
 import json
 import time
 import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 NY_TZ = ZoneInfo("America/New_York")
@@ -121,23 +121,49 @@ def log(msg: str) -> None:
 
 
 def get_json(url: str) -> dict:
+    parsed = urlsplit(url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ValueError(f"Only HTTPS URLs are permitted: {url}")
+
+    target = parsed.path or "/"
+    if parsed.query:
+        target = f"{target}?{parsed.query}"
+
     last_error = None
 
     for attempt in range(1, MAX_RETRIES + 1):
+        connection = http.client.HTTPSConnection(
+            parsed.hostname,
+            parsed.port or 443,
+            timeout=REQUEST_TIMEOUT,
+        )
         try:
-            request = Request(
-                url,
+            connection.request(
+                "GET",
+                target,
                 headers={
                     "User-Agent": USER_AGENT,
                     "Accept": "application/json,text/plain,*/*",
                     "Accept-Language": "en-US,en;q=0.9",
                 },
             )
+            response = connection.getresponse()
+            payload = response.read()
 
-            with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
-                return json.loads(response.read().decode("utf-8"))
+            if not 200 <= response.status < 300:
+                raise RuntimeError(
+                    f"HTTP {response.status} fetching {url}"
+                )
 
-        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+            return json.loads(payload.decode("utf-8"))
+
+        except (
+            OSError,
+            TimeoutError,
+            http.client.HTTPException,
+            json.JSONDecodeError,
+            RuntimeError,
+        ) as exc:
             last_error = exc
             log(
                 f"HTTP attempt {attempt}/{MAX_RETRIES} failed: "
@@ -146,6 +172,8 @@ def get_json(url: str) -> dict:
 
             if attempt < MAX_RETRIES:
                 time.sleep(RETRY_DELAY_SECONDS * attempt)
+        finally:
+            connection.close()
 
     raise RuntimeError(f"Failed to fetch ESPN JSON: {url}") from last_error
 

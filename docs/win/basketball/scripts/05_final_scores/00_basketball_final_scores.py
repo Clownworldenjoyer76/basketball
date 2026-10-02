@@ -13,11 +13,10 @@ from __future__ import annotations
 
 import argparse
 import csv
+import http.client
 import json
 import sys
-import urllib.error
 import urllib.parse
-import urllib.request
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -102,20 +101,37 @@ def score_value(value: Any) -> int | None:
 
 
 def fetch_json(url: str) -> dict:
-    request = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "Mozilla/5.0 basketball-final-scores/1.0",
-            "Accept": "application/json",
-        },
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ValueError(f"Only HTTPS URLs are permitted: {url}")
+
+    target = parsed.path or "/"
+    if parsed.query:
+        target = f"{target}?{parsed.query}"
+
+    connection = http.client.HTTPSConnection(
+        parsed.hostname,
+        parsed.port or 443,
+        timeout=30,
     )
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        raise RuntimeError(f"HTTP {exc.code} fetching {url}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"Network error fetching {url}: {exc.reason}") from exc
+        connection.request(
+            "GET",
+            target,
+            headers={
+                "User-Agent": "Mozilla/5.0 basketball-final-scores/1.0",
+                "Accept": "application/json",
+            },
+        )
+        response = connection.getresponse()
+        payload = response.read()
+        if not 200 <= response.status < 300:
+            raise RuntimeError(f"HTTP {response.status} fetching {url}")
+        return json.loads(payload.decode("utf-8"))
+    except (OSError, http.client.HTTPException) as exc:
+        raise RuntimeError(f"Network error fetching {url}: {exc}") from exc
+    finally:
+        connection.close()
 
 
 def scoreboard_url(espn_slug: str, game_date: date) -> str:
