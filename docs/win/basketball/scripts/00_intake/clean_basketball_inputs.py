@@ -199,7 +199,15 @@ def row_key(row):
 
 
 def read_csv(path: Path):
-    with open(path, "r", newline="", encoding="utf-8-sig") as f:
+    repo_root = Path(__file__).resolve().parents[5]
+    candidate = path if path.is_absolute() else Path.cwd() / path
+    safe_path = candidate.resolve(strict=True)
+    try:
+        safe_path.relative_to(repo_root)
+    except ValueError as exc:
+        raise ValueError(f"Path escapes repository root: {path}") from exc
+
+    with safe_path.open("r", newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
         fieldnames = reader.fieldnames or []
@@ -207,8 +215,16 @@ def read_csv(path: Path):
 
 
 def write_csv(path: Path, fieldnames, rows):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", newline="", encoding="utf-8") as f:
+    repo_root = Path(__file__).resolve().parents[5]
+    candidate = path if path.is_absolute() else Path.cwd() / path
+    safe_path = candidate.resolve()
+    try:
+        safe_path.relative_to(repo_root)
+    except ValueError as exc:
+        raise ValueError(f"Path escapes repository root: {path}") from exc
+
+    safe_path.parent.mkdir(parents=True, exist_ok=True)
+    with safe_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)

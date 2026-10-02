@@ -70,8 +70,16 @@ def log(message: str, level: str = "INFO") -> None:
 
 
 def write_output(path: Path, rows: list[dict]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8", newline="") as f:
+    repo_root = Path(__file__).resolve().parents[5]
+    candidate = path if path.is_absolute() else Path.cwd() / path
+    safe_path = candidate.resolve()
+    try:
+        safe_path.relative_to(repo_root)
+    except ValueError as exc:
+        raise ValueError(f"Path escapes repository root: {path}") from exc
+
+    safe_path.parent.mkdir(parents=True, exist_ok=True)
+    with safe_path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=HEADERS, extrasaction="ignore")
         writer.writeheader(); writer.writerows(rows)
 

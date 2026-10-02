@@ -14,9 +14,17 @@ from datetime import datetime, timezone
 def audit(log_path, stage, status, msg="", df=None):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_path = Path(log_path)
-    log_path.parent.mkdir(parents=True, exist_ok=True)
+    repo_root = Path(__file__).resolve().parents[5]
+    candidate = log_path if log_path.is_absolute() else Path.cwd() / log_path
+    safe_path = candidate.resolve()
+    try:
+        safe_path.relative_to(repo_root)
+    except ValueError as exc:
+        raise ValueError(f"Path escapes repository root: {log_path}") from exc
 
-    with open(log_path, "a", encoding="utf-8") as audit_handle:
+    safe_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with safe_path.open("a", encoding="utf-8") as audit_handle:
         audit_handle.write(f"\n[{ts}] [{stage}] {status}\n")
 
         if msg:

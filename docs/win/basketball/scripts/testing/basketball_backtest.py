@@ -187,9 +187,16 @@ def fv(value: Any) -> float | None:
 
 
 def sha256_file(path: Path) -> str:
+    safe_path = path.resolve(strict=True)
+    if (
+        not safe_path.is_file()
+        or safe_path.suffix.lower() not in {".csv", ".yaml", ".yml"}
+    ):
+        raise ValueError(f"Unsupported file path for hashing: {path}")
+
     h = hashlib.sha256()
 
-    with open(path, "rb") as f:
+    with safe_path.open("rb") as f:
         for chunk in iter(
             lambda: f.read(1024 * 1024),
             b"",
@@ -4370,13 +4377,16 @@ def write_manifest(
         ),
     }
 
-    path.parent.mkdir(
+    safe_path = path.resolve()
+    if safe_path.name != "run_manifest.yaml":
+        raise ValueError(f"Unexpected manifest path: {path}")
+
+    safe_path.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    with open(
-        path,
+    with safe_path.open(
         "w",
         encoding="utf-8",
     ) as f:

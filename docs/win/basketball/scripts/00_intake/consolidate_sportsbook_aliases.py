@@ -135,8 +135,16 @@ def choose_canonical_id(copies: list[tuple]) -> str:
 
 
 def write_file(path: Path, rows: list[dict]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", newline="", encoding="utf-8") as f:
+    repo_root = Path(__file__).resolve().parents[5]
+    candidate = path if path.is_absolute() else Path.cwd() / path
+    safe_path = candidate.resolve()
+    try:
+        safe_path.relative_to(repo_root)
+    except ValueError as exc:
+        raise ValueError(f"Path escapes repository root: {path}") from exc
+
+    safe_path.parent.mkdir(parents=True, exist_ok=True)
+    with safe_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDNAMES, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(normalize_row(row) for row in rows)

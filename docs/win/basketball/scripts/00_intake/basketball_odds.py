@@ -296,7 +296,15 @@ def collapse_file(
     path: Path,
     league: str,
 ) -> tuple[int, int, list[dict]]:
-    with open(path, newline="", encoding="utf-8-sig") as f:
+    repo_root = Path(__file__).resolve().parents[5]
+    candidate = path if path.is_absolute() else Path.cwd() / path
+    safe_path = candidate.resolve(strict=True)
+    try:
+        safe_path.relative_to(repo_root)
+    except ValueError as exc:
+        raise ValueError(f"Path escapes repository root: {path}") from exc
+
+    with safe_path.open(newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         fieldnames = list(reader.fieldnames or [])
         rows = list(reader)
