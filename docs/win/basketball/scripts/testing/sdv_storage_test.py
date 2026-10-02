@@ -1305,250 +1305,104 @@ def true_truncation_flags(
     return found
 
 
-def validate_manifest(
-    validation: Validation,
-    path: Path,
-    league: str,
-    internal_season: int,
-    sdv_season: int,
-    actual_tables: dict[
-        str,
-        dict[str, Any],
-    ],
-) -> None:
-    try:
-        manifest = json.loads(
-            path.read_text(
-                encoding="utf-8"
-            )
-        )
+def validate_manifest(validation: Validation, path: Path, league: str, internal_season: int, sdv_season: int, actual_tables: dict[str, dict[str, Any]]) -> None:
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    except Exception as exc:
-        validation.fail(
-            f"Cannot read manifest "
-            f"{path}: {exc}"
-        )
-        return
+    def _py_r1000_impl():
+        nonlocal actual_tables, internal_season, league, path, sdv_season, validation
+        actual: object
+        coverage_status: object
+        entries: object
+        entry: object
+        exc: object
+        expected_filename: object
+        flag: object
+        manifest: object
+        manifest_internal: object
+        manifest_rows: object
+        manifest_sdv: object
+        manifest_version: object
+        status: object
+        table: object
 
-    if not isinstance(
-        manifest,
-        dict,
-    ):
-        validation.fail(
-            f"{path} root is not an object"
-        )
-        return
-
-    manifest_version = clean(
-        manifest.get(
-            "sportsdataverse_version"
-        )
-    )
-
-    if (
-        manifest_version
-        != EXPECTED_SDV_VERSION
-    ):
-        validation.fail(
-            f"{path} "
-            "sportsdataverse_version="
-            f"{manifest_version!r}; "
-            "expected="
-            f"{EXPECTED_SDV_VERSION!r}"
-        )
-
-    if (
-        clean(
-            manifest.get("league")
-        ).upper()
-        != league.upper()
-    ):
-        validation.fail(
-            f"{path} league="
-            f"{manifest.get('league')!r}; "
-            f"expected={league.upper()!r}"
-        )
-
-    try:
-        manifest_internal = int(
-            manifest.get(
-                "internal_season"
-            )
-        )
-
-    except (
-        TypeError,
-        ValueError,
-    ):
-        manifest_internal = None
-
-    if (
-        manifest_internal
-        != internal_season
-    ):
-        validation.fail(
-            f"{path} internal_season="
-            f"{manifest.get('internal_season')!r}; "
-            f"expected={internal_season}"
-        )
-
-    try:
-        manifest_sdv = int(
-            manifest.get("sdv_season")
-        )
-
-    except (
-        TypeError,
-        ValueError,
-    ):
-        manifest_sdv = None
-
-    if manifest_sdv != sdv_season:
-        validation.fail(
-            f"{path} sdv_season="
-            f"{manifest.get('sdv_season')!r}; "
-            f"expected={sdv_season}"
-        )
-
-    entries = manifest.get("tables")
-
-    if not isinstance(
-        entries,
-        dict,
-    ):
-        validation.fail(
-            f"{path} tables is not an object"
-        )
-        return
-
-    for table in TABLES:
-        entry = entries.get(table)
-
-        if not isinstance(
-            entry,
-            dict,
-        ):
-            validation.fail(
-                f"{path} missing/invalid "
-                f"table entry={table}"
-            )
-            continue
-
-        actual = actual_tables.get(
-            table
-        )
-
-        if actual is None:
-            continue
-
+        def _py_r1000_loop_1():
+            nonlocal actual, coverage_status, entry, expected_filename, manifest_rows, status
+            entry = entries.get(table)
+            if not isinstance(entry, dict):
+                validation.fail(f'{path} missing/invalid table entry={table}')
+                return (_py_r1000_CONTINUE, None)
+            actual = actual_tables.get(table)
+            if actual is None:
+                return (_py_r1000_CONTINUE, None)
+            try:
+                manifest_rows = int(entry.get('rows'))
+            except (TypeError, ValueError):
+                manifest_rows = -1
+            if manifest_rows != actual['rows']:
+                validation.fail(f"{path} table={table} rows manifest={entry.get('rows')!r} actual={actual['rows']}")
+            if entry.get('columns') != actual['columns']:
+                validation.fail(f'{path} table={table} manifest schema does not match parquet schema')
+            expected_filename = f'{table}.parquet'
+            if clean(entry.get('filename')) != expected_filename:
+                validation.fail(f"{path} table={table} wrong filename={entry.get('filename')!r}")
+            status = clean(entry.get('status'))
+            if status not in VALID_MANIFEST_STATUSES:
+                validation.fail(f'{path} table={table} invalid status={status!r}')
+            if not clean(entry.get('source_loader')):
+                validation.fail(f'{path} table={table} missing source_loader')
+            if not clean(entry.get('source_function')):
+                validation.fail(f'{path} table={table} missing source_function')
+            coverage_status = clean(entry.get('coverage_status'))
+            if coverage_status and coverage_status != 'complete':
+                validation.warn(f'{path} table={table} coverage_status={coverage_status}')
+            return (_py_r1000_NONE, None)
         try:
-            manifest_rows = int(
-                entry.get("rows")
-            )
-
-        except (
-            TypeError,
-            ValueError,
-        ):
-            manifest_rows = -1
-
-        if (
-            manifest_rows
-            != actual["rows"]
-        ):
-            validation.fail(
-                f"{path} table={table} "
-                "rows manifest="
-                f"{entry.get('rows')!r} "
-                f"actual={actual['rows']}"
-            )
-
-        if (
-            entry.get("columns")
-            != actual["columns"]
-        ):
-            validation.fail(
-                f"{path} table={table} "
-                "manifest schema does not "
-                "match parquet schema"
-            )
-
-        expected_filename = (
-            f"{table}.parquet"
-        )
-
-        if (
-            clean(
-                entry.get("filename")
-            )
-            != expected_filename
-        ):
-            validation.fail(
-                f"{path} table={table} "
-                "wrong filename="
-                f"{entry.get('filename')!r}"
-            )
-
-        status = clean(
-            entry.get("status")
-        )
-
-        if (
-            status
-            not in VALID_MANIFEST_STATUSES
-        ):
-            validation.fail(
-                f"{path} table={table} "
-                f"invalid status={status!r}"
-            )
-
-        if not clean(
-            entry.get("source_loader")
-        ):
-            validation.fail(
-                f"{path} table={table} "
-                "missing source_loader"
-            )
-
-        if not clean(
-            entry.get("source_function")
-        ):
-            validation.fail(
-                f"{path} table={table} "
-                "missing source_function"
-            )
-
-        coverage_status = clean(
-            entry.get(
-                "coverage_status"
-            )
-        )
-
-        if (
-            coverage_status
-            and coverage_status
-            != "complete"
-        ):
-            validation.warn(
-                f"{path} table={table} "
-                "coverage_status="
-                f"{coverage_status}"
-            )
-
-    for flag in true_truncation_flags(
-        manifest
-    ):
-        validation.fail(
-            f"{path} reports reached "
-            "truncation/limit flag at "
-            f"{flag}"
-        )
-
-    validation.passed(
-        f"{league}:{internal_season} "
-        "manifest compared to "
-        "parquet tables"
-    )
+            manifest = json.loads(path.read_text(encoding='utf-8'))
+        except Exception as exc:
+            validation.fail(f'Cannot read manifest {path}: {exc}')
+            return (_py_r1000_RETURN, None)
+        if not isinstance(manifest, dict):
+            validation.fail(f'{path} root is not an object')
+            return (_py_r1000_RETURN, None)
+        manifest_version = clean(manifest.get('sportsdataverse_version'))
+        if manifest_version != EXPECTED_SDV_VERSION:
+            validation.fail(f'{path} sportsdataverse_version={manifest_version!r}; expected={EXPECTED_SDV_VERSION!r}')
+        if clean(manifest.get('league')).upper() != league.upper():
+            validation.fail(f"{path} league={manifest.get('league')!r}; expected={league.upper()!r}")
+        try:
+            manifest_internal = int(manifest.get('internal_season'))
+        except (TypeError, ValueError):
+            manifest_internal = None
+        if manifest_internal != internal_season:
+            validation.fail(f"{path} internal_season={manifest.get('internal_season')!r}; expected={internal_season}")
+        try:
+            manifest_sdv = int(manifest.get('sdv_season'))
+        except (TypeError, ValueError):
+            manifest_sdv = None
+        if manifest_sdv != sdv_season:
+            validation.fail(f"{path} sdv_season={manifest.get('sdv_season')!r}; expected={sdv_season}")
+        entries = manifest.get('tables')
+        if not isinstance(entries, dict):
+            validation.fail(f'{path} tables is not an object')
+            return (_py_r1000_RETURN, None)
+        for table in TABLES:
+            _py_r1000_result_2 = _py_r1000_loop_1()
+            if _py_r1000_result_2[0] == _py_r1000_RETURN:
+                return _py_r1000_result_2
+            if _py_r1000_result_2[0] == _py_r1000_BREAK:
+                break
+            if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
+                continue
+        for flag in true_truncation_flags(manifest):
+            validation.fail(f'{path} reports reached truncation/limit flag at {flag}')
+        validation.passed(f'{league}:{internal_season} manifest compared to parquet tables')
+        return (_py_r1000_NONE, None)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 def validate_truncation_limits(
@@ -1632,382 +1486,160 @@ def validate_truncation_limits(
                     )
 
 
-def validate_season(
-    validation: Validation,
-    storage_cfg: dict[str, Any],
-    season_cfg: dict[str, Any],
-    league: str,
-    internal_season: int,
-    limits: list[
-        tuple[
-            str,
-            str,
-            int,
-        ]
-    ],
-) -> None:
-    root = storage_root(
-        storage_cfg
-    )
+def validate_season(validation: Validation, storage_cfg: dict[str, Any], season_cfg: dict[str, Any], league: str, internal_season: int, limits: list[tuple[str, str, int]]) -> None:
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    season_dir = (
-        root
-        / league
-        / str(internal_season)
-    )
+    def _py_r1000_impl():
+        nonlocal internal_season, league, limits, season_cfg, storage_cfg, validation
+        actual_tables: object
+        blank_count: object
+        canonical_ids: object
+        child_ids: object
+        child_path: object
+        columns: object
+        duplicate_count: object
+        exc: object
+        game_ids: object
+        games_path: object
+        manifest_path: object
+        missing_files: object
+        non_blank_ids: object
+        non_null_ids: object
+        null_count: object
+        odds_path: object
+        orphan_ids: object
+        path: object
+        root: object
+        row_count: object
+        sdv_season: object
+        season_dir: object
+        source_loader: object
+        table: object
+        table_info: object
+        unique_count: object
 
-    validation.emit(
-        "--- "
-        f"LEAGUE={league.upper()} "
-        "INTERNAL_SEASON="
-        f"{internal_season} "
-        "---"
-    )
+        def _py_r1000_loop_1():
+            nonlocal columns, exc, path, row_count, source_loader
+            path = season_dir / f'{table}.parquet'
+            try:
+                row_count, columns = parquet_info(path)
+            except Exception as exc:
+                validation.fail(f'Cannot read {path}: {exc}')
+                return (_py_r1000_CONTINUE, None)
+            validation.tables_checked += 1
+            if row_count <= 0:
+                validation.fail(f'{path} has zero rows')
+                return (_py_r1000_CONTINUE, None)
+            validation.passed(f'{path} rows={row_count} columns={len(columns)}')
+            source_loader = validate_metadata(validation, path, league, internal_season, sdv_season)
+            validate_required_keys(validation, path, table, columns)
+            if league == 'ncaam' and table == 'games':
+                validate_ncaam_venue_context(validation, path, columns)
+            if table == 'lineups':
+                validate_lineups(validation, path, league, columns)
+            actual_tables[table] = {'rows': row_count, 'columns': columns, 'source_loader': source_loader}
+            return (_py_r1000_NONE, None)
 
-    try:
-        sdv_season = (
-            mapped_sdv_season(
-                season_cfg,
-                league,
-                internal_season,
-            )
-        )
+        def _py_r1000_if_3():
+            nonlocal blank_count, canonical_ids, child_ids, child_path, duplicate_count, exc, game_ids, non_blank_ids, non_null_ids, null_count, orphan_ids, table, table_info, unique_count
 
-    except Exception as exc:
-        validation.fail(
-            f"{league}:{internal_season} "
-            "season mapping failed: "
-            f"{exc}"
-        )
-        return
+            def _py_r1000_try_4():
+                nonlocal blank_count, canonical_ids, child_ids, child_path, duplicate_count, game_ids, non_blank_ids, non_null_ids, null_count, orphan_ids, table, table_info, unique_count
 
-    validation.passed(
-        f"{league}:{internal_season} "
-        f"maps to SDV {sdv_season}"
-    )
-
-    if not season_dir.exists():
-        validation.fail(
-            "Missing configured "
-            f"directory {season_dir}"
-        )
-        return
-
-    missing_files = [
-        str(
-            season_dir
-            / filename
-        )
-        for filename in REQUIRED_FILES
-        if not (
-            season_dir
-            / filename
-        ).is_file()
-    ]
-
-    if missing_files:
-        validation.fail(
-            f"{league}:{internal_season} "
-            "missing required files "
-            f"{missing_files}"
-        )
-        return
-
-    odds_path = (
-        season_dir
-        / "odds.parquet"
-    )
-
-    if odds_path.exists():
-        validation.fail(
-            f"{league}:{internal_season} "
-            "forbidden odds.parquet "
-            "exists in SDV history"
-        )
-
-    else:
-        validation.passed(
-            f"{league}:{internal_season} "
-            "required file set present"
-        )
-
-    actual_tables: dict[
-        str,
-        dict[str, Any],
-    ] = {}
-
-    for table in TABLES:
-        path = (
-            season_dir
-            / f"{table}.parquet"
-        )
-
-        try:
-            (
-                row_count,
-                columns,
-            ) = parquet_info(path)
-
-        except Exception as exc:
-            validation.fail(
-                f"Cannot read {path}: "
-                f"{exc}"
-            )
-            continue
-
-        validation.tables_checked += 1
-
-        if row_count <= 0:
-            validation.fail(
-                f"{path} has zero rows"
-            )
-            continue
-
-        validation.passed(
-            f"{path} "
-            f"rows={row_count} "
-            f"columns={len(columns)}"
-        )
-
-        source_loader = (
-            validate_metadata(
-                validation,
-                path,
-                league,
-                internal_season,
-                sdv_season,
-            )
-        )
-
-        validate_required_keys(
-            validation,
-            path,
-            table,
-            columns,
-        )
-
-        if (
-            league == "ncaam"
-            and table == "games"
-        ):
-            validate_ncaam_venue_context(
-                validation,
-                path,
-                columns,
-            )
-
-        if table == "lineups":
-            validate_lineups(
-                validation,
-                path,
-                league,
-                columns,
-            )
-
-        actual_tables[
-            table
-        ] = {
-            "rows": row_count,
-            "columns": columns,
-            "source_loader": (
-                source_loader
-            ),
-        }
-
-    games_path = (
-        season_dir
-        / "games.parquet"
-    )
-
-    if (
-        "games"
-        in actual_tables
-        and "game_id"
-        in actual_tables[
-            "games"
-        ]["columns"]
-    ):
-        try:
-            game_ids = (
-                pl.scan_parquet(
-                    games_path
-                )
-                .select(
-                    pl.col("game_id")
-                    .cast(
-                        pl.String,
-                        strict=False,
-                    )
-                    .str.strip_chars()
-                    .alias("game_id")
-                )
-                .collect()
-                .get_column("game_id")
-            )
-
-            null_count = (
-                game_ids.null_count()
-            )
-
-            non_null_ids = (
-                game_ids.drop_nulls()
-            )
-
-            blank_count = int(
-                (
-                    non_null_ids
-                    == ""
-                ).sum()
-            )
-
-            non_blank_ids = (
-                non_null_ids.filter(
-                    non_null_ids
-                    != ""
-                )
-            )
-
-            unique_count = int(
-                non_blank_ids.n_unique()
-            )
-
-            if (
-                null_count
-                or blank_count
-            ):
-                validation.fail(
-                    f"{games_path} "
-                    "game_id "
-                    f"nulls={null_count} "
-                    f"blanks={blank_count}"
-                )
-
-            if (
-                unique_count
-                != len(
-                    non_blank_ids
-                )
-            ):
-                duplicate_count = (
-                    len(
-                        non_blank_ids
-                    )
-                    - unique_count
-                )
-
-                validation.fail(
-                    f"{games_path} "
-                    "duplicate canonical "
-                    "game_id rows="
-                    f"{duplicate_count}"
-                )
-
-            else:
-                validation.passed(
-                    f"{games_path} "
-                    "canonical game_id "
-                    f"unique count={unique_count}"
-                )
-
-            canonical_ids = set(
-                non_blank_ids.to_list()
-            )
-
-            actual_tables[
-                "games"
-            ][
-                "unique_games"
-            ] = unique_count
-
-            for table in GAME_KEY_TABLES:
-                table_info = (
-                    actual_tables.get(
-                        table
-                    )
-                )
-
-                if table_info is None:
-                    continue
-
-                child_path = (
-                    season_dir
-                    / f"{table}.parquet"
-                )
-
-                if (
-                    "game_id"
-                    not in table_info[
-                        "columns"
-                    ]
-                ):
-                    validation.fail(
-                        f"{child_path} "
-                        "missing game_id "
-                        "required for integrity"
-                    )
-                    continue
-
-                child_ids = unique_game_ids(
-                    child_path
-                )
-
-                orphan_ids = sorted(
-                    child_ids
-                    - canonical_ids
-                )
-
-                if orphan_ids:
-                    validation.fail(
-                        f"{child_path} has "
-                        f"{len(orphan_ids)} "
-                        "game_ids absent from "
-                        "games.parquet "
-                        f"sample={orphan_ids[:20]}"
-                    )
-
+                def _py_r1000_loop_5():
+                    nonlocal child_ids, child_path, orphan_ids, table_info
+                    table_info = actual_tables.get(table)
+                    if table_info is None:
+                        return (_py_r1000_CONTINUE, None)
+                    child_path = season_dir / f'{table}.parquet'
+                    if 'game_id' not in table_info['columns']:
+                        validation.fail(f'{child_path} missing game_id required for integrity')
+                        return (_py_r1000_CONTINUE, None)
+                    child_ids = unique_game_ids(child_path)
+                    orphan_ids = sorted(child_ids - canonical_ids)
+                    if orphan_ids:
+                        validation.fail(f'{child_path} has {len(orphan_ids)} game_ids absent from games.parquet sample={orphan_ids[:20]}')
+                    else:
+                        validation.passed(f'{child_path} game_id integrity passed unique_games={len(child_ids)}')
+                    table_info['unique_games'] = len(child_ids)
+                    return (_py_r1000_NONE, None)
+                game_ids = pl.scan_parquet(games_path).select(pl.col('game_id').cast(pl.String, strict=False).str.strip_chars().alias('game_id')).collect().get_column('game_id')
+                null_count = game_ids.null_count()
+                non_null_ids = game_ids.drop_nulls()
+                blank_count = int((non_null_ids == '').sum())
+                non_blank_ids = non_null_ids.filter(non_null_ids != '')
+                unique_count = int(non_blank_ids.n_unique())
+                if null_count or blank_count:
+                    validation.fail(f'{games_path} game_id nulls={null_count} blanks={blank_count}')
+                if unique_count != len(non_blank_ids):
+                    duplicate_count = len(non_blank_ids) - unique_count
+                    validation.fail(f'{games_path} duplicate canonical game_id rows={duplicate_count}')
                 else:
-                    validation.passed(
-                        f"{child_path} "
-                        "game_id integrity "
-                        "passed "
-                        "unique_games="
-                        f"{len(child_ids)}"
-                    )
-
-                table_info[
-                    "unique_games"
-                ] = len(child_ids)
-
+                    validation.passed(f'{games_path} canonical game_id unique count={unique_count}')
+                canonical_ids = set(non_blank_ids.to_list())
+                actual_tables['games']['unique_games'] = unique_count
+                for table in GAME_KEY_TABLES:
+                    _py_r1000_result_6 = _py_r1000_loop_5()
+                    if _py_r1000_result_6[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_6
+                    if _py_r1000_result_6[0] == _py_r1000_BREAK:
+                        break
+                    if _py_r1000_result_6[0] == _py_r1000_CONTINUE:
+                        continue
+                return (_py_r1000_NONE, None)
+            try:
+                _py_r1000_result_7 = _py_r1000_try_4()
+                if _py_r1000_result_7[0] != _py_r1000_NONE:
+                    return _py_r1000_result_7
+            except Exception as exc:
+                validation.fail(f'{league}:{internal_season} game-id integrity failed: {exc}')
+            return (_py_r1000_NONE, None)
+        root = storage_root(storage_cfg)
+        season_dir = root / league / str(internal_season)
+        validation.emit(f'--- LEAGUE={league.upper()} INTERNAL_SEASON={internal_season} ---')
+        try:
+            sdv_season = mapped_sdv_season(season_cfg, league, internal_season)
         except Exception as exc:
-            validation.fail(
-                f"{league}:{internal_season} "
-                "game-id integrity failed: "
-                f"{exc}"
-            )
-
-    manifest_path = (
-        season_dir
-        / "manifest.json"
-    )
-
-    validate_manifest(
-        validation,
-        manifest_path,
-        league,
-        internal_season,
-        sdv_season,
-        actual_tables,
-    )
-
-    validate_truncation_limits(
-        validation,
-        limits,
-        league,
-        internal_season,
-        actual_tables,
-    )
-
-    validation.seasons_checked += 1
+            validation.fail(f'{league}:{internal_season} season mapping failed: {exc}')
+            return (_py_r1000_RETURN, None)
+        validation.passed(f'{league}:{internal_season} maps to SDV {sdv_season}')
+        if not season_dir.exists():
+            validation.fail(f'Missing configured directory {season_dir}')
+            return (_py_r1000_RETURN, None)
+        missing_files = [str(season_dir / filename) for filename in REQUIRED_FILES if not (season_dir / filename).is_file()]
+        if missing_files:
+            validation.fail(f'{league}:{internal_season} missing required files {missing_files}')
+            return (_py_r1000_RETURN, None)
+        odds_path = season_dir / 'odds.parquet'
+        if odds_path.exists():
+            validation.fail(f'{league}:{internal_season} forbidden odds.parquet exists in SDV history')
+        else:
+            validation.passed(f'{league}:{internal_season} required file set present')
+        actual_tables: dict[str, dict[str, Any]] = {}
+        for table in TABLES:
+            _py_r1000_result_2 = _py_r1000_loop_1()
+            if _py_r1000_result_2[0] == _py_r1000_RETURN:
+                return _py_r1000_result_2
+            if _py_r1000_result_2[0] == _py_r1000_BREAK:
+                break
+            if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
+                continue
+        games_path = season_dir / 'games.parquet'
+        if 'games' in actual_tables and 'game_id' in actual_tables['games']['columns']:
+            _py_r1000_result_8 = _py_r1000_if_3()
+            if _py_r1000_result_8[0] != _py_r1000_NONE:
+                return _py_r1000_result_8
+        manifest_path = season_dir / 'manifest.json'
+        validate_manifest(validation, manifest_path, league, internal_season, sdv_season, actual_tables)
+        validate_truncation_limits(validation, limits, league, internal_season, actual_tables)
+        validation.seasons_checked += 1
+        return (_py_r1000_NONE, None)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 def main() -> int:
