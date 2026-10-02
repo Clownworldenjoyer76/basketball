@@ -422,200 +422,93 @@ def season_from_input_filename(
     return int(season_text)
 
 
-def normalize_production_bias_rule(
-    model_cfg: dict,
-    league: str,
-    component: str,
-) -> dict:
-    league_cfg = ensure_mapping(
-        ensure_mapping(
-            model_cfg.get("leagues"),
-            "model_config.leagues",
-        ).get(league),
-        f"model_config.leagues.{league}",
-    )
+def normalize_production_bias_rule(model_cfg: dict, league: str, component: str) -> dict:
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    bias_cfg = ensure_mapping(
-        league_cfg.get("bias") or {},
-        f"{league}.bias",
-    )
+    def _py_r1000_impl():
+        nonlocal component, league, model_cfg
+        bias_cfg: object
+        league_cfg: object
+        method: object
+        normalized: object
+        raw_weights: object
+        raw_windows: object
+        rule: object
+        shrink: object
+        total_weight: object
+        weights: object
+        window: object
+        windows: object
 
-    rule = ensure_mapping(
-        bias_cfg.get(component),
-        f"{league}.bias.{component}",
-    )
+        def _py_r1000_else_1():
+            nonlocal raw_weights, raw_windows, shrink, total_weight, weights, window, windows
 
-    method = str(
-        rule.get(
-            "method",
-            "",
-        )
-    ).strip().lower()
+            def _py_r1000_if_2():
+                nonlocal window
+                window = int(require_number(rule.get('window_games'), f'{league}.bias.{component}.window_games'))
+                if window <= 0:
+                    raise ValueError(f'{league}.bias.{component}.window_games must be > 0')
+                normalized['window_games'] = window
+                return (_py_r1000_NONE, None)
 
-    if method not in {
-        "rolling",
-        "regime_aware",
-        "fixed",
-        "none",
-    }:
-        raise ValueError(
-            f"Unsupported {league} "
-            f"{component} bias "
-            f"method={method!r}"
-        )
+            def _py_r1000_else_4():
+                nonlocal raw_weights, raw_windows, shrink, total_weight, weights, windows
 
-    normalized = {
-        "method": method,
-    }
-
-    if method == "fixed":
-        normalized["value"] = require_number(
-            rule.get("value"),
-            f"{league}.bias.{component}.value",
-        )
-
-    elif method == "rolling":
-        window = int(
-            require_number(
-                rule.get("window_games"),
-                (
-                    f"{league}.bias."
-                    f"{component}.window_games"
-                ),
-            )
-        )
-
-        if window <= 0:
-            raise ValueError(
-                f"{league}.bias."
-                f"{component}.window_games "
-                "must be > 0"
-            )
-
-        normalized[
-            "window_games"
-        ] = window
-
-    elif method == "regime_aware":
-        raw_windows = rule.get(
-            "windows_games"
-        )
-
-        raw_weights = rule.get(
-            "weights"
-        )
-
-        if (
-            not isinstance(
-                raw_windows,
-                list,
-            )
-            or not raw_windows
-        ):
-            raise ValueError(
-                f"{league}.bias."
-                f"{component}."
-                "windows_games must be "
-                "a non-empty list"
-            )
-
-        if (
-            not isinstance(
-                raw_weights,
-                list,
-            )
-            or len(raw_weights)
-            != len(raw_windows)
-        ):
-            raise ValueError(
-                f"{league}.bias."
-                f"{component}.weights "
-                "must match windows_games"
-            )
-
-        windows = [
-            int(
-                require_number(
-                    v,
-                    (
-                        f"{league}.bias."
-                        f"{component}."
-                        "windows_games"
-                    ),
-                )
-            )
-            for v in raw_windows
-        ]
-
-        weights = [
-            require_number(
-                v,
-                (
-                    f"{league}.bias."
-                    f"{component}.weights"
-                ),
-            )
-            for v in raw_weights
-        ]
-
-        if any(
-            w <= 0
-            for w in windows
-        ):
-            raise ValueError(
-                f"{league}.bias."
-                f"{component}."
-                "windows_games must "
-                "all be > 0"
-            )
-
-        if (
-            any(
-                w < 0
-                for w in weights
-            )
-            or sum(weights) <= 0
-        ):
-            raise ValueError(
-                f"{league}.bias."
-                f"{component}.weights "
-                "must be >= 0 and "
-                "sum to > 0"
-            )
-
-        total_weight = sum(weights)
-
-        weights = [
-            w / total_weight
-            for w in weights
-        ]
-
-        shrink = require_number(
-            rule.get(
-                "sign_conflict_shrink"
-            ),
-            (
-                f"{league}.bias."
-                f"{component}."
-                "sign_conflict_shrink"
-            ),
-        )
-
-        if not 0 <= shrink <= 1:
-            raise ValueError(
-                f"{league}.bias."
-                f"{component}."
-                "sign_conflict_shrink "
-                "must be between 0 and 1"
-            )
-
-        normalized.update({
-            "windows_games": windows,
-            "weights": weights,
-            "sign_conflict_shrink": shrink,
-        })
-
-    return normalized
+                def _py_r1000_if_5():
+                    nonlocal raw_weights, raw_windows, shrink, total_weight, weights, windows
+                    raw_windows = rule.get('windows_games')
+                    raw_weights = rule.get('weights')
+                    if not isinstance(raw_windows, list) or not raw_windows:
+                        raise ValueError(f'{league}.bias.{component}.windows_games must be a non-empty list')
+                    if not isinstance(raw_weights, list) or len(raw_weights) != len(raw_windows):
+                        raise ValueError(f'{league}.bias.{component}.weights must match windows_games')
+                    windows = [int(require_number(v, f'{league}.bias.{component}.windows_games')) for v in raw_windows]
+                    weights = [require_number(v, f'{league}.bias.{component}.weights') for v in raw_weights]
+                    if any((w <= 0 for w in windows)):
+                        raise ValueError(f'{league}.bias.{component}.windows_games must all be > 0')
+                    if any((w < 0 for w in weights)) or sum(weights) <= 0:
+                        raise ValueError(f'{league}.bias.{component}.weights must be >= 0 and sum to > 0')
+                    total_weight = sum(weights)
+                    weights = [w / total_weight for w in weights]
+                    shrink = require_number(rule.get('sign_conflict_shrink'), f'{league}.bias.{component}.sign_conflict_shrink')
+                    if not 0 <= shrink <= 1:
+                        raise ValueError(f'{league}.bias.{component}.sign_conflict_shrink must be between 0 and 1')
+                    normalized.update({'windows_games': windows, 'weights': weights, 'sign_conflict_shrink': shrink})
+                    return (_py_r1000_NONE, None)
+                if method == 'regime_aware':
+                    _py_r1000_result_6 = _py_r1000_if_5()
+                    if _py_r1000_result_6[0] != _py_r1000_NONE:
+                        return _py_r1000_result_6
+                return (_py_r1000_NONE, None)
+            if method == 'rolling':
+                _py_r1000_result_3 = _py_r1000_if_2()
+                if _py_r1000_result_3[0] != _py_r1000_NONE:
+                    return _py_r1000_result_3
+            else:
+                _py_r1000_result_7 = _py_r1000_else_4()
+                if _py_r1000_result_7[0] != _py_r1000_NONE:
+                    return _py_r1000_result_7
+            return (_py_r1000_NONE, None)
+        league_cfg = ensure_mapping(ensure_mapping(model_cfg.get('leagues'), 'model_config.leagues').get(league), f'model_config.leagues.{league}')
+        bias_cfg = ensure_mapping(league_cfg.get('bias') or {}, f'{league}.bias')
+        rule = ensure_mapping(bias_cfg.get(component), f'{league}.bias.{component}')
+        method = str(rule.get('method', '')).strip().lower()
+        if method not in {'rolling', 'regime_aware', 'fixed', 'none'}:
+            raise ValueError(f'Unsupported {league} {component} bias method={method!r}')
+        normalized = {'method': method}
+        if method == 'fixed':
+            normalized['value'] = require_number(rule.get('value'), f'{league}.bias.{component}.value')
+        else:
+            _py_r1000_result_8 = _py_r1000_else_1()
+            if _py_r1000_result_8[0] != _py_r1000_NONE:
+                return _py_r1000_result_8
+        return (_py_r1000_RETURN, normalized)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 def production_bias_from_errors(
@@ -2845,120 +2738,49 @@ def date_ok(
     return True
 
 
-def passes_filters(
-    values: dict,
-    side_cfg: dict,
-    game_date: Any,
-) -> bool:
-    if (
-        "odds_bands"
-        in side_cfg
-        and not in_any_band(
-            values.get("odds"),
-            side_cfg[
-                "odds_bands"
-            ],
-        )
-    ):
-        DEBUG_COUNTS[
-            "fail_odds"
-        ] += 1
-        return False
+def passes_filters(values: dict, side_cfg: dict, game_date: Any) -> bool:
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    if (
-        "line_bands"
-        in side_cfg
-        and values.get("line")
-        is not None
-        and not in_any_band(
-            values.get("line"),
-            side_cfg[
-                "line_bands"
-            ],
-        )
-    ):
-        DEBUG_COUNTS[
-            "fail_line"
-        ] += 1
-        return False
+    def _py_r1000_impl():
+        nonlocal game_date, side_cfg, values
 
-    if (
-        "ev_bands"
-        in side_cfg
-        and not in_any_band(
-            values.get("ev"),
-            side_cfg[
-                "ev_bands"
-            ],
-        )
-    ):
-        DEBUG_COUNTS[
-            "fail_ev"
-        ] += 1
-        return False
+        def _py_r1000_chunk_1():
+            if 'odds_bands' in side_cfg and (not in_any_band(values.get('odds'), side_cfg['odds_bands'])):
+                DEBUG_COUNTS['fail_odds'] += 1
+                return (_py_r1000_RETURN, False)
+            if 'line_bands' in side_cfg and values.get('line') is not None and (not in_any_band(values.get('line'), side_cfg['line_bands'])):
+                DEBUG_COUNTS['fail_line'] += 1
+                return (_py_r1000_RETURN, False)
+            if 'ev_bands' in side_cfg and (not in_any_band(values.get('ev'), side_cfg['ev_bands'])):
+                DEBUG_COUNTS['fail_ev'] += 1
+                return (_py_r1000_RETURN, False)
+            return (_py_r1000_NONE, None)
 
-    if (
-        "kelly_bands"
-        in side_cfg
-        and not in_any_band(
-            values.get("kelly"),
-            side_cfg[
-                "kelly_bands"
-            ],
-        )
-    ):
-        DEBUG_COUNTS[
-            "fail_kelly"
-        ] += 1
-        return False
+        def _py_r1000_chunk_2():
+            if 'kelly_bands' in side_cfg and (not in_any_band(values.get('kelly'), side_cfg['kelly_bands'])):
+                DEBUG_COUNTS['fail_kelly'] += 1
+                return (_py_r1000_RETURN, False)
+            if 'model_prob_bands' in side_cfg and (not in_any_band(values.get('model_prob'), side_cfg['model_prob_bands'])):
+                DEBUG_COUNTS['fail_model_prob'] += 1
+                return (_py_r1000_RETURN, False)
+            if 'edge_vs_market_bands' in side_cfg and (not in_any_band(values.get('edge_vs_market_pct'), side_cfg['edge_vs_market_bands'])):
+                DEBUG_COUNTS['fail_edge_vs_market'] += 1
+                return (_py_r1000_RETURN, False)
+            return (_py_r1000_NONE, None)
 
-    if (
-        "model_prob_bands"
-        in side_cfg
-        and not in_any_band(
-            values.get(
-                "model_prob"
-            ),
-            side_cfg[
-                "model_prob_bands"
-            ],
-        )
-    ):
-        DEBUG_COUNTS[
-            "fail_model_prob"
-        ] += 1
-        return False
-
-    if (
-        "edge_vs_market_bands"
-        in side_cfg
-        and not in_any_band(
-            values.get(
-                "edge_vs_market_pct"
-            ),
-            side_cfg[
-                "edge_vs_market_bands"
-            ],
-        )
-    ):
-        DEBUG_COUNTS[
-            "fail_edge_vs_market"
-        ] += 1
-        return False
-
-    return date_ok(
-        game_date,
-        side_cfg.get(
-            "months",
-            [],
-        )
-        or [],
-        side_cfg.get(
-            "exclude_days_of_week",
-            [],
-        )
-        or [],
-    )
+        def _py_r1000_chunk_3():
+            return (_py_r1000_RETURN, date_ok(game_date, side_cfg.get('months', []) or [], side_cfg.get('exclude_days_of_week', []) or []))
+        for _py_r1000_block_4 in (_py_r1000_chunk_1, _py_r1000_chunk_2, _py_r1000_chunk_3):
+            _py_r1000_result_5 = _py_r1000_block_4()
+            if _py_r1000_result_5[0] != _py_r1000_NONE:
+                return _py_r1000_result_5
+        return (_py_r1000_NONE, None)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 def model_edge_threshold(
@@ -3091,152 +2913,107 @@ def market_config(
 
 
 
-def reconcile_ml_vs_spread(
-    df: pd.DataFrame,
-    filter_cfg: dict,
-) -> tuple[pd.DataFrame, int]:
-    if df.empty:
-        return df, 0
+def reconcile_ml_vs_spread(df: pd.DataFrame, filter_cfg: dict) -> tuple[pd.DataFrame, int]:
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    if (
-        "game_id" not in df.columns
-        or "market_type" not in df.columns
-    ):
-        return df, 0
+    def _py_r1000_impl():
+        nonlocal df, filter_cfg
+        conflict_games: object
+        drop_indices: object
+        dropped: object
+        game_id: object
+        losing_market: object
+        loss_mask: object
+        metric_col: object
+        ml_best: object
+        ml_mask: object
+        ml_value: object
+        out: object
+        spread_best: object
+        spread_mask: object
+        spread_value: object
+        tiebreak: object
 
-    tiebreak = str(
-        filter_cfg.get(
-            "ml_vs_spread_tiebreak",
-            "ev",
-        )
-    ).strip().lower()
+        def _py_r1000_loop_1():
+            nonlocal losing_market, loss_mask, ml_value, spread_value
 
-    if tiebreak not in TIEBREAK_COL_MAP:
-        tiebreak = "ev"
+            def _py_r1000_else_2():
+                nonlocal losing_market
 
-    metric_col = TIEBREAK_COL_MAP[tiebreak]
+                def _py_r1000_else_3():
+                    nonlocal losing_market
 
-    if metric_col not in df.columns:
-        return df, 0
-
-    out = df.copy()
-    out["_tiebreak_metric"] = pd.to_numeric(
-        out[metric_col],
-        errors="coerce",
-    )
-
-    ml_mask = (
-        out["market_type"]
-        .astype(str)
-        .str.lower()
-        == "moneyline"
-    )
-    spread_mask = (
-        out["market_type"]
-        .astype(str)
-        .str.lower()
-        == "spread"
-    )
-
-    if (
-        not ml_mask.any()
-        or not spread_mask.any()
-    ):
-        return out.drop(
-            columns=["_tiebreak_metric"],
-        ), 0
-
-    ml_best = (
-        out.loc[ml_mask]
-        .groupby("game_id")[
-            "_tiebreak_metric"
-        ]
-        .max()
-    )
-
-    spread_best = (
-        out.loc[spread_mask]
-        .groupby("game_id")[
-            "_tiebreak_metric"
-        ]
-        .max()
-    )
-
-    conflict_games = (
-        ml_best.index.intersection(
-            spread_best.index
-        )
-    )
-
-    if len(conflict_games) == 0:
-        return out.drop(
-            columns=["_tiebreak_metric"],
-        ), 0
-
-    drop_indices = []
-
-    for game_id in conflict_games:
-        ml_value = ml_best.loc[game_id]
-        spread_value = spread_best.loc[
-            game_id
-        ]
-
-        if (
-            pd.isna(ml_value)
-            and pd.isna(spread_value)
-        ):
-            losing_market = "spread"
-        elif pd.isna(ml_value):
-            losing_market = "moneyline"
-        elif pd.isna(spread_value):
-            losing_market = "spread"
-        else:
-            losing_market = (
-                "spread"
-                if ml_value >= spread_value
-                else "moneyline"
-            )
-
-        loss_mask = (
-            out["game_id"].eq(game_id)
-            & (
-                out["market_type"]
-                .astype(str)
-                .str.lower()
-                == losing_market
-            )
-        )
-
-        drop_indices.extend(
-            out.index[
-                loss_mask
-            ].tolist()
-        )
-
-        DEBUG_COUNTS[
-            (
-                "ml_vs_spread_dropped_"
-                f"{losing_market}"
-            )
-        ] += int(
-            loss_mask.sum()
-        )
-
-    dropped = len(drop_indices)
-
-    if dropped:
-        out = out.drop(
-            index=drop_indices
-        )
-
-    out = out.drop(
-        columns=["_tiebreak_metric"],
-    )
-
-    return (
-        out.reset_index(drop=True),
-        dropped,
-    )
+                    def _py_r1000_else_4():
+                        nonlocal losing_market
+                        losing_market = 'spread' if ml_value >= spread_value else 'moneyline'
+                        return (_py_r1000_NONE, None)
+                    if pd.isna(spread_value):
+                        losing_market = 'spread'
+                    else:
+                        _py_r1000_result_5 = _py_r1000_else_4()
+                        if _py_r1000_result_5[0] != _py_r1000_NONE:
+                            return _py_r1000_result_5
+                    return (_py_r1000_NONE, None)
+                if pd.isna(ml_value):
+                    losing_market = 'moneyline'
+                else:
+                    _py_r1000_result_6 = _py_r1000_else_3()
+                    if _py_r1000_result_6[0] != _py_r1000_NONE:
+                        return _py_r1000_result_6
+                return (_py_r1000_NONE, None)
+            ml_value = ml_best.loc[game_id]
+            spread_value = spread_best.loc[game_id]
+            if pd.isna(ml_value) and pd.isna(spread_value):
+                losing_market = 'spread'
+            else:
+                _py_r1000_result_7 = _py_r1000_else_2()
+                if _py_r1000_result_7[0] != _py_r1000_NONE:
+                    return _py_r1000_result_7
+            loss_mask = out['game_id'].eq(game_id) & (out['market_type'].astype(str).str.lower() == losing_market)
+            drop_indices.extend(out.index[loss_mask].tolist())
+            DEBUG_COUNTS[f'ml_vs_spread_dropped_{losing_market}'] += int(loss_mask.sum())
+            return (_py_r1000_NONE, None)
+        if df.empty:
+            return (_py_r1000_RETURN, (df, 0))
+        if 'game_id' not in df.columns or 'market_type' not in df.columns:
+            return (_py_r1000_RETURN, (df, 0))
+        tiebreak = str(filter_cfg.get('ml_vs_spread_tiebreak', 'ev')).strip().lower()
+        if tiebreak not in TIEBREAK_COL_MAP:
+            tiebreak = 'ev'
+        metric_col = TIEBREAK_COL_MAP[tiebreak]
+        if metric_col not in df.columns:
+            return (_py_r1000_RETURN, (df, 0))
+        out = df.copy()
+        out['_tiebreak_metric'] = pd.to_numeric(out[metric_col], errors='coerce')
+        ml_mask = out['market_type'].astype(str).str.lower() == 'moneyline'
+        spread_mask = out['market_type'].astype(str).str.lower() == 'spread'
+        if not ml_mask.any() or not spread_mask.any():
+            return (_py_r1000_RETURN, (out.drop(columns=['_tiebreak_metric']), 0))
+        ml_best = out.loc[ml_mask].groupby('game_id')['_tiebreak_metric'].max()
+        spread_best = out.loc[spread_mask].groupby('game_id')['_tiebreak_metric'].max()
+        conflict_games = ml_best.index.intersection(spread_best.index)
+        if len(conflict_games) == 0:
+            return (_py_r1000_RETURN, (out.drop(columns=['_tiebreak_metric']), 0))
+        drop_indices = []
+        for game_id in conflict_games:
+            _py_r1000_result_8 = _py_r1000_loop_1()
+            if _py_r1000_result_8[0] == _py_r1000_RETURN:
+                return _py_r1000_result_8
+            if _py_r1000_result_8[0] == _py_r1000_BREAK:
+                break
+            if _py_r1000_result_8[0] == _py_r1000_CONTINUE:
+                continue
+        dropped = len(drop_indices)
+        if dropped:
+            out = out.drop(index=drop_indices)
+        out = out.drop(columns=['_tiebreak_metric'])
+        return (_py_r1000_RETURN, (out.reset_index(drop=True), dropped))
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 def build_moneyline_sides(
@@ -3672,116 +3449,83 @@ def select_bets_for_market(
 
 
 def determine_outcome(row) -> str:
-    market = str(
-        row.get(
-            "market_type",
-            "",
-        )
-    ).lower()
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    side = str(
-        row.get(
-            "bet_side",
-            "",
-        )
-    ).lower()
+    def _py_r1000_impl():
+        nonlocal row
+        actual_total: object
+        away: object
+        diff: object
+        home: object
+        home_won: object
+        line: object
+        market: object
+        side: object
 
-    home = fv(
-        row.get("home_score")
-    )
+        def _py_r1000_if_1():
+            nonlocal home_won
+            if home == away:
+                return (_py_r1000_RETURN, 'Push')
+            home_won = home > away
+            return (_py_r1000_RETURN, 'Win' if side == 'home' and home_won or (side == 'away' and (not home_won)) else 'Loss')
 
-    away = fv(
-        row.get("away_score")
-    )
+        def _py_r1000_if_3():
+            nonlocal diff, line
 
-    if (
-        home is None
-        or away is None
-    ):
-        return "Unknown"
+            def _py_r1000_else_4():
+                nonlocal diff
+                if side == 'away':
+                    diff = away + line - home
+                else:
+                    return (_py_r1000_RETURN, 'Unknown')
+                return (_py_r1000_NONE, None)
+            line = fv(row.get('bet_line'))
+            if line is None:
+                return (_py_r1000_RETURN, 'Unknown')
+            if side == 'home':
+                diff = home + line - away
+            else:
+                _py_r1000_result_5 = _py_r1000_else_4()
+                if _py_r1000_result_5[0] != _py_r1000_NONE:
+                    return _py_r1000_result_5
+            if abs(diff) < 1e-09:
+                return (_py_r1000_RETURN, 'Push')
+            return (_py_r1000_RETURN, 'Win' if diff > 0 else 'Loss')
 
-    if market == "moneyline":
-        if home == away:
-            return "Push"
-
-        home_won = home > away
-
-        return (
-            "Win"
-            if (
-                side == "home"
-                and home_won
-            )
-            or (
-                side == "away"
-                and not home_won
-            )
-            else "Loss"
-        )
-
-    if market == "spread":
-        line = fv(
-            row.get("bet_line")
-        )
-
-        if line is None:
-            return "Unknown"
-
-        if side == "home":
-            diff = (
-                home
-                + line
-                - away
-            )
-        elif side == "away":
-            diff = (
-                away
-                + line
-                - home
-            )
-        else:
-            return "Unknown"
-
-        if abs(diff) < 1e-9:
-            return "Push"
-
-        return (
-            "Win"
-            if diff > 0
-            else "Loss"
-        )
-
-    if market == "total":
-        line = fv(
-            row.get("bet_line")
-        )
-
-        if line is None:
-            return "Unknown"
-
-        actual_total = (
-            home + away
-        )
-
-        if abs(
-            actual_total - line
-        ) < 1e-9:
-            return "Push"
-
-        return (
-            "Win"
-            if (
-                actual_total > line
-                and side == "over"
-            )
-            or (
-                actual_total < line
-                and side == "under"
-            )
-            else "Loss"
-        )
-
-    return "Unknown"
+        def _py_r1000_if_7():
+            nonlocal actual_total, line
+            line = fv(row.get('bet_line'))
+            if line is None:
+                return (_py_r1000_RETURN, 'Unknown')
+            actual_total = home + away
+            if abs(actual_total - line) < 1e-09:
+                return (_py_r1000_RETURN, 'Push')
+            return (_py_r1000_RETURN, 'Win' if actual_total > line and side == 'over' or (actual_total < line and side == 'under') else 'Loss')
+        market = str(row.get('market_type', '')).lower()
+        side = str(row.get('bet_side', '')).lower()
+        home = fv(row.get('home_score'))
+        away = fv(row.get('away_score'))
+        if home is None or away is None:
+            return (_py_r1000_RETURN, 'Unknown')
+        if market == 'moneyline':
+            _py_r1000_result_2 = _py_r1000_if_1()
+            if _py_r1000_result_2[0] != _py_r1000_NONE:
+                return _py_r1000_result_2
+        if market == 'spread':
+            _py_r1000_result_6 = _py_r1000_if_3()
+            if _py_r1000_result_6[0] != _py_r1000_NONE:
+                return _py_r1000_result_6
+        if market == 'total':
+            _py_r1000_result_8 = _py_r1000_if_7()
+            if _py_r1000_result_8[0] != _py_r1000_NONE:
+                return _py_r1000_result_8
+        return (_py_r1000_RETURN, 'Unknown')
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 def compute_profits(row):
@@ -4456,458 +4200,206 @@ def append_run_index(
     )
 
 
-def run_production_parity_test(
-    feature_df: pd.DataFrame,
-    league: str,
-    settings: dict,
-    production_filter_cfg: dict,
-    parity_rows: int,
-    logger: RunLogger,
-) -> None:
-    import numpy as np
+def run_production_parity_test(feature_df: pd.DataFrame, league: str, settings: dict, production_filter_cfg: dict, parity_rows: int, logger: RunLogger) -> None:
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    sample = (
-        feature_df
-        .head(
-            max(
-                1,
-                int(parity_rows),
-            )
-        )
-        .copy()
-        .reset_index(drop=True)
-    )
+    def _py_r1000_impl():
+        nonlocal feature_df, league, logger, parity_rows, production_filter_cfg, settings
+        _: object
+        a: object
+        b: object
+        back: object
+        back_combined: object
+        back_frames: object
+        back_keys: object
+        back_reconciled: object
+        back_selected: object
+        back_selected_parts: object
+        col: object
+        game_date: object
+        juice_df: object
+        key: object
+        keys: object
+        league_upper: object
+        market: object
+        market_dir: object
+        mode: object
+        out_path: object
+        picks: object
+        preference: object
+        prob_cols: object
+        prod_cfg: object
+        prod_combined: object
+        prod_ev: object
+        prod_frame: object
+        prod_juice: object
+        prod_keys: object
+        prod_reconciled: object
+        prod_rows: object
+        prod_select: object
+        prod_selected: object
+        prod_selected_parts: object
+        prod_settings: object
+        row: object
+        sample: object
+        sel: object
+        sides: object
+        tmp: object
 
-    if sample.empty:
-        raise AssertionError(
-            f"PARITY FAILED {league}: "
-            "no rows available"
-        )
+        def _py_r1000_loop_1():
+            if not math.isclose(float(settings[league][key]), float(prod_settings[key]), abs_tol=1e-12):
+                raise AssertionError(f'PARITY FAILED {league}: setting {key} backtest={settings[league][key]} production={prod_settings[key]}')
+            return (_py_r1000_NONE, None)
 
-    prod_juice = load_module_from_path(
-        (
-            "parity_build_juice_"
-            f"{league}"
-        ),
-        PRODUCTION_BUILD_JUICE,
-    )
+        def _py_r1000_with_3():
+            nonlocal _, a, b, back, back_combined, back_keys, back_reconciled, back_selected, back_selected_parts, col, game_date, juice_df, keys, market, market_dir, mode, out_path, picks, preference, prob_cols, prod_cfg, prod_combined, prod_frame, prod_keys, prod_reconciled, prod_rows, prod_selected, prod_selected_parts, row, sel, sides
 
-    prod_ev = load_module_from_path(
-        (
-            "parity_ev_kelly_"
-            f"{league}"
-        ),
-        PRODUCTION_EV_KELLY,
-    )
+            def _py_r1000_loop_4():
+                nonlocal _, a, b, back, back_keys, back_selected, col, game_date, juice_df, keys, mode, out_path, picks, preference, prob_cols, prod_cfg, prod_frame, prod_keys, prod_rows, prod_selected, row, sel, sides
 
-    prod_select = load_module_from_path(
-        (
-            "parity_select_"
-            f"{league}"
-        ),
-        PRODUCTION_SELECT,
-    )
+                def _py_r1000_else_5():
+                    nonlocal _, juice_df, out_path, prob_cols, prod_frame
+                    if market == 'spread':
+                        out_path, _ = prod_juice.process_spread(sample.copy(), '2000_01_01', league_upper, prod_settings, league)
+                        juice_df = pd.read_csv(out_path, dtype={'game_id': str})
+                        prod_frame = prod_ev.process_spread(juice_df)
+                        prob_cols = ['home_spread_model_prob', 'away_spread_model_prob']
+                    else:
+                        out_path, _ = prod_juice.process_totals(sample.copy(), '2000_01_01', league_upper, prod_settings, league)
+                        juice_df = pd.read_csv(out_path, dtype={'game_id': str})
+                        prod_frame = prod_ev.process_total(juice_df)
+                        prob_cols = ['over_model_prob', 'under_model_prob']
+                    return (_py_r1000_NONE, None)
 
-    league_upper = league.upper()
+                def _py_r1000_loop_7():
+                    nonlocal a, b
+                    a = pd.to_numeric(back[col], errors='coerce').to_numpy(float)
+                    b = pd.to_numeric(prod_frame[col], errors='coerce').to_numpy(float)
+                    if not np.allclose(a, b, rtol=0.0, atol=1e-12, equal_nan=True):
+                        raise AssertionError(f'PARITY FAILED {league}.{market}.{col}')
+                    return (_py_r1000_NONE, None)
 
-    prod_settings = (
-        prod_juice.LEAGUE_SETTINGS[
-            league_upper
-        ]
-    )
+                def _py_r1000_loop_9():
+                    nonlocal game_date, mode, picks, preference, sel, sides
 
-    for key in (
-        "ML_EDGE",
-        "SPREAD_EDGE",
-        "TOTAL_EDGE",
-        "SPREAD_STD",
-        "TOTAL_STD",
-    ):
-        if not math.isclose(
-            float(
-                settings[
-                    league
-                ][key]
-            ),
-            float(
-                prod_settings[key]
-            ),
-            abs_tol=1e-12,
-        ):
-            raise AssertionError(
-                f"PARITY FAILED {league}: "
-                f"setting {key} "
-                "backtest="
-                f"{settings[league][key]} "
-                "production="
-                f"{prod_settings[key]}"
-            )
-
-    back_frames = {
-        "moneyline": (
-            process_moneyline_ev(
-                process_moneyline_juice(
-                    sample,
-                    settings[league],
-                )
-            )
-        ),
-        "spread": (
-            process_spread_ev(
-                process_spread_juice(
-                    sample,
-                    settings[league],
-                )
-            )
-        ),
-        "total": (
-            process_total_ev(
-                process_total_juice(
-                    sample,
-                    settings[league],
-                )
-            )
-        ),
-    }
-
-    with tempfile.TemporaryDirectory(
-        prefix="basketball_parity_",
-    ) as tmp:
-        prod_juice.OUTPUT_DIR = (
-            Path(tmp)
-            / "juice"
-        )
-
-        for market_dir in MARKETS:
-            (
-                prod_juice.OUTPUT_DIR
-                / league
-                / market_dir
-            ).mkdir(
-                parents=True,
-                exist_ok=True,
-            )
-
-        back_selected_parts = []
-        prod_selected_parts = []
-
-        for market in MARKETS:
-            if market == "moneyline":
-                (
-                    out_path,
-                    _,
-                ) = prod_juice.process_moneyline(
-                    sample.copy(),
-                    "2000_01_01",
-                    league_upper,
-                    prod_settings,
-                    league,
-                )
-
-                juice_df = pd.read_csv(
-                    out_path,
-                    dtype={
-                        "game_id": str
-                    },
-                )
-
-                prod_frame = (
-                    prod_ev.process_moneyline(
-                        juice_df
-                    )
-                )
-
-                prob_cols = [
-                    "home_model_prob",
-                    "away_model_prob",
-                ]
-
-            elif market == "spread":
-                (
-                    out_path,
-                    _,
-                ) = prod_juice.process_spread(
-                    sample.copy(),
-                    "2000_01_01",
-                    league_upper,
-                    prod_settings,
-                    league,
-                )
-
-                juice_df = pd.read_csv(
-                    out_path,
-                    dtype={
-                        "game_id": str
-                    },
-                )
-
-                prod_frame = (
-                    prod_ev.process_spread(
-                        juice_df
-                    )
-                )
-
-                prob_cols = [
-                    "home_spread_model_prob",
-                    "away_spread_model_prob",
-                ]
-
-            else:
-                (
-                    out_path,
-                    _,
-                ) = prod_juice.process_totals(
-                    sample.copy(),
-                    "2000_01_01",
-                    league_upper,
-                    prod_settings,
-                    league,
-                )
-
-                juice_df = pd.read_csv(
-                    out_path,
-                    dtype={
-                        "game_id": str
-                    },
-                )
-
-                prod_frame = (
-                    prod_ev.process_total(
-                        juice_df
-                    )
-                )
-
-                prob_cols = [
-                    "over_model_prob",
-                    "under_model_prob",
-                ]
-
-            back = back_frames[market]
-
-            for col in prob_cols:
-                a = pd.to_numeric(
-                    back[col],
-                    errors="coerce",
-                ).to_numpy(float)
-
-                b = pd.to_numeric(
-                    prod_frame[col],
-                    errors="coerce",
-                ).to_numpy(float)
-
-                if not np.allclose(
-                    a,
-                    b,
-                    rtol=0.0,
-                    atol=1e-12,
-                    equal_nan=True,
-                ):
-                    raise AssertionError(
-                        "PARITY FAILED "
-                        f"{league}.{market}."
-                        f"{col}"
-                    )
-
-            back_selected = (
-                select_bets_for_market(
-                    back,
-                    league,
-                    market,
-                    production_filter_cfg,
-                    settings,
-                )
-            )
-
-            prod_cfg = (
-                prod_select.market_cfg(
-                    league,
-                    market,
-                )
-            )
-
-            prod_rows = []
-
-            for _, row in prod_frame.iterrows():
-                game_date = row.get(
-                    "game_date"
-                )
-
-                sides = (
-                    prod_select
-                    .SIDE_BUILDERS[
-                        market
-                    ](
-                        row,
-                        league,
-                        game_date,
-                        prod_cfg,
-                    )
-                )
-
-                if not sides:
-                    continue
-
-                mode = prod_cfg.get(
-                    "selection_mode",
-                    "pick_one",
-                )
-
-                preference = (
-                    prod_cfg.get(
-                        "pick_preference",
-                        {
-                            "metric": "ev",
-                            "direction": "max",
-                        },
-                    )
-                )
-
-                if mode == "all_qualifying":
-                    picks = sides
+                    def _py_r1000_loop_10():
+                        if sel is None:
+                            return (_py_r1000_CONTINUE, None)
+                        prod_rows.append({'game_id': row.get('game_id', ''), 'market_type': market, 'bet_side': sel['side'], 'bet_ev': sel.get('ev'), 'bet_kelly': sel.get('kelly'), 'bet_edge_vs_market': sel.get('edge_vs_market')})
+                        return (_py_r1000_NONE, None)
+                    game_date = row.get('game_date')
+                    sides = prod_select.SIDE_BUILDERS[market](row, league, game_date, prod_cfg)
+                    if not sides:
+                        return (_py_r1000_CONTINUE, None)
+                    mode = prod_cfg.get('selection_mode', 'pick_one')
+                    preference = prod_cfg.get('pick_preference', {'metric': 'ev', 'direction': 'max'})
+                    if mode == 'all_qualifying':
+                        picks = sides
+                    else:
+                        picks = [prod_select.pick(sides, preference)]
+                    for sel in picks:
+                        _py_r1000_result_11 = _py_r1000_loop_10()
+                        if _py_r1000_result_11[0] == _py_r1000_RETURN:
+                            return _py_r1000_result_11
+                        if _py_r1000_result_11[0] == _py_r1000_BREAK:
+                            break
+                        if _py_r1000_result_11[0] == _py_r1000_CONTINUE:
+                            continue
+                    return (_py_r1000_NONE, None)
+                if market == 'moneyline':
+                    out_path, _ = prod_juice.process_moneyline(sample.copy(), '2000_01_01', league_upper, prod_settings, league)
+                    juice_df = pd.read_csv(out_path, dtype={'game_id': str})
+                    prod_frame = prod_ev.process_moneyline(juice_df)
+                    prob_cols = ['home_model_prob', 'away_model_prob']
                 else:
-                    picks = [
-                        prod_select.pick(
-                            sides,
-                            preference,
-                        )
-                    ]
-
-                for sel in picks:
-                    if sel is None:
+                    _py_r1000_result_6 = _py_r1000_else_5()
+                    if _py_r1000_result_6[0] != _py_r1000_NONE:
+                        return _py_r1000_result_6
+                back = back_frames[market]
+                for col in prob_cols:
+                    _py_r1000_result_8 = _py_r1000_loop_7()
+                    if _py_r1000_result_8[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_8
+                    if _py_r1000_result_8[0] == _py_r1000_BREAK:
+                        break
+                    if _py_r1000_result_8[0] == _py_r1000_CONTINUE:
                         continue
+                back_selected = select_bets_for_market(back, league, market, production_filter_cfg, settings)
+                prod_cfg = prod_select.market_cfg(league, market)
+                prod_rows = []
+                for _, row in prod_frame.iterrows():
+                    _py_r1000_result_12 = _py_r1000_loop_9()
+                    if _py_r1000_result_12[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_12
+                    if _py_r1000_result_12[0] == _py_r1000_BREAK:
+                        break
+                    if _py_r1000_result_12[0] == _py_r1000_CONTINUE:
+                        continue
+                prod_selected = pd.DataFrame(prod_rows)
 
-                    prod_rows.append({
-                        "game_id": row.get(
-                            "game_id",
-                            "",
-                        ),
-                        "market_type": market,
-                        "bet_side": sel[
-                            "side"
-                        ],
-                        "bet_ev": sel.get(
-                            "ev"
-                        ),
-                        "bet_kelly": sel.get(
-                            "kelly"
-                        ),
-                        "bet_edge_vs_market": sel.get(
-                            "edge_vs_market"
-                        ),
-                    })
-
-            prod_selected = pd.DataFrame(
-                prod_rows
-            )
-
-            def keys(
-                frame: pd.DataFrame,
-            ):
-                if frame.empty:
-                    return set()
-
-                return {
-                    (
-                        str(
-                            r.get(
-                                "game_id",
-                                "",
-                            )
-                        ).strip(),
-                        str(
-                            r.get(
-                                "market_type",
-                                "",
-                            )
-                        ).lower(),
-                        str(
-                            r.get(
-                                "bet_side",
-                                "",
-                            )
-                        ).lower(),
-                    )
-                    for _, r
-                    in frame.iterrows()
-                }
-
-            back_keys = keys(
-                back_selected
-            )
-
-            prod_keys = keys(
-                prod_selected
-            )
-
-            if back_keys != prod_keys:
-                raise AssertionError(
-                    "PARITY FAILED "
-                    f"{league}.{market}."
-                    "selection | "
-                    f"backtest={sorted(back_keys)} | "
-                    f"production={sorted(prod_keys)}"
-                )
-
-            if not back_selected.empty:
-                back_selected_parts.append(
-                    back_selected
-                )
-
-            if not prod_selected.empty:
-                prod_selected_parts.append(
-                    prod_selected
-                )
-
-        back_combined = (
-            pd.concat(
-                back_selected_parts,
-                ignore_index=True,
-            )
-            if back_selected_parts
-            else pd.DataFrame()
-        )
-
-        prod_combined = (
-            pd.concat(
-                prod_selected_parts,
-                ignore_index=True,
-            )
-            if prod_selected_parts
-            else pd.DataFrame()
-        )
-
-        back_reconciled, _ = (
-            reconcile_ml_vs_spread(
-                back_combined,
-                production_filter_cfg,
-            )
-        )
-
-        prod_reconciled, _ = (
-            reconcile_ml_vs_spread(
-                prod_combined,
-                production_filter_cfg,
-            )
-        )
-
-        if keys(back_reconciled) != keys(
-            prod_reconciled
-        ):
-            raise AssertionError(
-                "PARITY FAILED "
-                f"{league}.ml_vs_spread."
-                "reconciliation | "
-                "backtest="
-                f"{sorted(keys(back_reconciled))} | "
-                "production="
-                f"{sorted(keys(prod_reconciled))}"
-            )
-
-    logger.log(
-        "PARITY PASS | "
-        f"{league.upper()} | "
-        f"rows={len(sample)}"
-    )
+                def keys(frame: pd.DataFrame):
+                    if frame.empty:
+                        return set()
+                    return {(str(r.get('game_id', '')).strip(), str(r.get('market_type', '')).lower(), str(r.get('bet_side', '')).lower()) for _, r in frame.iterrows()}
+                back_keys = keys(back_selected)
+                prod_keys = keys(prod_selected)
+                if back_keys != prod_keys:
+                    raise AssertionError(f'PARITY FAILED {league}.{market}.selection | backtest={sorted(back_keys)} | production={sorted(prod_keys)}')
+                if not back_selected.empty:
+                    back_selected_parts.append(back_selected)
+                if not prod_selected.empty:
+                    prod_selected_parts.append(prod_selected)
+                return (_py_r1000_NONE, None)
+            prod_juice.OUTPUT_DIR = Path(tmp) / 'juice'
+            for market_dir in MARKETS:
+                (prod_juice.OUTPUT_DIR / league / market_dir).mkdir(parents=True, exist_ok=True)
+            back_selected_parts = []
+            prod_selected_parts = []
+            for market in MARKETS:
+                _py_r1000_result_13 = _py_r1000_loop_4()
+                if _py_r1000_result_13[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_13
+                if _py_r1000_result_13[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_13[0] == _py_r1000_CONTINUE:
+                    continue
+            back_combined = pd.concat(back_selected_parts, ignore_index=True) if back_selected_parts else pd.DataFrame()
+            prod_combined = pd.concat(prod_selected_parts, ignore_index=True) if prod_selected_parts else pd.DataFrame()
+            back_reconciled, _ = reconcile_ml_vs_spread(back_combined, production_filter_cfg)
+            prod_reconciled, _ = reconcile_ml_vs_spread(prod_combined, production_filter_cfg)
+            if keys(back_reconciled) != keys(prod_reconciled):
+                raise AssertionError(f'PARITY FAILED {league}.ml_vs_spread.reconciliation | backtest={sorted(keys(back_reconciled))} | production={sorted(keys(prod_reconciled))}')
+            return (_py_r1000_NONE, None)
+        import numpy as np
+        sample = feature_df.head(max(1, int(parity_rows))).copy().reset_index(drop=True)
+        if sample.empty:
+            raise AssertionError(f'PARITY FAILED {league}: no rows available')
+        prod_juice = load_module_from_path(f'parity_build_juice_{league}', PRODUCTION_BUILD_JUICE)
+        prod_ev = load_module_from_path(f'parity_ev_kelly_{league}', PRODUCTION_EV_KELLY)
+        prod_select = load_module_from_path(f'parity_select_{league}', PRODUCTION_SELECT)
+        league_upper = league.upper()
+        prod_settings = prod_juice.LEAGUE_SETTINGS[league_upper]
+        for key in ('ML_EDGE', 'SPREAD_EDGE', 'TOTAL_EDGE', 'SPREAD_STD', 'TOTAL_STD'):
+            _py_r1000_result_2 = _py_r1000_loop_1()
+            if _py_r1000_result_2[0] == _py_r1000_RETURN:
+                return _py_r1000_result_2
+            if _py_r1000_result_2[0] == _py_r1000_BREAK:
+                break
+            if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
+                continue
+        back_frames = {'moneyline': process_moneyline_ev(process_moneyline_juice(sample, settings[league])), 'spread': process_spread_ev(process_spread_juice(sample, settings[league])), 'total': process_total_ev(process_total_juice(sample, settings[league]))}
+        with tempfile.TemporaryDirectory(prefix='basketball_parity_') as tmp:
+            _py_r1000_result_14 = _py_r1000_with_3()
+            if _py_r1000_result_14[0] != _py_r1000_NONE:
+                return _py_r1000_result_14
+        logger.log(f'PARITY PASS | {league.upper()} | rows={len(sample)}')
+        return (_py_r1000_NONE, None)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 def process_historical_file(
@@ -5265,442 +4757,239 @@ def parse_args():
 
 
 def main():
-    args = parse_args()
-
-    backtest_dir = Path(
-        args.backtest_dir
-    )
-
-    input_dir = (
-        backtest_dir
-        / "input"
-    )
-
-    configs_dir = (
-        backtest_dir
-        / "configs"
-    )
-
-    working_dir = (
-        backtest_dir
-        / "working"
-    )
-
-    selections_dir = (
-        backtest_dir
-        / "selections"
-    )
-
-    graded_dir = (
-        backtest_dir
-        / "graded"
-    )
-
-    reports_dir = (
-        backtest_dir
-        / "reports"
-    )
-
-    runs_dir = (
-        backtest_dir
-        / "runs"
-    )
-
-    model_config_path = Path(
-        args.model_config
-    )
-
-    production_markets_path = Path(
-        args.markets_config
-    )
-
-    filter_config_path = (
-        configs_dir
-        / "markets_test.yaml"
-    )
-
-    for folder in (
-        input_dir,
-        configs_dir,
-        working_dir,
-        selections_dir,
-        graded_dir,
-        reports_dir,
-        runs_dir,
-    ):
-        folder.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-    run_id = (
-        sanitize_run_name(
-            args.run_name
-        )
-        if args.run_name
-        else timestamp_id()
-    )
-
-    run_dir = (
-        runs_dir
-        / run_id
-    )
-
-    if run_dir.exists():
-        raise FileExistsError(
-            "Run snapshot already exists: "
-            f"{run_dir}"
-        )
-
-    clear_directory_contents(
-        working_dir
-    )
-
-    clear_directory_contents(
-        selections_dir
-    )
-
-    clear_directory_contents(
-        graded_dir
-    )
-
-    clear_directory_contents(
-        reports_dir
-    )
-
-    logger = RunLogger(
-        reports_dir
-        / "basketball_backtest.txt"
-    )
-
-    logger.log(
-        f"run_id={run_id}"
-    )
-
-    logger.log(
-        f"backtest_dir={backtest_dir}"
-    )
-
-    logger.log(
-        "model_config="
-        f"{model_config_path}"
-    )
-
-    logger.log(
-        "filter_config="
-        f"{filter_config_path}"
-    )
-
-    logger.log(
-        "production_markets_config="
-        f"{production_markets_path}"
-    )
-    logger.log(f"staking_config={DEFAULT_STAKING_CONFIG}")
-
-    model_cfg = read_yaml(
-        model_config_path
-    )
-
-    filter_cfg = read_yaml(
-        filter_config_path
-    )
-
-    production_markets_cfg = (
-        read_yaml(
-            production_markets_path
-        )
-    )
-
-    model_source = resolve_model_source(
-        model_cfg,
-        args.model_source,
-    )
-
-    logger.log(
-        f"model_source={model_source}"
-    )
-
-    production_filter_cfg = (
-        apply_production_selection_policy(
-            production_markets_cfg,
-            production_markets_cfg,
-        )
-    )
-
-    filter_cfg = (
-        apply_production_selection_policy(
-            filter_cfg,
-            production_markets_cfg,
-        )
-    )
-
-    settings = build_league_settings(
-        model_cfg
-    )
-
-    config_warnings = (
-        collect_config_warnings(
-            filter_cfg
-        )
-    )
-
-    for warning in config_warnings:
-        logger.log(
-            warning,
-            "WARN",
-        )
-
-    input_files = []
-
-    for league in LEAGUES:
-        files = sorted(
-            input_dir.glob(
-                f"*_{league.upper()}.csv"
-            )
-        )
-
-        if not files:
-            raise FileNotFoundError(
-                "No historical input files "
-                f"found for {league.upper()} "
-                f"in {input_dir}"
-            )
-
-        for path in files:
-            season_from_input_filename(
-                path,
-                league,
-            )
-
-        input_files.extend(files)
-
-    all_selections = []
-    all_graded = []
-    total_rows = 0
-
-    for league in LEAGUES:
-        history_state = {
-            "margin_errors": [],
-            "total_errors": [],
-        }
-
-        paths = sorted(
-            input_dir.glob(
-                f"*_{league.upper()}.csv"
-            ),
-            key=lambda p: (
-                season_from_input_filename(
-                    p,
-                    league,
-                ),
-                p.name,
-            ),
-        )
-
-        for path in paths:
-            (
-                selections,
-                graded,
-                row_count,
-            ) = process_historical_file(
-                path,
-                league,
-                settings,
-                filter_cfg,
-                production_filter_cfg,
-                model_cfg,
-                model_source,
-                history_state,
-                working_dir,
-                selections_dir,
-                graded_dir,
-                args.parity_rows,
-                logger,
-            )
-
-            total_rows += row_count
-
-            if not selections.empty:
-                all_selections.append(
-                    selections
-                )
-
-            if not graded.empty:
-                all_graded.append(
-                    graded
-                )
-
-    if all_selections:
-        combined_selected = pd.concat(
-            all_selections,
-            ignore_index=True,
-        )
-    else:
-        combined_selected = (
-            pd.DataFrame()
-        )
-
-    if all_graded:
-        combined_graded = pd.concat(
-            all_graded,
-            ignore_index=True,
-        )
-    else:
-        combined_graded = (
-            pd.DataFrame()
-        )
-
-    # Keep every selection produced by the configured selection rules.
-    # Stake suggestions are informational and never remove a selected row.
-    atomic_write_csv(
-        combined_selected,
-        selections_dir
-        / "all_selected.csv",
-    )
-
-    atomic_write_csv(
-        combined_graded,
-        graded_dir
-        / "all_graded.csv",
-    )
-    logger.log(f"selection rows retained without exposure filtering: {len(combined_selected)}")
-
-    reports = build_reports(
-        combined_graded,
-        reports_dir,
-    )
-
-    write_manifest(
-        reports_dir
-        / "run_manifest.yaml",
-        run_id,
-        model_config_path,
-        filter_config_path,
-        production_markets_path,
-        model_source,
-        input_files,
-        settings,
-        config_warnings,
-        total_rows,
-        len(combined_selected),
-        len(combined_graded),
-    )
-
-    logger.log(
-        "--- FINAL SUMMARY ---"
-    )
-
-    logger.log(
-        f"historical_rows={total_rows}"
-    )
-
-    logger.log(
-        "selected_bets="
-        f"{len(combined_selected)}"
-    )
-
-    logger.log(
-        "graded_bets="
-        f"{len(combined_graded)}"
-    )
-
-    if not reports[
-        "overall"
-    ].empty:
-        row = reports[
-            "overall"
-        ].iloc[0]
-
-        roi = row["roi_units"]
-
-        if pd.notna(roi):
-            logger.log(
-                "W/L/P/U="
-                f"{int(row['wins'])}/"
-                f"{int(row['losses'])}/"
-                f"{int(row['pushes'])}/"
-                f"{int(row['unknown'])} "
-                "profit_units="
-                f"{float(row['profit_units']):+.4f} "
-                "roi_units="
-                f"{float(roi):+.4%}"
-            )
-        else:
-            logger.log(
-                "W/L/P/U="
-                f"{int(row['wins'])}/"
-                f"{int(row['losses'])}/"
-                f"{int(row['pushes'])}/"
-                f"{int(row['unknown'])} "
-                "profit_units="
-                f"{float(row['profit_units']):+.4f} "
-                "roi_units=N/A"
-            )
-
-    logger.log(
-        f"run_snapshot={run_dir}"
-    )
-
-    logger.log(
-        "STATUS: SUCCESS"
-    )
-
-    run_dir.mkdir(
-        parents=True,
-        exist_ok=False,
-    )
-
-    shutil.copy2(
-        filter_config_path,
-        run_dir
-        / "markets_test.yaml",
-    )
-
-    shutil.copy2(
-        production_markets_path,
-        run_dir
-        / "markets.yaml",
-    )
-
-    shutil.copy2(
-        model_config_path,
-        run_dir
-        / "model_config.yaml",
-    )
-    shutil.copy2(
-        DEFAULT_STAKING_CONFIG,
-        run_dir
-        / "staking.yaml",
-    )
-
-    copy_tree_contents(
-        reports_dir,
-        run_dir
-        / "reports",
-    )
-
-    copy_tree_contents(
-        selections_dir,
-        run_dir
-        / "selections",
-    )
-
-    copy_tree_contents(
-        graded_dir,
-        run_dir
-        / "graded",
-    )
-
-    append_run_index(
-        runs_dir
-        / "index.csv",
-        run_id,
-        reports["overall"],
-    )
-
-    print(
-        "basketball_backtest complete."
-    )
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
+
+    def _py_r1000_impl():
+        all_graded: object
+        all_selections: object
+        args: object
+        backtest_dir: object
+        combined_graded: object
+        combined_selected: object
+        config_warnings: object
+        configs_dir: object
+        files: object
+        filter_cfg: object
+        filter_config_path: object
+        folder: object
+        graded: object
+        graded_dir: object
+        history_state: object
+        input_dir: object
+        input_files: object
+        league: object
+        logger: object
+        model_cfg: object
+        model_config_path: object
+        model_source: object
+        path: object
+        paths: object
+        production_filter_cfg: object
+        production_markets_cfg: object
+        production_markets_path: object
+        reports: object
+        reports_dir: object
+        roi: object
+        row: object
+        row_count: object
+        run_dir: object
+        run_id: object
+        runs_dir: object
+        selections: object
+        selections_dir: object
+        settings: object
+        total_rows: object
+        warning: object
+        working_dir: object
+
+        def _py_r1000_loop_1():
+            nonlocal files, path
+            files = sorted(input_dir.glob(f'*_{league.upper()}.csv'))
+            if not files:
+                raise FileNotFoundError(f'No historical input files found for {league.upper()} in {input_dir}')
+            for path in files:
+                season_from_input_filename(path, league)
+            input_files.extend(files)
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_loop_3():
+            nonlocal graded, history_state, path, paths, row_count, selections, total_rows
+
+            def _py_r1000_loop_4():
+                nonlocal graded, row_count, selections, total_rows
+                selections, graded, row_count = process_historical_file(path, league, settings, filter_cfg, production_filter_cfg, model_cfg, model_source, history_state, working_dir, selections_dir, graded_dir, args.parity_rows, logger)
+                total_rows += row_count
+                if not selections.empty:
+                    all_selections.append(selections)
+                if not graded.empty:
+                    all_graded.append(graded)
+                return (_py_r1000_NONE, None)
+            history_state = {'margin_errors': [], 'total_errors': []}
+            paths = sorted(input_dir.glob(f'*_{league.upper()}.csv'), key=lambda p: (season_from_input_filename(p, league), p.name))
+            for path in paths:
+                _py_r1000_result_5 = _py_r1000_loop_4()
+                if _py_r1000_result_5[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_5
+                if _py_r1000_result_5[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_5[0] == _py_r1000_CONTINUE:
+                    continue
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_if_7():
+            nonlocal roi, row
+            row = reports['overall'].iloc[0]
+            roi = row['roi_units']
+            if pd.notna(roi):
+                logger.log(f"W/L/P/U={int(row['wins'])}/{int(row['losses'])}/{int(row['pushes'])}/{int(row['unknown'])} profit_units={float(row['profit_units']):+.4f} roi_units={float(roi):+.4%}")
+            else:
+                logger.log(f"W/L/P/U={int(row['wins'])}/{int(row['losses'])}/{int(row['pushes'])}/{int(row['unknown'])} profit_units={float(row['profit_units']):+.4f} roi_units=N/A")
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_chunk_9():
+            nonlocal args, backtest_dir, config_warnings, configs_dir, filter_cfg, filter_config_path, folder, graded_dir, input_dir, input_files, logger, model_cfg, model_config_path, model_source, production_filter_cfg, production_markets_cfg, production_markets_path, reports_dir, run_dir, run_id, runs_dir, selections_dir, settings, warning, working_dir
+            args = parse_args()
+            backtest_dir = Path(args.backtest_dir)
+            input_dir = backtest_dir / 'input'
+            configs_dir = backtest_dir / 'configs'
+            working_dir = backtest_dir / 'working'
+            selections_dir = backtest_dir / 'selections'
+            graded_dir = backtest_dir / 'graded'
+            reports_dir = backtest_dir / 'reports'
+            runs_dir = backtest_dir / 'runs'
+            model_config_path = Path(args.model_config)
+            production_markets_path = Path(args.markets_config)
+            filter_config_path = configs_dir / 'markets_test.yaml'
+            for folder in (input_dir, configs_dir, working_dir, selections_dir, graded_dir, reports_dir, runs_dir):
+                folder.mkdir(parents=True, exist_ok=True)
+            run_id = sanitize_run_name(args.run_name) if args.run_name else timestamp_id()
+            run_dir = runs_dir / run_id
+            if run_dir.exists():
+                raise FileExistsError(f'Run snapshot already exists: {run_dir}')
+            clear_directory_contents(working_dir)
+            clear_directory_contents(selections_dir)
+            clear_directory_contents(graded_dir)
+            clear_directory_contents(reports_dir)
+            logger = RunLogger(reports_dir / 'basketball_backtest.txt')
+            logger.log(f'run_id={run_id}')
+            logger.log(f'backtest_dir={backtest_dir}')
+            logger.log(f'model_config={model_config_path}')
+            logger.log(f'filter_config={filter_config_path}')
+            logger.log(f'production_markets_config={production_markets_path}')
+            logger.log(f'staking_config={DEFAULT_STAKING_CONFIG}')
+            model_cfg = read_yaml(model_config_path)
+            filter_cfg = read_yaml(filter_config_path)
+            production_markets_cfg = read_yaml(production_markets_path)
+            model_source = resolve_model_source(model_cfg, args.model_source)
+            logger.log(f'model_source={model_source}')
+            production_filter_cfg = apply_production_selection_policy(production_markets_cfg, production_markets_cfg)
+            filter_cfg = apply_production_selection_policy(filter_cfg, production_markets_cfg)
+            settings = build_league_settings(model_cfg)
+            config_warnings = collect_config_warnings(filter_cfg)
+            for warning in config_warnings:
+                logger.log(warning, 'WARN')
+            input_files = []
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_chunk_10():
+            nonlocal all_graded, all_selections, league, total_rows
+
+            def _py_r1000_loop_11():
+                _py_r1000_result_2 = _py_r1000_loop_1()
+                if _py_r1000_result_2[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_2
+                if _py_r1000_result_2[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_2[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            for league in LEAGUES:
+                _py_r1000_result_12 = _py_r1000_loop_11()
+                if _py_r1000_result_12[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_12
+                if _py_r1000_result_12[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_12[0] == _py_r1000_CONTINUE:
+                    continue
+            all_selections = []
+            all_graded = []
+            total_rows = 0
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_chunk_13():
+            nonlocal combined_graded, combined_selected, league, reports
+
+            def _py_r1000_loop_14():
+                _py_r1000_result_6 = _py_r1000_loop_3()
+                if _py_r1000_result_6[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_6
+                if _py_r1000_result_6[0] == _py_r1000_BREAK:
+                    return (_py_r1000_BREAK, None)
+                if _py_r1000_result_6[0] == _py_r1000_CONTINUE:
+                    return (_py_r1000_CONTINUE, None)
+                return (_py_r1000_NONE, None)
+            for league in LEAGUES:
+                _py_r1000_result_15 = _py_r1000_loop_14()
+                if _py_r1000_result_15[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_15
+                if _py_r1000_result_15[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_15[0] == _py_r1000_CONTINUE:
+                    continue
+            if all_selections:
+                combined_selected = pd.concat(all_selections, ignore_index=True)
+            else:
+                combined_selected = pd.DataFrame()
+            if all_graded:
+                combined_graded = pd.concat(all_graded, ignore_index=True)
+            else:
+                combined_graded = pd.DataFrame()
+            atomic_write_csv(combined_selected, selections_dir / 'all_selected.csv')
+            atomic_write_csv(combined_graded, graded_dir / 'all_graded.csv')
+            logger.log(f'selection rows retained without exposure filtering: {len(combined_selected)}')
+            reports = build_reports(combined_graded, reports_dir)
+            write_manifest(reports_dir / 'run_manifest.yaml', run_id, model_config_path, filter_config_path, production_markets_path, model_source, input_files, settings, config_warnings, total_rows, len(combined_selected), len(combined_graded))
+            logger.log('--- FINAL SUMMARY ---')
+            logger.log(f'historical_rows={total_rows}')
+            logger.log(f'selected_bets={len(combined_selected)}')
+            logger.log(f'graded_bets={len(combined_graded)}')
+            return (_py_r1000_NONE, None)
+
+        def _py_r1000_chunk_16():
+
+            def _py_r1000_if_17():
+                _py_r1000_result_8 = _py_r1000_if_7()
+                if _py_r1000_result_8[0] != _py_r1000_NONE:
+                    return _py_r1000_result_8
+                return (_py_r1000_NONE, None)
+            if not reports['overall'].empty:
+                _py_r1000_result_18 = _py_r1000_if_17()
+                if _py_r1000_result_18[0] != _py_r1000_NONE:
+                    return _py_r1000_result_18
+            logger.log(f'run_snapshot={run_dir}')
+            logger.log('STATUS: SUCCESS')
+            run_dir.mkdir(parents=True, exist_ok=False)
+            shutil.copy2(filter_config_path, run_dir / 'markets_test.yaml')
+            shutil.copy2(production_markets_path, run_dir / 'markets.yaml')
+            shutil.copy2(model_config_path, run_dir / 'model_config.yaml')
+            shutil.copy2(DEFAULT_STAKING_CONFIG, run_dir / 'staking.yaml')
+            copy_tree_contents(reports_dir, run_dir / 'reports')
+            copy_tree_contents(selections_dir, run_dir / 'selections')
+            copy_tree_contents(graded_dir, run_dir / 'graded')
+            append_run_index(runs_dir / 'index.csv', run_id, reports['overall'])
+            print('basketball_backtest complete.')
+            return (_py_r1000_NONE, None)
+        for _py_r1000_block_19 in (_py_r1000_chunk_9, _py_r1000_chunk_10, _py_r1000_chunk_13, _py_r1000_chunk_16):
+            _py_r1000_result_20 = _py_r1000_block_19()
+            if _py_r1000_result_20[0] != _py_r1000_NONE:
+                return _py_r1000_result_20
+        return (_py_r1000_NONE, None)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 if __name__ == "__main__":
