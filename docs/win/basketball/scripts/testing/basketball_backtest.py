@@ -4828,7 +4828,7 @@ def main():
                     all_graded.append(graded)
                 return (_py_r1000_NONE, None)
             history_state = {'margin_errors': [], 'total_errors': []}
-            paths = sorted(input_dir.glob(f'*_{league.upper()}.csv'), key=lambda p: (season_from_input_filename(p, league), p.name))
+            paths = sorted(input_dir.glob(f'*_{league.upper()}.csv'), key=lambda p, league=league: (season_from_input_filename(p, league), p.name))
             for path in paths:
                 _py_r1000_result_5 = _py_r1000_loop_4()
                 if _py_r1000_result_5[0] == _py_r1000_RETURN:
