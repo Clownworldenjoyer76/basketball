@@ -620,505 +620,311 @@ def build_base(
 
 
 def main() -> None:
-    with open(
-        LOG_FILE,
-        "w",
-        encoding="utf-8",
-    ) as f:
-        f.write(
-            f"=== merge_intake RUN "
-            f"{datetime.now().isoformat()} ===\n"
-        )
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    files_written = 0
-    total_merged = 0
-    total_missing = 0
-    slates_skipped = 0
-    errors = 0
+    def _py_r1000_impl():
+        b: object
+        base: object
+        book_by_comp: object
+        book_by_id: object
+        book_dir: object
+        book_file: object
+        book_gid: object
+        book_rows: object
+        by_comp_matches: object
+        by_id_matches: object
+        coverage_rows: object
+        current_date: object
+        current_live: object
+        current_pred: object
+        date: object
+        errors: object
+        exc: object
+        f: object
+        files_written: object
+        full_rebuild: object
+        identity_mismatches: object
+        league: object
+        league_upper: object
+        market: object
+        matched: object
+        missing: object
+        ml_path: object
+        ml_rows: object
+        now: object
+        p: object
+        p_gid: object
+        path: object
+        pct: object
+        pred_dir: object
+        pred_file: object
+        pred_files: object
+        pred_rows: object
+        season_config: object
+        slates_skipped: object
+        spread_path: object
+        spread_rows: object
+        status: object
+        total_merged: object
+        total_missing: object
+        total_path: object
+        total_rows: object
+        upper: object
 
-    coverage_rows: list[dict] = []
+        def _py_r1000_try_1():
+            nonlocal b, base, book_by_comp, book_by_id, book_dir, book_file, book_gid, book_rows, by_comp_matches, by_id_matches, current_live, current_pred, date, errors, files_written, identity_mismatches, league, league_upper, market, matched, missing, ml_path, ml_rows, p, p_gid, path, pct, pred_dir, pred_file, pred_files, pred_rows, season_config, slates_skipped, spread_path, spread_rows, status, total_merged, total_missing, total_path, total_rows, upper
 
-    now = datetime.now(NY)
-    current_date = now.strftime(
-        "%Y_%m_%d"
-    )
+            def _py_r1000_else_2():
+                nonlocal league, market, path, upper
 
-    full_rebuild = truthy(
-        os.getenv(
-            "BASKETBALL_FULL_REBUILD"
-        )
-    )
-
-    try:
-        season_config = load_season_config()
-
-        log(
-            "SEASON CONFIG | "
-            f"file={SEASON_CONFIG}"
-        )
-
-        if full_rebuild:
-            wipe_outputs()
-
-        else:
-            for league in LEAGUES:
-                upper = league.upper()
-
-                for market in [
-                    "moneyline",
-                    "spread",
-                    "total",
-                ]:
-                    path = (
-                        MERGE_DIR
-                        / league
-                        / market
-                        / f"{current_date}_{upper}_{market}.csv"
-                    )
-
-                    path.unlink(
-                        missing_ok=True
-                    )
-
-            log(
-                f"Incremental mode: rebuilding only "
-                f"{current_date}; historical merge outputs preserved."
-            )
-
-        for league in LEAGUES:
-            league_upper = league.upper()
-
-            pred_dir = (
-                PREDICTIONS_DIR
-                / league
-            )
-
-            book_dir = (
-                SPORTSBOOK_DIR
-                / league
-            )
-
-            if not pred_dir.exists():
-                log(
-                    f"PREDICTIONS DIR NOT FOUND: {pred_dir}"
-                )
-                continue
-
-            if full_rebuild:
-                pred_files = sorted(
-                    pred_dir.glob(
-                        f"*_{league_upper}_predictions.csv"
-                    )
-                )
-
-            else:
-                current_pred = (
-                    pred_dir
-                    / f"{current_date}_{league_upper}_predictions.csv"
-                )
-
-                pred_files = (
-                    [current_pred]
-                    if current_pred.exists()
-                    else []
-                )
-
-            if not pred_files:
-                log(
-                    f"NO PREDICTION FILES: {pred_dir}"
-                )
-                continue
-
-            for pred_file in pred_files:
-                date = pred_file.stem.replace(
-                    f"_{league_upper}_predictions",
-                    "",
-                )
-
-                book_file = (
-                    book_dir
-                    / f"{date}_{league_upper}_odds.csv"
-                )
-
-                current_live = (
-                    date == current_date
-                    and in_season(
-                        league,
-                        now,
-                        season_config,
-                    )
-                )
-
-                pred_rows = load_rows(
-                    pred_file
-                )
-
-                if not pred_rows:
-                    log(
-                        f"EMPTY PREDICTIONS: {pred_file} — skipping"
-                    )
-                    slates_skipped += 1
-                    continue
-
-                if not book_file.exists():
-                    log(
-                        f"NO SPORTSBOOK FILE: {book_file} — skipping"
-                    )
-
-                    slates_skipped += 1
-
-                    coverage_rows.append({
-                        "league": league_upper,
-                        "game_date": date,
-                        "prediction_rows": len(pred_rows),
-                        "sportsbook_rows": 0,
-                        "matched_rows": 0,
-                        "missing_matches": len(pred_rows),
-                        "match_by_game_id": 0,
-                        "match_by_composite": 0,
-                        "identity_mismatches": 0,
-                        "coverage_pct": 0.0,
-                        "current_in_season": int(current_live),
-                        "status": (
-                            "ERROR"
-                            if current_live
-                            else "SKIPPED"
-                        ),
-                    })
-
-                    if current_live:
-                        errors += 1
-
-                    continue
-
-                book_rows = load_rows(
-                    book_file
-                )
-
-                if not book_rows:
-                    log(
-                        f"EMPTY SPORTSBOOK: {book_file} — skipping"
-                    )
-
-                    slates_skipped += 1
-
-                    if current_live:
-                        errors += 1
-
-                    continue
-
-                (
-                    book_by_id,
-                    book_by_comp,
-                    identity_mismatches,
-                ) = canonicalize_book_rows(
-                    book_rows,
-                    league,
-                    date,
-                )
-
-                ml_rows: list[dict] = []
-                spread_rows: list[dict] = []
-                total_rows: list[dict] = []
-
-                missing = 0
-                by_id_matches = 0
-                by_comp_matches = 0
-
-                for p in pred_rows:
-                    p_gid = clean(
-                        p.get("game_id")
-                    )
-
-                    b = (
-                        book_by_id.get(p_gid)
-                        if p_gid
-                        else None
-                    )
-
-                    if b is not None:
-                        by_id_matches += 1
-
-                    else:
-                        b = book_by_comp.get(
-                            comp_key(p)
-                        )
-
-                        if b is not None:
-                            by_comp_matches += 1
-
-                    if b is None:
-                        missing += 1
-                        total_missing += 1
-
-                        log(
-                            f"MISSING MATCH | "
-                            f"{league_upper} {date} | "
-                            f"{p.get('home_team')} vs "
-                            f"{p.get('away_team')} | "
-                            f"game_id={p_gid}"
-                        )
-
+                def _py_r1000_loop_3():
+                    nonlocal market, path, upper
+                    upper = league.upper()
+                    for market in ['moneyline', 'spread', 'total']:
+                        path = MERGE_DIR / league / market / f'{current_date}_{upper}_{market}.csv'
+                        path.unlink(missing_ok=True)
+                    return (_py_r1000_NONE, None)
+                for league in LEAGUES:
+                    _py_r1000_result_4 = _py_r1000_loop_3()
+                    if _py_r1000_result_4[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_4
+                    if _py_r1000_result_4[0] == _py_r1000_BREAK:
+                        break
+                    if _py_r1000_result_4[0] == _py_r1000_CONTINUE:
                         continue
+                log(f'Incremental mode: rebuilding only {current_date}; historical merge outputs preserved.')
+                return (_py_r1000_NONE, None)
 
-                    book_gid = clean(
-                        b.get("game_id")
-                    )
+            def _py_r1000_loop_6():
+                nonlocal b, base, book_by_comp, book_by_id, book_dir, book_file, book_gid, book_rows, by_comp_matches, by_id_matches, current_live, current_pred, date, errors, files_written, identity_mismatches, league_upper, matched, missing, ml_path, ml_rows, p, p_gid, pct, pred_dir, pred_file, pred_files, pred_rows, slates_skipped, spread_path, spread_rows, status, total_merged, total_missing, total_path, total_rows
 
-                    if (
-                        p_gid
-                        and book_gid
-                        and p_gid != book_gid
-                    ):
-                        identity_mismatches += 1
+                def _py_r1000_else_7():
+                    nonlocal current_pred, pred_files
+                    current_pred = pred_dir / f'{current_date}_{league_upper}_predictions.csv'
+                    pred_files = [current_pred] if current_pred.exists() else []
+                    return (_py_r1000_NONE, None)
 
-                        log(
-                            f"IDENTITY FALLBACK | "
-                            f"{league_upper} {date} | "
-                            f"prediction_id={p_gid} "
-                            f"sportsbook_id={book_gid}"
-                        )
+                def _py_r1000_loop_9():
+                    nonlocal b, base, book_by_comp, book_by_id, book_file, book_gid, book_rows, by_comp_matches, by_id_matches, current_live, date, errors, files_written, identity_mismatches, matched, missing, ml_path, ml_rows, p, p_gid, pct, pred_rows, slates_skipped, spread_path, spread_rows, status, total_merged, total_missing, total_path, total_rows
 
-                    base = build_base(
-                        p,
-                        b,
-                    )
+                    def _py_r1000_if_10():
+                        nonlocal errors, slates_skipped
+                        log(f'NO SPORTSBOOK FILE: {book_file} — skipping')
+                        slates_skipped += 1
+                        coverage_rows.append({'league': league_upper, 'game_date': date, 'prediction_rows': len(pred_rows), 'sportsbook_rows': 0, 'matched_rows': 0, 'missing_matches': len(pred_rows), 'match_by_game_id': 0, 'match_by_composite': 0, 'identity_mismatches': 0, 'coverage_pct': 0.0, 'current_in_season': int(current_live), 'status': 'ERROR' if current_live else 'SKIPPED'})
+                        if current_live:
+                            errors += 1
+                        return (_py_r1000_CONTINUE, None)
 
-                    ml_rows.append({
-                        **base,
-                        "home_dk_moneyline_american": b.get(
-                            "home_dk_moneyline_american",
-                            "",
-                        ),
-                        "away_dk_moneyline_american": b.get(
-                            "away_dk_moneyline_american",
-                            "",
-                        ),
-                        "home_dk_moneyline_decimal": b.get(
-                            "home_dk_moneyline_decimal",
-                            "",
-                        ),
-                        "away_dk_moneyline_decimal": b.get(
-                            "away_dk_moneyline_decimal",
-                            "",
-                        ),
-                    })
+                    def _py_r1000_if_12():
+                        nonlocal errors, slates_skipped
+                        log(f'EMPTY SPORTSBOOK: {book_file} — skipping')
+                        slates_skipped += 1
+                        if current_live:
+                            errors += 1
+                        return (_py_r1000_CONTINUE, None)
 
-                    spread_rows.append({
-                        **base,
-                        "home_spread": b.get(
-                            "home_spread",
-                            "",
-                        ),
-                        "away_spread": b.get(
-                            "away_spread",
-                            "",
-                        ),
-                        "home_dk_spread_american": b.get(
-                            "home_dk_spread_american",
-                            "",
-                        ),
-                        "away_dk_spread_american": b.get(
-                            "away_dk_spread_american",
-                            "",
-                        ),
-                        "home_dk_spread_decimal": b.get(
-                            "home_dk_spread_decimal",
-                            "",
-                        ),
-                        "away_dk_spread_decimal": b.get(
-                            "away_dk_spread_decimal",
-                            "",
-                        ),
-                    })
+                    def _py_r1000_loop_14():
+                        nonlocal b, base, book_gid, by_comp_matches, by_id_matches, identity_mismatches, missing, p_gid, total_missing
 
-                    total_rows.append({
-                        **base,
-                        "dk_total_over_american": b.get(
-                            "dk_total_over_american",
-                            "",
-                        ),
-                        "dk_total_under_american": b.get(
-                            "dk_total_under_american",
-                            "",
-                        ),
-                        "dk_total_over_decimal": b.get(
-                            "dk_total_over_decimal",
-                            "",
-                        ),
-                        "dk_total_under_decimal": b.get(
-                            "dk_total_under_decimal",
-                            "",
-                        ),
-                    })
+                        def _py_r1000_else_15():
+                            nonlocal b, by_comp_matches
+                            b = book_by_comp.get(comp_key(p))
+                            if b is not None:
+                                by_comp_matches += 1
+                            return (_py_r1000_NONE, None)
+                        p_gid = clean(p.get('game_id'))
+                        b = book_by_id.get(p_gid) if p_gid else None
+                        if b is not None:
+                            by_id_matches += 1
+                        else:
+                            _py_r1000_result_16 = _py_r1000_else_15()
+                            if _py_r1000_result_16[0] != _py_r1000_NONE:
+                                return _py_r1000_result_16
+                        if b is None:
+                            missing += 1
+                            total_missing += 1
+                            log(f"MISSING MATCH | {league_upper} {date} | {p.get('home_team')} vs {p.get('away_team')} | game_id={p_gid}")
+                            return (_py_r1000_CONTINUE, None)
+                        book_gid = clean(b.get('game_id'))
+                        if p_gid and book_gid and (p_gid != book_gid):
+                            identity_mismatches += 1
+                            log(f'IDENTITY FALLBACK | {league_upper} {date} | prediction_id={p_gid} sportsbook_id={book_gid}')
+                        base = build_base(p, b)
+                        ml_rows.append({**base, 'home_dk_moneyline_american': b.get('home_dk_moneyline_american', ''), 'away_dk_moneyline_american': b.get('away_dk_moneyline_american', ''), 'home_dk_moneyline_decimal': b.get('home_dk_moneyline_decimal', ''), 'away_dk_moneyline_decimal': b.get('away_dk_moneyline_decimal', '')})
+                        spread_rows.append({**base, 'home_spread': b.get('home_spread', ''), 'away_spread': b.get('away_spread', ''), 'home_dk_spread_american': b.get('home_dk_spread_american', ''), 'away_dk_spread_american': b.get('away_dk_spread_american', ''), 'home_dk_spread_decimal': b.get('home_dk_spread_decimal', ''), 'away_dk_spread_decimal': b.get('away_dk_spread_decimal', '')})
+                        total_rows.append({**base, 'dk_total_over_american': b.get('dk_total_over_american', ''), 'dk_total_under_american': b.get('dk_total_under_american', ''), 'dk_total_over_decimal': b.get('dk_total_over_decimal', ''), 'dk_total_under_decimal': b.get('dk_total_under_decimal', '')})
+                        return (_py_r1000_NONE, None)
 
-                matched = len(
-                    ml_rows
-                )
+                    def _py_r1000_chunk_18():
+                        nonlocal book_by_comp, book_by_id, book_file, book_rows, by_comp_matches, by_id_matches, current_live, date, identity_mismatches, missing, ml_rows, pred_rows, slates_skipped, spread_rows, total_rows
 
-                pct = round(
-                    (
-                        matched
-                        / len(pred_rows)
-                        * 100.0
-                    )
-                    if pred_rows
-                    else 100.0,
-                    2,
-                )
+                        def _py_r1000_if_19():
+                            _py_r1000_result_11 = _py_r1000_if_10()
+                            if _py_r1000_result_11[0] != _py_r1000_NONE:
+                                return _py_r1000_result_11
+                            return (_py_r1000_NONE, None)
 
-                status = (
-                    "OK"
-                    if missing == 0
-                    else (
-                        "ERROR"
-                        if current_live
-                        else "PARTIAL"
-                    )
-                )
+                        def _py_r1000_if_21():
+                            _py_r1000_result_13 = _py_r1000_if_12()
+                            if _py_r1000_result_13[0] != _py_r1000_NONE:
+                                return _py_r1000_result_13
+                            return (_py_r1000_NONE, None)
+                        date = pred_file.stem.replace(f'_{league_upper}_predictions', '')
+                        book_file = book_dir / f'{date}_{league_upper}_odds.csv'
+                        current_live = date == current_date and in_season(league, now, season_config)
+                        pred_rows = load_rows(pred_file)
+                        if not pred_rows:
+                            log(f'EMPTY PREDICTIONS: {pred_file} — skipping')
+                            slates_skipped += 1
+                            return (_py_r1000_CONTINUE, None)
+                        if not book_file.exists():
+                            _py_r1000_result_20 = _py_r1000_if_19()
+                            if _py_r1000_result_20[0] != _py_r1000_NONE:
+                                return _py_r1000_result_20
+                        book_rows = load_rows(book_file)
+                        if not book_rows:
+                            _py_r1000_result_22 = _py_r1000_if_21()
+                            if _py_r1000_result_22[0] != _py_r1000_NONE:
+                                return _py_r1000_result_22
+                        book_by_id, book_by_comp, identity_mismatches = canonicalize_book_rows(book_rows, league, date)
+                        ml_rows = []
+                        spread_rows = []
+                        total_rows = []
+                        missing = 0
+                        by_id_matches = 0
+                        by_comp_matches = 0
+                        return (_py_r1000_NONE, None)
 
-                coverage_rows.append({
-                    "league": league_upper,
-                    "game_date": date,
-                    "prediction_rows": len(pred_rows),
-                    "sportsbook_rows": len(book_rows),
-                    "matched_rows": matched,
-                    "missing_matches": missing,
-                    "match_by_game_id": by_id_matches,
-                    "match_by_composite": by_comp_matches,
-                    "identity_mismatches": identity_mismatches,
-                    "coverage_pct": pct,
-                    "current_in_season": int(current_live),
-                    "status": status,
-                })
+                    def _py_r1000_chunk_23():
+                        nonlocal matched, p, pct, status
 
-                log(
-                    f"COVERAGE | "
-                    f"{league_upper} {date} | "
-                    f"matched={matched}/{len(pred_rows)} "
-                    f"({pct:.2f}%) | "
-                    f"missing={missing} | "
-                    f"id={by_id_matches} "
-                    f"fallback={by_comp_matches}"
-                )
+                        def _py_r1000_loop_24():
+                            _py_r1000_result_17 = _py_r1000_loop_14()
+                            if _py_r1000_result_17[0] == _py_r1000_RETURN:
+                                return _py_r1000_result_17
+                            if _py_r1000_result_17[0] == _py_r1000_BREAK:
+                                return (_py_r1000_BREAK, None)
+                            if _py_r1000_result_17[0] == _py_r1000_CONTINUE:
+                                return (_py_r1000_CONTINUE, None)
+                            return (_py_r1000_NONE, None)
+                        for p in pred_rows:
+                            _py_r1000_result_25 = _py_r1000_loop_24()
+                            if _py_r1000_result_25[0] == _py_r1000_RETURN:
+                                return _py_r1000_result_25
+                            if _py_r1000_result_25[0] == _py_r1000_BREAK:
+                                break
+                            if _py_r1000_result_25[0] == _py_r1000_CONTINUE:
+                                continue
+                        matched = len(ml_rows)
+                        pct = round(matched / len(pred_rows) * 100.0 if pred_rows else 100.0, 2)
+                        status = 'OK' if missing == 0 else 'ERROR' if current_live else 'PARTIAL'
+                        coverage_rows.append({'league': league_upper, 'game_date': date, 'prediction_rows': len(pred_rows), 'sportsbook_rows': len(book_rows), 'matched_rows': matched, 'missing_matches': missing, 'match_by_game_id': by_id_matches, 'match_by_composite': by_comp_matches, 'identity_mismatches': identity_mismatches, 'coverage_pct': pct, 'current_in_season': int(current_live), 'status': status})
+                        log(f'COVERAGE | {league_upper} {date} | matched={matched}/{len(pred_rows)} ({pct:.2f}%) | missing={missing} | id={by_id_matches} fallback={by_comp_matches}')
+                        return (_py_r1000_NONE, None)
 
-                if current_live and missing:
-                    errors += 1
-
-                if not ml_rows:
-                    log(
-                        f"NO MERGED ROWS: "
-                        f"{league_upper} {date} — skipping"
-                    )
-
-                    slates_skipped += 1
+                    def _py_r1000_chunk_26():
+                        nonlocal errors, files_written, ml_path, slates_skipped, spread_path, total_merged, total_path
+                        if current_live and missing:
+                            errors += 1
+                        if not ml_rows:
+                            log(f'NO MERGED ROWS: {league_upper} {date} — skipping')
+                            slates_skipped += 1
+                            return (_py_r1000_CONTINUE, None)
+                        ml_path = MERGE_DIR / league / 'moneyline' / f'{date}_{league_upper}_moneyline.csv'
+                        spread_path = MERGE_DIR / league / 'spread' / f'{date}_{league_upper}_spread.csv'
+                        total_path = MERGE_DIR / league / 'total' / f'{date}_{league_upper}_total.csv'
+                        write_csv(ml_path, MONEYLINE_FIELDS, ml_rows)
+                        write_csv(spread_path, SPREAD_FIELDS, spread_rows)
+                        write_csv(total_path, TOTAL_FIELDS, total_rows)
+                        total_merged += matched
+                        files_written += 3
+                        log(f'WROTE {ml_path.name} | {spread_path.name} | {total_path.name} ({matched} rows each)')
+                        return (_py_r1000_NONE, None)
+                    for _py_r1000_block_27 in (_py_r1000_chunk_18, _py_r1000_chunk_23, _py_r1000_chunk_26):
+                        _py_r1000_result_28 = _py_r1000_block_27()
+                        if _py_r1000_result_28[0] != _py_r1000_NONE:
+                            return _py_r1000_result_28
+                    return (_py_r1000_NONE, None)
+                league_upper = league.upper()
+                pred_dir = PREDICTIONS_DIR / league
+                book_dir = SPORTSBOOK_DIR / league
+                if not pred_dir.exists():
+                    log(f'PREDICTIONS DIR NOT FOUND: {pred_dir}')
+                    return (_py_r1000_CONTINUE, None)
+                if full_rebuild:
+                    pred_files = sorted(pred_dir.glob(f'*_{league_upper}_predictions.csv'))
+                else:
+                    _py_r1000_result_8 = _py_r1000_else_7()
+                    if _py_r1000_result_8[0] != _py_r1000_NONE:
+                        return _py_r1000_result_8
+                if not pred_files:
+                    log(f'NO PREDICTION FILES: {pred_dir}')
+                    return (_py_r1000_CONTINUE, None)
+                for pred_file in pred_files:
+                    _py_r1000_result_29 = _py_r1000_loop_9()
+                    if _py_r1000_result_29[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_29
+                    if _py_r1000_result_29[0] == _py_r1000_BREAK:
+                        break
+                    if _py_r1000_result_29[0] == _py_r1000_CONTINUE:
+                        continue
+                return (_py_r1000_NONE, None)
+            season_config = load_season_config()
+            log(f'SEASON CONFIG | file={SEASON_CONFIG}')
+            if full_rebuild:
+                wipe_outputs()
+            else:
+                _py_r1000_result_5 = _py_r1000_else_2()
+                if _py_r1000_result_5[0] != _py_r1000_NONE:
+                    return _py_r1000_result_5
+            for league in LEAGUES:
+                _py_r1000_result_30 = _py_r1000_loop_6()
+                if _py_r1000_result_30[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_30
+                if _py_r1000_result_30[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_30[0] == _py_r1000_CONTINUE:
                     continue
-
-                ml_path = (
-                    MERGE_DIR
-                    / league
-                    / "moneyline"
-                    / f"{date}_{league_upper}_moneyline.csv"
-                )
-
-                spread_path = (
-                    MERGE_DIR
-                    / league
-                    / "spread"
-                    / f"{date}_{league_upper}_spread.csv"
-                )
-
-                total_path = (
-                    MERGE_DIR
-                    / league
-                    / "total"
-                    / f"{date}_{league_upper}_total.csv"
-                )
-
-                write_csv(
-                    ml_path,
-                    MONEYLINE_FIELDS,
-                    ml_rows,
-                )
-
-                write_csv(
-                    spread_path,
-                    SPREAD_FIELDS,
-                    spread_rows,
-                )
-
-                write_csv(
-                    total_path,
-                    TOTAL_FIELDS,
-                    total_rows,
-                )
-
-                total_merged += matched
-                files_written += 3
-
-                log(
-                    f"WROTE {ml_path.name} | "
-                    f"{spread_path.name} | "
-                    f"{total_path.name} "
-                    f"({matched} rows each)"
-                )
-
-    except Exception as exc:
-        errors += 1
-
-        log(
-            f"FATAL ERROR: {exc}\n"
-            f"{traceback.format_exc()}"
-        )
-
-    write_csv(
-        COVERAGE_FILE,
-        COVERAGE_FIELDS,
-        coverage_rows,
-    )
-
-    log("--- SUMMARY ---")
-
-    log(
-        f"Mode: "
-        f"{'full_rebuild' if full_rebuild else 'incremental_current_date'}"
-    )
-
-    log(
-        f"Season config: {SEASON_CONFIG}"
-    )
-
-    log(
-        f"Files written: {files_written}"
-    )
-
-    log(
-        f"Total rows merged: {total_merged}"
-    )
-
-    log(
-        f"Total missing matches: {total_missing}"
-    )
-
-    log(
-        f"Slates skipped: {slates_skipped}"
-    )
-
-    log(
-        f"Errors: {errors}"
-    )
-
-    log(
-        f"STATUS: "
-        f"{'SUCCESS' if errors == 0 else 'FAILED'}"
-    )
-
-    if errors:
-        sys.exit(1)
-
-    print(
-        "merge_intake complete."
-    )
+            return (_py_r1000_NONE, None)
+        with open(LOG_FILE, 'w', encoding='utf-8') as f:
+            f.write(f'=== merge_intake RUN {datetime.now().isoformat()} ===\n')
+        files_written = 0
+        total_merged = 0
+        total_missing = 0
+        slates_skipped = 0
+        errors = 0
+        coverage_rows: list[dict] = []
+        now = datetime.now(NY)
+        current_date = now.strftime('%Y_%m_%d')
+        full_rebuild = truthy(os.getenv('BASKETBALL_FULL_REBUILD'))
+        try:
+            _py_r1000_result_31 = _py_r1000_try_1()
+            if _py_r1000_result_31[0] != _py_r1000_NONE:
+                return _py_r1000_result_31
+        except Exception as exc:
+            errors += 1
+            log(f'FATAL ERROR: {exc}\n{traceback.format_exc()}')
+        write_csv(COVERAGE_FILE, COVERAGE_FIELDS, coverage_rows)
+        log('--- SUMMARY ---')
+        log(f"Mode: {('full_rebuild' if full_rebuild else 'incremental_current_date')}")
+        log(f'Season config: {SEASON_CONFIG}')
+        log(f'Files written: {files_written}')
+        log(f'Total rows merged: {total_merged}')
+        log(f'Total missing matches: {total_missing}')
+        log(f'Slates skipped: {slates_skipped}')
+        log(f'Errors: {errors}')
+        log(f"STATUS: {('SUCCESS' if errors == 0 else 'FAILED')}")
+        if errors:
+            sys.exit(1)
+        print('merge_intake complete.')
+        return (_py_r1000_NONE, None)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 if __name__ == "__main__":

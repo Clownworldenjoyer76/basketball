@@ -311,230 +311,223 @@ def prediction_dirs_for_source(
 
 
 def resolve_bias_values() -> dict:
-    model_cfg = load_yaml(CONFIG_PATH)
-    state_cfg = load_yaml(BIAS_STATE_PATH)
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    leagues_cfg = model_cfg.get("leagues")
-    state_leagues = state_cfg.get("leagues")
-    if not isinstance(leagues_cfg, dict):
-        raise ValueError("model_config.yaml missing top-level leagues mapping")
-    if not isinstance(state_leagues, dict):
-        raise ValueError("rolling_bias_state.yaml missing top-level leagues mapping")
+    def _py_r1000_impl():
+        bias_cfg: object
+        component: object
+        config_weight_values: object
+        configured_shrink: object
+        configured_weights: object
+        configured_window: object
+        configured_windows: object
+        configured_windows_int: object
+        key: object
+        league: object
+        league_cfg: object
+        league_values: object
+        leagues_cfg: object
+        method: object
+        model_cfg: object
+        normalized_config_weights: object
+        resolved: object
+        rule: object
+        state_cfg: object
+        state_component: object
+        state_league: object
+        state_leagues: object
+        state_method: object
+        state_name: object
+        state_shrink: object
+        state_weight_values: object
+        state_weights: object
+        state_window: object
+        state_windows: object
+        state_windows_int: object
+        value: object
+        weight_sum: object
+        window_games: object
+        windows_games: object
 
-    resolved = {}
+        def _py_r1000_loop_1():
+            nonlocal bias_cfg, component, config_weight_values, configured_shrink, configured_weights, configured_window, configured_windows, configured_windows_int, key, league_cfg, league_values, method, normalized_config_weights, rule, state_component, state_league, state_method, state_name, state_shrink, state_weight_values, state_weights, state_window, state_windows, state_windows_int, value, weight_sum, window_games, windows_games
 
-    for league in ("NBA", "NCAAM", "WNBA"):
-        key = league.lower()
-        league_cfg = leagues_cfg.get(key)
-        if not isinstance(league_cfg, dict):
-            raise ValueError(f"Missing model config for {league}")
-        if str(league_cfg.get("status", "")).strip().lower() != "active":
-            raise ValueError(f"{league} is not active in model_config.yaml")
+            def _py_r1000_loop_2():
+                nonlocal config_weight_values, configured_shrink, configured_weights, configured_window, configured_windows, configured_windows_int, method, normalized_config_weights, rule, state_component, state_method, state_name, state_shrink, state_weight_values, state_weights, state_window, state_windows, state_windows_int, value, weight_sum, window_games, windows_games
 
-        bias_cfg = league_cfg.get("bias") or {}
-        state_league = state_leagues.get(key) or {}
-        league_values = {}
-
-        for component in ("margin", "total"):
-            rule = bias_cfg.get(component)
-            if not isinstance(rule, dict):
-                raise ValueError(f"{league} bias.{component} must be configured")
-
-            method = str(rule.get("method", "")).strip().lower()
-
-            if method == "fixed":
-                value = to_float(rule.get("value"))
-                if value is None:
-                    raise ValueError(f"{league} fixed {component} bias requires numeric value")
-
-                window_games = None
-                windows_games = None
-
-            elif method in {"rolling", "regime_aware"}:
-                state_name = f"{component}_bias"
-                state_component = state_league.get(state_name)
-
-                if not isinstance(state_component, dict):
-                    raise ValueError(
-                        f"{league} missing {state_name} in rolling_bias_state.yaml"
-                    )
-
-                if str(state_component.get("status", "")).strip().lower() != "ready":
-                    raise ValueError(
-                        f"{league} {state_name} is not ready in rolling_bias_state.yaml"
-                    )
-
-                state_method = str(
-                    state_component.get("method", "")
-                ).strip().lower()
-
-                if state_method != method:
-                    raise ValueError(
-                        f"{league} {state_name} state method mismatch: "
-                        f"config={method} state={state_method}"
-                    )
-
-                if method == "rolling":
-                    configured_window = rule.get("window_games")
-                    state_window = state_component.get("window_games")
-
-                    if (
-                        configured_window is not None
-                        and state_window is not None
-                        and int(configured_window) != int(state_window)
-                    ):
-                        raise ValueError(
-                            f"{league} {component} rolling window mismatch: "
-                            f"config={configured_window} state={state_window}"
-                        )
-
-                    window_games = (
-                        int(configured_window)
-                        if configured_window is not None
-                        else None
-                    )
+                def _py_r1000_if_3():
+                    nonlocal value, window_games, windows_games
+                    value = to_float(rule.get('value'))
+                    if value is None:
+                        raise ValueError(f'{league} fixed {component} bias requires numeric value')
+                    window_games = None
                     windows_games = None
+                    return (_py_r1000_NONE, None)
 
+                def _py_r1000_else_5():
+                    nonlocal config_weight_values, configured_shrink, configured_weights, configured_window, configured_windows, configured_windows_int, normalized_config_weights, state_component, state_method, state_name, state_shrink, state_weight_values, state_weights, state_window, state_windows, state_windows_int, value, weight_sum, window_games, windows_games
+
+                    def _py_r1000_if_6():
+                        nonlocal config_weight_values, configured_shrink, configured_weights, configured_window, configured_windows, configured_windows_int, normalized_config_weights, state_component, state_method, state_name, state_shrink, state_weight_values, state_weights, state_window, state_windows, state_windows_int, value, weight_sum, window_games, windows_games
+
+                        def _py_r1000_if_7():
+                            nonlocal configured_window, state_window, window_games, windows_games
+                            configured_window = rule.get('window_games')
+                            state_window = state_component.get('window_games')
+                            if configured_window is not None and state_window is not None and (int(configured_window) != int(state_window)):
+                                raise ValueError(f'{league} {component} rolling window mismatch: config={configured_window} state={state_window}')
+                            window_games = int(configured_window) if configured_window is not None else None
+                            windows_games = None
+                            return (_py_r1000_NONE, None)
+
+                        def _py_r1000_else_9():
+                            nonlocal config_weight_values, configured_shrink, configured_weights, configured_windows, configured_windows_int, normalized_config_weights, state_shrink, state_weight_values, state_weights, state_windows, state_windows_int, weight_sum, window_games, windows_games
+
+                            def _py_r1000_chunk_10():
+                                nonlocal configured_weights, configured_windows, configured_windows_int, state_weights, state_windows, state_windows_int
+                                configured_windows = rule.get('windows_games')
+                                state_windows = state_component.get('windows_games')
+                                if not isinstance(configured_windows, list) or not configured_windows:
+                                    raise ValueError(f'{league} regime_aware {component} bias requires windows_games in model_config.yaml')
+                                if not isinstance(state_windows, list) or not state_windows:
+                                    raise ValueError(f'{league} {state_name} missing windows_games in rolling_bias_state.yaml')
+                                configured_windows_int = [int(window) for window in configured_windows]
+                                state_windows_int = [int(window) for window in state_windows]
+                                if configured_windows_int != state_windows_int:
+                                    raise ValueError(f'{league} {component} regime-aware windows mismatch: config={configured_windows_int} state={state_windows_int}')
+                                configured_weights = rule.get('weights')
+                                state_weights = state_component.get('weights')
+                                return (_py_r1000_NONE, None)
+
+                            def _py_r1000_chunk_11():
+                                nonlocal config_weight_values, normalized_config_weights, weight_sum
+                                if not isinstance(configured_weights, list) or len(configured_weights) != len(configured_windows_int):
+                                    raise ValueError(f'{league} regime_aware {component} bias requires one configured weight per window')
+                                if not isinstance(state_weights, list) or len(state_weights) != len(configured_windows_int):
+                                    raise ValueError(f'{league} {state_name} missing valid weights in rolling_bias_state.yaml')
+                                config_weight_values = [float(weight) for weight in configured_weights]
+                                weight_sum = sum(config_weight_values)
+                                if weight_sum <= 0:
+                                    raise ValueError(f'{league} regime_aware {component} weights must sum to > 0')
+                                normalized_config_weights = [weight / weight_sum for weight in config_weight_values]
+                                return (_py_r1000_NONE, None)
+
+                            def _py_r1000_chunk_12():
+                                nonlocal configured_shrink, state_shrink, state_weight_values, window_games, windows_games
+                                state_weight_values = [float(weight) for weight in state_weights]
+                                if any((abs(configured - state) > 1e-06 for configured, state in zip(normalized_config_weights, state_weight_values))):
+                                    raise ValueError(f'{league} {component} regime-aware weight mismatch: config={normalized_config_weights} state={state_weight_values}')
+                                configured_shrink = to_float(rule.get('sign_conflict_shrink'))
+                                state_shrink = to_float(state_component.get('sign_conflict_shrink'))
+                                if configured_shrink is None or state_shrink is None:
+                                    raise ValueError(f'{league} regime_aware {component} bias requires sign_conflict_shrink in config and state')
+                                if abs(configured_shrink - state_shrink) > 1e-06:
+                                    raise ValueError(f'{league} {component} regime-aware shrink mismatch: config={configured_shrink} state={state_shrink}')
+                                window_games = max(configured_windows_int)
+                                windows_games = configured_windows_int
+                                return (_py_r1000_NONE, None)
+                            for _py_r1000_block_13 in (_py_r1000_chunk_10, _py_r1000_chunk_11, _py_r1000_chunk_12):
+                                _py_r1000_result_14 = _py_r1000_block_13()
+                                if _py_r1000_result_14[0] != _py_r1000_NONE:
+                                    return _py_r1000_result_14
+                            return (_py_r1000_NONE, None)
+                        state_name = f'{component}_bias'
+                        state_component = state_league.get(state_name)
+                        if not isinstance(state_component, dict):
+                            raise ValueError(f'{league} missing {state_name} in rolling_bias_state.yaml')
+                        if str(state_component.get('status', '')).strip().lower() != 'ready':
+                            raise ValueError(f'{league} {state_name} is not ready in rolling_bias_state.yaml')
+                        state_method = str(state_component.get('method', '')).strip().lower()
+                        if state_method != method:
+                            raise ValueError(f'{league} {state_name} state method mismatch: config={method} state={state_method}')
+                        if method == 'rolling':
+                            _py_r1000_result_8 = _py_r1000_if_7()
+                            if _py_r1000_result_8[0] != _py_r1000_NONE:
+                                return _py_r1000_result_8
+                        else:
+                            _py_r1000_result_15 = _py_r1000_else_9()
+                            if _py_r1000_result_15[0] != _py_r1000_NONE:
+                                return _py_r1000_result_15
+                        value = to_float(state_component.get('value'))
+                        if value is None:
+                            raise ValueError(f'{league} {state_name} has no numeric value')
+                        return (_py_r1000_NONE, None)
+
+                    def _py_r1000_else_17():
+                        nonlocal value, window_games, windows_games
+                        if method == 'none':
+                            value = 0.0
+                            window_games = None
+                            windows_games = None
+                        else:
+                            raise ValueError(f'Unsupported {league} bias.{component}.method={method!r}')
+                        return (_py_r1000_NONE, None)
+                    if method in {'rolling', 'regime_aware'}:
+                        _py_r1000_result_16 = _py_r1000_if_6()
+                        if _py_r1000_result_16[0] != _py_r1000_NONE:
+                            return _py_r1000_result_16
+                    else:
+                        _py_r1000_result_18 = _py_r1000_else_17()
+                        if _py_r1000_result_18[0] != _py_r1000_NONE:
+                            return _py_r1000_result_18
+                    return (_py_r1000_NONE, None)
+                rule = bias_cfg.get(component)
+                if not isinstance(rule, dict):
+                    raise ValueError(f'{league} bias.{component} must be configured')
+                method = str(rule.get('method', '')).strip().lower()
+                if method == 'fixed':
+                    _py_r1000_result_4 = _py_r1000_if_3()
+                    if _py_r1000_result_4[0] != _py_r1000_NONE:
+                        return _py_r1000_result_4
                 else:
-                    configured_windows = rule.get("windows_games")
-                    state_windows = state_component.get("windows_games")
-
-                    if not isinstance(configured_windows, list) or not configured_windows:
-                        raise ValueError(
-                            f"{league} regime_aware {component} bias requires "
-                            f"windows_games in model_config.yaml"
-                        )
-
-                    if not isinstance(state_windows, list) or not state_windows:
-                        raise ValueError(
-                            f"{league} {state_name} missing windows_games "
-                            f"in rolling_bias_state.yaml"
-                        )
-
-                    configured_windows_int = [
-                        int(window)
-                        for window in configured_windows
-                    ]
-                    state_windows_int = [
-                        int(window)
-                        for window in state_windows
-                    ]
-
-                    if configured_windows_int != state_windows_int:
-                        raise ValueError(
-                            f"{league} {component} regime-aware windows mismatch: "
-                            f"config={configured_windows_int} "
-                            f"state={state_windows_int}"
-                        )
-
-                    configured_weights = rule.get("weights")
-                    state_weights = state_component.get("weights")
-
-                    if (
-                        not isinstance(configured_weights, list)
-                        or len(configured_weights) != len(configured_windows_int)
-                    ):
-                        raise ValueError(
-                            f"{league} regime_aware {component} bias requires "
-                            f"one configured weight per window"
-                        )
-
-                    if (
-                        not isinstance(state_weights, list)
-                        or len(state_weights) != len(configured_windows_int)
-                    ):
-                        raise ValueError(
-                            f"{league} {state_name} missing valid weights "
-                            f"in rolling_bias_state.yaml"
-                        )
-
-                    config_weight_values = [
-                        float(weight)
-                        for weight in configured_weights
-                    ]
-                    weight_sum = sum(config_weight_values)
-
-                    if weight_sum <= 0:
-                        raise ValueError(
-                            f"{league} regime_aware {component} weights "
-                            f"must sum to > 0"
-                        )
-
-                    normalized_config_weights = [
-                        weight / weight_sum
-                        for weight in config_weight_values
-                    ]
-                    state_weight_values = [
-                        float(weight)
-                        for weight in state_weights
-                    ]
-
-                    if any(
-                        abs(configured - state) > 1e-6
-                        for configured, state
-                        in zip(
-                            normalized_config_weights,
-                            state_weight_values,
-                        )
-                    ):
-                        raise ValueError(
-                            f"{league} {component} regime-aware weight mismatch: "
-                            f"config={normalized_config_weights} "
-                            f"state={state_weight_values}"
-                        )
-
-                    configured_shrink = to_float(
-                        rule.get("sign_conflict_shrink")
-                    )
-                    state_shrink = to_float(
-                        state_component.get("sign_conflict_shrink")
-                    )
-
-                    if configured_shrink is None or state_shrink is None:
-                        raise ValueError(
-                            f"{league} regime_aware {component} bias requires "
-                            f"sign_conflict_shrink in config and state"
-                        )
-
-                    if abs(configured_shrink - state_shrink) > 1e-6:
-                        raise ValueError(
-                            f"{league} {component} regime-aware shrink mismatch: "
-                            f"config={configured_shrink} state={state_shrink}"
-                        )
-
-                    window_games = max(
-                        configured_windows_int
-                    )
-                    windows_games = (
-                        configured_windows_int
-                    )
-
-                value = to_float(state_component.get("value"))
-                if value is None:
-                    raise ValueError(
-                        f"{league} {state_name} has no numeric value"
-                    )
-
-            elif method == "none":
-                value = 0.0
-                window_games = None
-                windows_games = None
-
-            else:
-                raise ValueError(
-                    f"Unsupported {league} bias.{component}.method={method!r}"
-                )
-
-            league_values[component] = {
-                "method": method,
-                "value": float(value),
-                "window_games": window_games,
-                "windows_games": windows_games,
-            }
-
-        resolved[league] = league_values
-
-    return resolved
+                    _py_r1000_result_19 = _py_r1000_else_5()
+                    if _py_r1000_result_19[0] != _py_r1000_NONE:
+                        return _py_r1000_result_19
+                league_values[component] = {'method': method, 'value': float(value), 'window_games': window_games, 'windows_games': windows_games}
+                return (_py_r1000_NONE, None)
+            key = league.lower()
+            league_cfg = leagues_cfg.get(key)
+            if not isinstance(league_cfg, dict):
+                raise ValueError(f'Missing model config for {league}')
+            if str(league_cfg.get('status', '')).strip().lower() != 'active':
+                raise ValueError(f'{league} is not active in model_config.yaml')
+            bias_cfg = league_cfg.get('bias') or {}
+            state_league = state_leagues.get(key) or {}
+            league_values = {}
+            for component in ('margin', 'total'):
+                _py_r1000_result_20 = _py_r1000_loop_2()
+                if _py_r1000_result_20[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_20
+                if _py_r1000_result_20[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_20[0] == _py_r1000_CONTINUE:
+                    continue
+            resolved[league] = league_values
+            return (_py_r1000_NONE, None)
+        model_cfg = load_yaml(CONFIG_PATH)
+        state_cfg = load_yaml(BIAS_STATE_PATH)
+        leagues_cfg = model_cfg.get('leagues')
+        state_leagues = state_cfg.get('leagues')
+        if not isinstance(leagues_cfg, dict):
+            raise ValueError('model_config.yaml missing top-level leagues mapping')
+        if not isinstance(state_leagues, dict):
+            raise ValueError('rolling_bias_state.yaml missing top-level leagues mapping')
+        resolved = {}
+        for league in ('NBA', 'NCAAM', 'WNBA'):
+            _py_r1000_result_21 = _py_r1000_loop_1()
+            if _py_r1000_result_21[0] == _py_r1000_RETURN:
+                return _py_r1000_result_21
+            if _py_r1000_result_21[0] == _py_r1000_BREAK:
+                break
+            if _py_r1000_result_21[0] == _py_r1000_CONTINUE:
+                continue
+        return (_py_r1000_RETURN, resolved)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 def prediction_file_date(path: Path):
@@ -902,95 +895,139 @@ def preserve_past_cleaned_predictions(pred_files):
 # =========================
 
 def apply_prediction_biases(pred_files, bias_values):
-    stats = {
-        league: {
-            "files_with_biased_rows": 0,
-            "rows_adjusted": 0,
-            "rows_skipped_already_flagged": 0,
-        }
-        for league in pred_files
-    }
+    _py_r1000_NONE = 0
+    _py_r1000_RETURN = 1
+    _py_r1000_BREAK = 2
+    _py_r1000_CONTINUE = 3
 
-    required = {
-        "home_projected_points",
-        "away_projected_points",
-        "total_projected_points",
-    }
+    def _py_r1000_impl():
+        nonlocal bias_values, pred_files
+        away: object
+        col: object
+        data: object
+        fieldnames: object
+        file_adjusted: object
+        file_skipped: object
+        files: object
+        home: object
+        league: object
+        margin_bias: object
+        margin_half: object
+        margin_info: object
+        new_away: object
+        new_home: object
+        new_total: object
+        path: object
+        required: object
+        row: object
+        rows: object
+        stats: object
+        total: object
+        total_bias: object
+        total_half: object
+        total_info: object
 
-    for league, files in pred_files.items():
-        margin_info = bias_values[league]["margin"]
-        total_info = bias_values[league]["total"]
-        margin_bias = margin_info["value"]
-        total_bias = total_info["value"]
-        margin_half = margin_bias / 2.0
-        total_half = total_bias / 2.0
+        def _py_r1000_loop_1():
+            nonlocal away, col, data, fieldnames, file_adjusted, file_skipped, home, margin_bias, margin_half, margin_info, new_away, new_home, new_total, path, row, rows, total, total_bias, total_half, total_info
 
-        for path, data in files.items():
-            fieldnames, rows = data
+            def _py_r1000_loop_2():
+                nonlocal away, col, fieldnames, file_adjusted, file_skipped, home, new_away, new_home, new_total, row, rows, total
 
-            if not required.issubset(set(fieldnames)):
-                log_league(league, f"WARN | Missing prediction columns, skipped: {path}")
+                def _py_r1000_loop_3():
+                    if col not in fieldnames:
+                        fieldnames.append(col)
+                    return (_py_r1000_NONE, None)
+
+                def _py_r1000_loop_5():
+                    nonlocal away, file_adjusted, file_skipped, home, new_away, new_home, new_total, total
+
+                    def _py_r1000_if_6():
+                        nonlocal file_skipped
+                        if str(row.get(MARGIN_BIAS_COLUMN, '')).strip() == '' and margin_info['method'] in ('fixed', 'none'):
+                            row[MARGIN_BIAS_COLUMN] = f'{margin_bias:.3f}'
+                        if str(row.get(TOTAL_BIAS_COLUMN, '')).strip() == '' and total_info['method'] in ('fixed', 'none'):
+                            row[TOTAL_BIAS_COLUMN] = f'{total_bias:.3f}'
+                        file_skipped += 1
+                        stats[league]['rows_skipped_already_flagged'] += 1
+                        return (_py_r1000_CONTINUE, None)
+                    if str(row.get(BIAS_FLAG_COLUMN, '')).strip() == BIAS_FLAG_VALUE:
+                        _py_r1000_result_7 = _py_r1000_if_6()
+                        if _py_r1000_result_7[0] != _py_r1000_NONE:
+                            return _py_r1000_result_7
+                    home = to_float(row.get('home_projected_points'))
+                    away = to_float(row.get('away_projected_points'))
+                    total = to_float(row.get('total_projected_points'))
+                    if home is None or away is None or total is None:
+                        return (_py_r1000_CONTINUE, None)
+                    new_home = round(home - margin_half - total_half, 2)
+                    new_away = round(away + margin_half - total_half, 2)
+                    new_total = round(total - total_bias, 2)
+                    row['home_projected_points'] = f'{new_home:.2f}'
+                    row['away_projected_points'] = f'{new_away:.2f}'
+                    row['total_projected_points'] = f'{new_total:.2f}'
+                    row[BIAS_FLAG_COLUMN] = BIAS_FLAG_VALUE
+                    row[MARGIN_BIAS_COLUMN] = f'{margin_bias:.3f}'
+                    row[TOTAL_BIAS_COLUMN] = f'{total_bias:.3f}'
+                    file_adjusted += 1
+                    stats[league]['rows_adjusted'] += 1
+                    return (_py_r1000_NONE, None)
+                fieldnames, rows = data
+                if not required.issubset(set(fieldnames)):
+                    log_league(league, f'WARN | Missing prediction columns, skipped: {path}')
+                    return (_py_r1000_CONTINUE, None)
+                fieldnames = list(fieldnames)
+                for col in (BIAS_FLAG_COLUMN, MARGIN_BIAS_COLUMN, TOTAL_BIAS_COLUMN):
+                    _py_r1000_result_4 = _py_r1000_loop_3()
+                    if _py_r1000_result_4[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_4
+                    if _py_r1000_result_4[0] == _py_r1000_BREAK:
+                        break
+                    if _py_r1000_result_4[0] == _py_r1000_CONTINUE:
+                        continue
+                data[0] = fieldnames
+                file_adjusted = 0
+                file_skipped = 0
+                for row in rows:
+                    _py_r1000_result_8 = _py_r1000_loop_5()
+                    if _py_r1000_result_8[0] == _py_r1000_RETURN:
+                        return _py_r1000_result_8
+                    if _py_r1000_result_8[0] == _py_r1000_BREAK:
+                        break
+                    if _py_r1000_result_8[0] == _py_r1000_CONTINUE:
+                        continue
+                if file_adjusted:
+                    stats[league]['files_with_biased_rows'] += 1
+                    log_league(league, f"BIASED | {path} | league={league} margin_method={margin_info['method']} margin_bias={margin_bias} total_method={total_info['method']} total_bias={total_bias} adjusted={file_adjusted} skipped_already_flagged={file_skipped}")
+                return (_py_r1000_NONE, None)
+            margin_info = bias_values[league]['margin']
+            total_info = bias_values[league]['total']
+            margin_bias = margin_info['value']
+            total_bias = total_info['value']
+            margin_half = margin_bias / 2.0
+            total_half = total_bias / 2.0
+            for path, data in files.items():
+                _py_r1000_result_9 = _py_r1000_loop_2()
+                if _py_r1000_result_9[0] == _py_r1000_RETURN:
+                    return _py_r1000_result_9
+                if _py_r1000_result_9[0] == _py_r1000_BREAK:
+                    break
+                if _py_r1000_result_9[0] == _py_r1000_CONTINUE:
+                    continue
+            return (_py_r1000_NONE, None)
+        stats = {league: {'files_with_biased_rows': 0, 'rows_adjusted': 0, 'rows_skipped_already_flagged': 0} for league in pred_files}
+        required = {'home_projected_points', 'away_projected_points', 'total_projected_points'}
+        for league, files in pred_files.items():
+            _py_r1000_result_10 = _py_r1000_loop_1()
+            if _py_r1000_result_10[0] == _py_r1000_RETURN:
+                return _py_r1000_result_10
+            if _py_r1000_result_10[0] == _py_r1000_BREAK:
+                break
+            if _py_r1000_result_10[0] == _py_r1000_CONTINUE:
                 continue
-
-            fieldnames = list(fieldnames)
-            for col in (BIAS_FLAG_COLUMN, MARGIN_BIAS_COLUMN, TOTAL_BIAS_COLUMN):
-                if col not in fieldnames:
-                    fieldnames.append(col)
-            data[0] = fieldnames
-
-            file_adjusted = 0
-            file_skipped = 0
-
-            for row in rows:
-                if str(row.get(BIAS_FLAG_COLUMN, "")).strip() == BIAS_FLAG_VALUE:
-                    if (
-                        str(row.get(MARGIN_BIAS_COLUMN, "")).strip() == ""
-                        and margin_info["method"] in ("fixed", "none")
-                    ):
-                        row[MARGIN_BIAS_COLUMN] = f"{margin_bias:.3f}"
-
-                    if (
-                        str(row.get(TOTAL_BIAS_COLUMN, "")).strip() == ""
-                        and total_info["method"] in ("fixed", "none")
-                    ):
-                        row[TOTAL_BIAS_COLUMN] = f"{total_bias:.3f}"
-
-                    file_skipped += 1
-                    stats[league]["rows_skipped_already_flagged"] += 1
-                    continue
-
-                home = to_float(row.get("home_projected_points"))
-                away = to_float(row.get("away_projected_points"))
-                total = to_float(row.get("total_projected_points"))
-
-                if home is None or away is None or total is None:
-                    continue
-
-                new_home = round(home - margin_half - total_half, 2)
-                new_away = round(away + margin_half - total_half, 2)
-                new_total = round(total - total_bias, 2)
-
-                row["home_projected_points"] = f"{new_home:.2f}"
-                row["away_projected_points"] = f"{new_away:.2f}"
-                row["total_projected_points"] = f"{new_total:.2f}"
-                row[BIAS_FLAG_COLUMN] = BIAS_FLAG_VALUE
-                row[MARGIN_BIAS_COLUMN] = f"{margin_bias:.3f}"
-                row[TOTAL_BIAS_COLUMN] = f"{total_bias:.3f}"
-
-                file_adjusted += 1
-                stats[league]["rows_adjusted"] += 1
-
-            if file_adjusted:
-                stats[league]["files_with_biased_rows"] += 1
-                log_league(
-                    league,
-                    f"BIASED | {path} | league={league} "
-                    f"margin_method={margin_info['method']} margin_bias={margin_bias} "
-                    f"total_method={total_info['method']} total_bias={total_bias} "
-                    f"adjusted={file_adjusted} skipped_already_flagged={file_skipped}"
-                )
-
-    return stats
+        return (_py_r1000_RETURN, stats)
+    _py_r1000_outcome = _py_r1000_impl()
+    if _py_r1000_outcome[0] == _py_r1000_RETURN:
+        return _py_r1000_outcome[1]
 
 
 # =========================
