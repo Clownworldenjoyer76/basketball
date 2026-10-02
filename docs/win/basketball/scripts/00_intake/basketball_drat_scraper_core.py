@@ -31,8 +31,8 @@ def log(msg: str) -> None:
     line = f"{datetime.now(ET).isoformat()} | {msg}"
     print(line, flush=True)
 
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
+    with open(LOG_FILE, "a", encoding="utf-8") as log_handle:
+        log_handle.write(line + "\n")
 
 
 def convert_utc_to_et(date_time_str: str) -> str:
@@ -385,8 +385,8 @@ def main():
 
                     path = out_dir / f"{date}_{label}_raw.json"
 
-                    with open(path, "w", encoding="utf-8") as f:
-                        json.dump(games, f, indent=2)
+                    with open(path, "w", encoding="utf-8") as json_handle:
+                        json.dump(games, json_handle, indent=2)
 
                     files_written.append((str(path), len(games)))
 

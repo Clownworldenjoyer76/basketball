@@ -83,15 +83,15 @@ def _current_game_date() -> str:
 
 
 def _init_log():
-    with open(LOG_FILE, "w", encoding="utf-8") as f:
-        f.write(f"=== 01_basketball_results_grade RUN {_now()} ===\n")
+    with open(LOG_FILE, "w", encoding="utf-8") as log_handle:
+        log_handle.write(f"=== 01_basketball_results_grade RUN {_now()} ===\n")
 
 
 def _log(msg: str, level: str = "INFO"):
     line = f"{_now()} | {level:<5} | {msg.rstrip()}"
     print(line, flush=True)
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
+    with open(LOG_FILE, "a", encoding="utf-8") as log_handle:
+        log_handle.write(line + "\n")
 
 
 
@@ -116,8 +116,8 @@ def _exclusive_copy(source: Path, target: Path) -> bool:
         return False
 
     try:
-        with os.fdopen(fd, "wb") as f:
-            f.write(data)
+        with os.fdopen(fd, "wb") as file_handle:
+            file_handle.write(data)
     except Exception:
         target.unlink(missing_ok=True)
         raise
