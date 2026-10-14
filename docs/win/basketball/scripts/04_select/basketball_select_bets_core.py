@@ -24,7 +24,7 @@ import yaml
 from staking_runtime import (
     KELLY_FRACTION,
     UNCERTAINTY_METHOD, UNCERTAINTY_VERSION,
-    attach_candidate_uncertainty, requested_stake,
+    attach_candidate_uncertainty, requested_stake, enforce_exposure_limits,
 )
 
 INPUT_DIR        = Path("docs/win/basketball/03_edges/ev_kelly")
@@ -127,6 +127,8 @@ def _write_summary(summary: dict, per_file: list) -> None:
         f"  ncaam_bets            : {summary['ncaam_bets']}",
         f"  wnba_bets             : {summary['wnba_bets']}",
         f"  ml_vs_spread_dropped  : {summary['ml_vs_spread_dropped']}",
+        f"  exposure_dropped      : {summary['exposure_dropped']}",
+        f"  exposure_capped       : {summary['exposure_capped']}",
         f"  skipped               : {summary['skipped']}",
         f"  errors                : {summary['errors']}",
         f"  kelly_fraction        : {KELLY_FRACTION}",
@@ -347,8 +349,11 @@ def reconcile_ml_vs_spread(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
         df = df.drop(columns=["_tiebreak_metric"])
         return df, 0
 
-    ml_best     = df.loc[ml_mask].groupby("game_id")["_tiebreak_metric"].max()
-    spread_best = df.loc[spread_mask].groupby("game_id")["_tiebreak_metric"].max()
+    group_cols = ['league_lower', 'game_date', 'game_id']
+    if any(col not in df.columns for col in group_cols):
+        raise ValueError('Cannot reconcile without league/date/game identity')
+    ml_best     = df.loc[ml_mask].groupby(group_cols)["_tiebreak_metric"].max()
+    spread_best = df.loc[spread_mask].groupby(group_cols)["_tiebreak_metric"].max()
 
     conflict_games = ml_best.index.intersection(spread_best.index)
     if len(conflict_games) == 0:
@@ -356,9 +361,9 @@ def reconcile_ml_vs_spread(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
         return df, 0
 
     drop_indices = []
-    for gid in conflict_games:
-        ml_val = ml_best.loc[gid]
-        sp_val = spread_best.loc[gid]
+    for league_key, game_date_key, gid in conflict_games:
+        ml_val = ml_best.loc[(league_key, game_date_key, gid)]
+        sp_val = spread_best.loc[(league_key, game_date_key, gid)]
 
         if pd.isna(ml_val) and pd.isna(sp_val):
             losing_market = "spread"
@@ -369,7 +374,8 @@ def reconcile_ml_vs_spread(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
         else:
             losing_market = "spread" if ml_val >= sp_val else "moneyline"
 
-        loss_mask = (df["game_id"] == gid) & (df["market_type"] == losing_market)
+        loss_mask = ((df["game_id"] == gid) & (df["game_date"] == game_date_key)
+                     & (df["league_lower"] == league_key) & (df["market_type"] == losing_market))
         drop_indices.extend(df.index[loss_mask].tolist())
         DEBUG_COUNTS[f"ml_vs_spread_dropped_{losing_market}"] += int(loss_mask.sum())
 
@@ -384,111 +390,86 @@ def reconcile_ml_vs_spread(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
 # MARKET SIDE BUILDERS
 # =========================
 
+def _qualifying_candidate(row, league, market, game_date, side_cfg, raw):
+    adjusted = attach_candidate_uncertainty(row, market, raw)
+    if adjusted is None:
+        DEBUG_COUNTS[f'invalid_adjusted_{market}'] += 1
+        return None
+    if not passes_model_edge(adjusted['ev'], league, market):
+        return None
+    values = {'odds': adjusted['odds'], 'line': adjusted['line'],
+              'ev': adjusted['ev'], 'kelly': adjusted['kelly'],
+              'model_prob': adjusted['model_prob'],
+              'edge_vs_market_pct': adjusted['edge_vs_market']}
+    return adjusted if passes_filters(values, side_cfg, game_date) else None
+
+
 def build_ml_sides(row, league, game_date, cfg):
     sides = []
-    for side in ("home", "away"):
+    for side in ('home', 'away'):
         scfg = cfg[side]
-        if not scfg.get("enabled", True):
+        if not scfg.get('enabled', True):
             continue
-        odds  = fv(row.get(f"{side}_dk_moneyline_american"))
-        ev    = fv(row.get(f"{side}_ml_ev"))
-        kelly = fv(row.get(f"{side}_ml_kelly"))
-        mp    = fv(row.get(f"{side}_model_prob"))
+        odds = fv(row.get(f'{side}_dk_moneyline_american'))
+        mp = fv(row.get(f'{side}_model_prob'))
         if mp is None:
-            mp = fv(row.get(f"{side}_prob"))
-        evm   = fv(row.get(f"{side}_ml_edge_vs_market_pct"))
-
-        if not passes_model_edge(ev, league, "moneyline"):
-            DEBUG_COUNTS["rejected_ml"] += 1
-            continue
-
-        values = {"odds": odds, "ev": ev, "kelly": kelly,
-                  "model_prob": mp, "edge_vs_market_pct": evm}
-        if passes_filters(values, scfg, game_date):
-            sides.append({
-                "side": side, "line": odds, "odds": odds,
-                "ev": ev, "kelly": kelly,
-                "model_prob": mp, "edge_vs_market": evm,
-            })
+            mp = fv(row.get(f'{side}_prob'))
+        candidate = _qualifying_candidate(row, league, 'moneyline', game_date, scfg, {
+            'side': side, 'line': odds, 'odds': odds,
+            'ev': fv(row.get(f'{side}_ml_ev')),
+            'kelly': fv(row.get(f'{side}_ml_kelly')),
+            'model_prob': mp,
+            'edge_vs_market': fv(row.get(f'{side}_ml_edge_vs_market_pct')),
+        })
+        if candidate is not None:
+            sides.append(candidate)
         else:
-            DEBUG_COUNTS["rejected_ml"] += 1
+            DEBUG_COUNTS['rejected_ml'] += 1
     return sides
 
 
 def build_spread_sides(row, league, game_date, cfg):
     sides = []
-    for side in ("home", "away"):
+    for side in ('home', 'away'):
         scfg = cfg[side]
-        if not scfg.get("enabled", True):
+        if not scfg.get('enabled', True):
             continue
-
-        (
-            line,
-            odds,
-            ev,
-            kelly,
-            mp,
-            evm,
-        ) = (
-            fv(
-                row.get(
-                    f"{side}_{suffix}"
-                )
-            )
-            for suffix in (
-                "spread",
-                "dk_spread_american",
-                "spread_ev",
-                "spread_kelly",
-                "spread_model_prob",
-                "spread_edge_vs_market_pct",
-            )
-        )
-
-        if not passes_model_edge(ev, league, "spread"):
-            DEBUG_COUNTS["rejected_spread"] += 1
-            continue
-
-        values = {"odds": odds, "line": line, "ev": ev, "kelly": kelly,
-                  "model_prob": mp, "edge_vs_market_pct": evm}
-        if passes_filters(values, scfg, game_date):
-            sides.append({
-                "side": side, "line": line, "odds": odds,
-                "ev": ev, "kelly": kelly,
-                "model_prob": mp, "edge_vs_market": evm,
-            })
+        candidate = _qualifying_candidate(row, league, 'spread', game_date, scfg, {
+            'side': side,
+            'line': fv(row.get(f'{side}_spread')),
+            'odds': fv(row.get(f'{side}_dk_spread_american')),
+            'ev': fv(row.get(f'{side}_spread_ev')),
+            'kelly': fv(row.get(f'{side}_spread_kelly')),
+            'model_prob': fv(row.get(f'{side}_spread_model_prob')),
+            'edge_vs_market': fv(row.get(f'{side}_spread_edge_vs_market_pct')),
+        })
+        if candidate is not None:
+            sides.append(candidate)
         else:
-            DEBUG_COUNTS["rejected_spread"] += 1
+            DEBUG_COUNTS['rejected_spread'] += 1
     return sides
 
 
 def build_total_sides(row, league, game_date, cfg):
     sides = []
-    line = fv(row.get("total"))
-    for side in ("over", "under"):
+    line = fv(row.get('total'))
+    for side in ('over', 'under'):
         scfg = cfg[side]
-        if not scfg.get("enabled", True):
+        if not scfg.get('enabled', True):
             continue
-        odds  = fv(row.get(f"dk_total_{side}_american"))
-        ev    = fv(row.get(f"{side}_ev"))
-        kelly = fv(row.get(f"{side}_kelly"))
-        mp    = fv(row.get(f"{side}_model_prob"))
-        evm   = fv(row.get(f"{side}_edge_vs_market_pct"))
-
-        if not passes_model_edge(ev, league, "total"):
-            DEBUG_COUNTS["rejected_total"] += 1
-            continue
-
-        values = {"odds": odds, "line": line, "ev": ev, "kelly": kelly,
-                  "model_prob": mp, "edge_vs_market_pct": evm}
-        if passes_filters(values, scfg, game_date):
-            sides.append({
-                "side": side, "line": line, "odds": odds,
-                "ev": ev, "kelly": kelly,
-                "model_prob": mp, "edge_vs_market": evm,
-            })
+        candidate = _qualifying_candidate(row, league, 'total', game_date, scfg, {
+            'side': side,
+            'line': line,
+            'odds': fv(row.get(f'dk_total_{side}_american')),
+            'ev': fv(row.get(f'{side}_ev')),
+            'kelly': fv(row.get(f'{side}_kelly')),
+            'model_prob': fv(row.get(f'{side}_model_prob')),
+            'edge_vs_market': fv(row.get(f'{side}_edge_vs_market_pct')),
+        })
+        if candidate is not None:
+            sides.append(candidate)
         else:
-            DEBUG_COUNTS["rejected_total"] += 1
+            DEBUG_COUNTS['rejected_total'] += 1
     return sides
 
 
@@ -528,10 +509,6 @@ def process_file(file: Path, league: str, market_type: str):
     for _, row in df.iterrows():
         game_date = row.get("game_date") or file_date
         sides = builder(row, league, game_date, cfg)
-        sides = [
-            attach_candidate_uncertainty(row, market_type, side)
-            for side in sides
-        ]
 
         if not sides:
             continue
@@ -555,13 +532,16 @@ def process_file(file: Path, league: str, market_type: str):
                 "bet_kelly":          sel["kelly"],
                 "bet_raw_kelly":      sel["raw_kelly"],
                 "bet_model_prob":     sel["model_prob"],
+                "bet_raw_model_prob": sel["raw_model_prob"],
+                "bet_raw_edge_vs_market": sel["raw_edge_vs_market"],
+                "bet_probability_basis": sel["probability_basis"],
                 "bet_adjusted_model_prob": sel["adjusted_model_prob"],
                 "bet_edge_vs_market": sel["edge_vs_market"],
                 "bet_uncertainty_multiplier": sel["uncertainty_multiplier"],
                 "bet_uncertainty_points": sel["uncertainty_points"],
                 "bet_signal_points": sel["signal_points"],
-                "bet_requested_stake_pct": stake_pct(sel["raw_kelly"], sel["uncertainty_multiplier"]),
-                "bet_stake_pct":      stake_pct(sel["raw_kelly"], sel["uncertainty_multiplier"]),
+                "bet_requested_stake_pct": stake_pct(sel["kelly"], 1.0),
+                "bet_stake_pct":      stake_pct(sel["kelly"], 1.0),
                 "market_type":        market_type,
                 "league_lower":       league,
                 "league":             league.upper(),
@@ -645,13 +625,17 @@ def _combine_candidate_frames(league_dfs, summary):
     if not all_candidates.empty:
         all_candidates, dropped = reconcile_ml_vs_spread(all_candidates)
         summary["ml_vs_spread_dropped"] = dropped
+        before_exposure = len(all_candidates)
+        all_candidates = enforce_exposure_limits(all_candidates)
+        summary['exposure_dropped'] = before_exposure - len(all_candidates)
+        summary['exposure_capped'] = int((all_candidates['bet_stake_allocation'] == 'capped').sum())
     return all_candidates
 
 
 def _write_final_pick_files(all_candidates, summary):
     final_picks = all_candidates.copy()
     summary["total_candidates"] = (
-        len(all_candidates) + summary["ml_vs_spread_dropped"]
+        len(all_candidates) + summary["ml_vs_spread_dropped"] + summary['exposure_dropped']
     )
     summary["total_selected"] = len(final_picks)
 
@@ -691,6 +675,8 @@ def main():
         "ncaam_bets": 0,
         "wnba_bets": 0,
         "ml_vs_spread_dropped": 0,
+        "exposure_dropped": 0,
+        "exposure_capped": 0,
         "skipped": 0,
         "errors": 0,
     }
@@ -703,7 +689,7 @@ def main():
         "staking.yaml: "
         f"kelly_fraction={KELLY_FRACTION} "
         f"uncertainty={UNCERTAINTY_METHOD}/{UNCERTAINTY_VERSION}; "
-        "exposure-based selection filtering disabled"
+        "exposure limits enforced on adjusted-Kelly requests"
     )
     _log(f"ml_vs_spread_tiebreak: {ML_VS_SPREAD_TIEBREAK}")
 

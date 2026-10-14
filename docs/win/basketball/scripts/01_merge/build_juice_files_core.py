@@ -235,6 +235,10 @@ def apply_calibration(p, cfg: dict):
         intercept = _require_number(cfg.get("intercept"), "beta.intercept")
         coef_log_p = _require_number(cfg.get("coef_log_p"), "beta.coef_log_p")
         coef_log_1mp = _require_number(cfg.get("coef_log_1mp"), "beta.coef_log_1mp")
+        # d logit(calibrated_p) / dp = a/p - b/(1-p).
+        # Globally monotone nondecreasing requires a >= 0, b <= 0.
+        if coef_log_p < 0 or coef_log_1mp > 0 or (coef_log_p == 0 and coef_log_1mp == 0):
+            raise ValueError("Non-monotonic or constant beta probability calibration")
         z = (
             intercept
             + coef_log_p * math.log(p)
