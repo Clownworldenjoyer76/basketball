@@ -22,7 +22,8 @@ from __future__ import annotations
 import csv
 import sys
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 from sdv_canonical_games import build_current_canonical_games
@@ -64,6 +65,14 @@ ERROR_DIR = BASE / "errors/00_intake"
 ERROR_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = ERROR_DIR / "basketball_daily_games.txt"
 ALIAS_FILE = ERROR_DIR / "basketball_game_id_aliases.csv"
+NY = ZoneInfo("America/New_York")
+
+# Explicit schedule cancellation signals. Conditional/"if necessary" alone is
+# not proof that a game is canceled; avoid guessing from that phrase.
+INACTIVE_STATUSES = (
+    "canceled", "cancelled", "postponed", "not necessary", "not needed",
+    "will not be played", "abandoned",
+)
 
 FIELDNAMES = [
     "sport",
@@ -110,6 +119,62 @@ def unresolved_team(value) -> bool:
     # ESPN playoff placeholders can expose unresolved matchup labels such as
     # "Dream/Mystics" before the participating team is known.
     return "/" in team
+
+
+def is_inactive_schedule_status(value: object) -> bool:
+    status = clean(value).casefold()
+    return any(text in status for text in INACTIVE_STATUSES)
+
+
+def active_or_future_day(value: str, *, current_day: str) -> bool:
+    # Lexical comparison valid exclusively for normalized YYYY_MM_DD dates.
+    try:
+        return (datetime.strptime(value, "%Y_%m_%d").strftime("%Y_%m_%d")
+                >= current_day)
+    except ValueError:
+        return False
+
+
+def american_price(value: object) -> bool:
+    try:
+        number = float(clean(value))
+    except (ValueError, TypeError):
+        return False
+    return number == number and (number >= 100 or number <= -100) and abs(number) < 100000
+
+
+def has_quoted_market(source: dict) -> bool:
+    ml = all(american_price(source.get(k)) for k in (
+        "home_dk_moneyline_american", "away_dk_moneyline_american"))
+    spread = all(american_price(source.get(k)) for k in (
+        "home_dk_spread_american", "away_dk_spread_american")) and all(
+            clean(source.get(k)) for k in ("home_spread", "away_spread"))
+    total = all(american_price(source.get(k)) for k in (
+        "dk_total_over_american", "dk_total_under_american")) and clean(
+            source.get("total")) != ""
+    return bool(ml or spread or total)
+
+
+def credible_current_sportsbook_fallback(source: dict, *, observed: datetime) -> bool:
+    """Only an actual, timestamped, priced quote may create an active fixture.
+
+    This is NOT independent proof that the game will occur or that its
+    scheduled start time is correct; the PIT gate remains responsible for that.
+    """
+    if not clean(source.get("sportsbook_provider")):
+        return False
+    stamp = clean(source.get("scraped_at_utc"))
+    if not stamp:
+        return False
+    try:
+        issued = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if issued.tzinfo is None or issued.astimezone(timezone.utc) > observed.astimezone(timezone.utc):
+        return False
+    if not clean(source.get("game_time")):
+        return False
+    return has_quoted_market(source)
 
 
 def build_row(row: dict) -> dict:
@@ -239,6 +304,39 @@ def remove_unresolved_only_output_files(
     return removed
 
 
+def remove_stale_suppressed_daily_file(
+    *, output_dir: Path, league_label: str, active_dates: set[str],
+    rejected: dict[str, set[tuple[str, str, str, str]]],
+    current_day: str,
+) -> int:
+    """Remove a future/today ghost slate only when every old row was rejected.
+
+    Other historical/current games are never silently deleted. A mixed file
+    raises an error rather than silently certifying an incomplete slate.
+    """
+    removed = 0
+    for game_date, rejected_keys in rejected.items():
+        if game_date in active_dates or not active_or_future_day(game_date, current_day=current_day):
+            continue
+        target = output_dir / f"{game_date}_{league_label}.csv"
+        if not target.exists():
+            continue
+        with target.open(newline="", encoding="utf-8-sig") as file:
+            old_rows = list(csv.DictReader(file))
+        if not old_rows:
+            continue
+        all_rejected = all(identity_key(row) in rejected_keys for row in old_rows)
+        if not all_rejected:
+            raise RuntimeError(
+                f"Stale daily slate contains rows not supported by current sources; "
+                f"manual review required instead of deleting: {target}"
+            )
+        target.unlink()
+        removed += 1
+        log(f"REMOVED obsolete active daily slate: {target} ({len(old_rows)} rows)")
+    return removed
+
+
 def load_source_files(
     *,
     league_label: str,
@@ -247,10 +345,17 @@ def load_source_files(
     pattern: str,
     canonical: dict[tuple[str, str, str, str], dict],
     aliases: list[dict],
+    inactive_keys: set[tuple[str, str, str, str]] | None = None,
+    rejected: dict[str, set[tuple[str, str, str, str]]] | None = None,
+    observed: datetime | None = None,
 ) -> tuple[int, int, int]:
     files = 0
     rows_read = 0
     duplicates = 0
+    inactive_keys = inactive_keys if inactive_keys is not None else set()
+    rejected = rejected if rejected is not None else {}
+    observed = observed if observed is not None else datetime.now(timezone.utc)
+    current_day = observed.astimezone(NY).strftime("%Y_%m_%d")
 
     if not folder.exists():
         log(f"{source_kind.upper()} INPUT DIR NOT FOUND: {folder}")
@@ -307,6 +412,25 @@ def load_source_files(
                     )
                     continue
 
+                active_date = active_or_future_day(row["game_date"], current_day=current_day)
+                if source_kind == "sdv" and is_inactive_schedule_status(source.get("status")):
+                    inactive_keys.add(key)
+                    canonical.pop(key, None)
+                    if active_date:
+                        rejected.setdefault(row["game_date"], set()).add(key)
+                    log(f"SKIPPED inactive canonical fixture: {row['game_date']} {key}")
+                    continue
+                if source_kind == "sportsbook" and key in inactive_keys:
+                    if active_date:
+                        rejected.setdefault(row["game_date"], set()).add(key)
+                    log(f"SKIPPED sportsbook fixture rejected by canonical status: {row['game_date']} {key}")
+                    continue
+                if (source_kind == "sportsbook" and active_date and key not in canonical
+                        and not credible_current_sportsbook_fallback(source, observed=observed)):
+                    rejected.setdefault(row["game_date"], set()).add(key)
+                    log(f"SKIPPED unpriced/undated sportsbook-only active fixture: {row['game_date']} {key}")
+                    continue
+
                 if key in canonical:
                     duplicates += 1
                     canonical[key] = choose(
@@ -345,6 +469,9 @@ def main() -> None:
         for cfg in LEAGUES.values():
             league_label = cfg["league_label"]
             canonical: dict[tuple[str, str, str, str], dict] = {}
+            inactive_keys: set[tuple[str, str, str, str]] = set()
+            rejected: dict[str, set[tuple[str, str, str, str]]] = {}
+            observed = datetime.now(timezone.utc)
 
             (
                 sdv_files,
@@ -357,6 +484,9 @@ def main() -> None:
                 pattern="*_games.csv",
                 canonical=canonical,
                 aliases=aliases,
+                inactive_keys=inactive_keys,
+                rejected=rejected,
+                observed=observed,
             )
 
             (
@@ -370,6 +500,9 @@ def main() -> None:
                 pattern="*.csv",
                 canonical=canonical,
                 aliases=aliases,
+                inactive_keys=inactive_keys,
+                rejected=rejected,
+                observed=observed,
             )
 
             total_sdv_files += sdv_files
@@ -388,6 +521,11 @@ def main() -> None:
                 cfg["output_dir"],
                 league_label,
                 set(by_date),
+            )
+            remove_stale_suppressed_daily_file(
+                output_dir=cfg["output_dir"], league_label=league_label,
+                active_dates=set(by_date), rejected=rejected,
+                current_day=observed.astimezone(NY).strftime("%Y_%m_%d"),
             )
 
             for game_date, rows in sorted(by_date.items()):
