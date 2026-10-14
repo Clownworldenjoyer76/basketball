@@ -863,77 +863,102 @@ jobs:
           name: basketball-pipeline-logs
           path: docs/win/basketball/errors/
 
-      # If the pipeline failed, preserve daily_status.txt and pipeline health
-      # in the repository without committing partial pipeline outputs.
-      - name: Commit daily status after failed run
-        if: failure()
+      # Publish only basketball changes onto the latest main commit.
+      # Never rebase unrelated commits or overwrite concurrently changed files.
+      - name: Commit basketball results
+        if: success() || failure()
+        shell: bash
+        env:
+          PIPELINE_STATUS: ${{ job.status }}
         run: |
-          STATUS_FILE="docs/win/basketball/errors/daily_status.txt"
-          HEALTH_FILE="docs/win/basketball/pipeline_health.json"
-          FRONTEND_HEALTH_FILE="frontend/data/pipeline_health/basketball.json"
-
-          if [ ! -f "$STATUS_FILE" ]; then
-            echo "daily_status.txt was not created."
-            exit 0
-          fi
+          set -euo pipefail
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add -- "$STATUS_FILE"
-          [ -f "$HEALTH_FILE" ] && git add -- "$HEALTH_FILE"
-          [ -f "$FRONTEND_HEALTH_FILE" ] && git add -- "$FRONTEND_HEALTH_FILE"
+          if [ "$PIPELINE_STATUS" = "success" ]; then
+            git add -A docs/win/basketball
+            git add -A frontend/data/dashboards/basketball.json
+            git add -A frontend/data/dashboards/nba.json
+            git add -A frontend/data/dashboards/ncaam.json
+            git add -A frontend/data/dashboards/wnba.json
+            git add -A frontend/data/pipeline_health/basketball.json
+            COMMIT_MESSAGE="chore: basketball full pipeline $(date -u +'%Y-%m-%d %H:%M UTC')"
+          else
+            STATUS_FILE="docs/win/basketball/errors/daily_status.txt"
+            HEALTH_FILE="docs/win/basketball/pipeline_health.json"
+            FRONTEND_HEALTH_FILE="frontend/data/pipeline_health/basketball.json"
 
-          echo "--- daily status / pipeline health before failed-run commit ---"
-          git status --short
+            if [ ! -f "$STATUS_FILE" ]; then
+              echo "daily_status.txt was not created."
+              exit 0
+            fi
 
-          if git diff --cached --quiet; then
-            echo "No daily status or pipeline health change to commit."
-            exit 0
+            git add -- "$STATUS_FILE"
+            [ ! -f "$HEALTH_FILE" ] || git add -- "$HEALTH_FILE"
+            [ ! -f "$FRONTEND_HEALTH_FILE" ] || git add -- "$FRONTEND_HEALTH_FILE"
+            COMMIT_MESSAGE="chore: basketball status failed run $(date -u +'%Y-%m-%d %H:%M UTC')"
           fi
 
-          git commit -m "chore: basketball status failed run $(date -u +'%Y-%m-%d %H:%M UTC')"
-
-          # The failed pipeline may have modified tracked files or created new
-          # output files before the failure occurred. Only daily status and
-          # pipeline-health outputs belong in the failed-run commit. Reset every
-          # other tracked change and remove untracked basketball outputs before
-          # rebasing.
-          git reset --hard HEAD
-          git clean -fd -- docs/win/basketball
-
-          echo "--- git status after failed-run cleanup ---"
-          git status --short
-
-          git fetch origin main --depth=2
-          git rebase origin/main
-
-          git push origin HEAD:main
-
-      - name: Commit outputs
-        if: success()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add -A docs/win/basketball
-          git add -A frontend/basketball_dashboard.html
-          git add -A frontend/nba_dashboard.html
-          git add -A frontend/ncaam_dashboard.html
-          git add -A frontend/wnba_dashboard.html
-          git add -A frontend/data/pipeline_health/basketball.json
-
-          echo "--- git status before commit ---"
-          git status --short
+          echo "--- basketball changes selected for commit ---"
+          git diff --cached --stat
 
           if git diff --cached --quiet; then
             echo "No basketball changes to commit."
             exit 0
           fi
 
-          git commit -m "chore: basketball full pipeline $(date -u +'%Y-%m-%d %H:%M UTC')"
+          # Capture exactly the staged content; do not preserve or replay
+          # commits from the workflow's old checkout.
+          BASE_HEAD="$(git rev-parse HEAD)"
+          SNAPSHOT_TREE="$(git write-tree)"
+          CHANGED_FILES="$(mktemp)"
+          REMOTE_FILES="$(mktemp)"
+          trap 'rm -f "$CHANGED_FILES" "$REMOTE_FILES"' EXIT
+          git diff --cached --name-only -z > "$CHANGED_FILES"
 
-          git fetch origin main --depth=2
-          git rebase origin/main
+          # Discard any partial or unstaged outputs. Staged content is safe
+          # in SNAPSHOT_TREE, including newly created and deleted files.
+          git reset --hard HEAD
+          git clean -fd -- docs/win/basketball
 
-          git push origin HEAD:main
+          for attempt in 1 2 3; do
+            echo "--- publishing basketball changes (attempt $attempt/3) ---"
+            git fetch --no-tags --depth=1 origin \
+              +refs/heads/main:refs/remotes/origin/main
+
+            # Abort rather than silently overwrite changes made to the
+            # same files by another workflow since this run began.
+            git diff --name-only -z "$BASE_HEAD" origin/main > "$REMOTE_FILES"
+            declare -A REMOTE_CHANGED=()
+            while IFS= read -r -d '' path; do
+              REMOTE_CHANGED["$path"]=1
+            done < "$REMOTE_FILES"
+
+            while IFS= read -r -d '' path; do
+              if [[ -v REMOTE_CHANGED["$path"] ]]; then
+                echo "::error::File changed on main during this run: $path"
+                exit 1
+              fi
+            done < "$CHANGED_FILES"
+
+            git reset --hard origin/main
+            git restore --source="$SNAPSHOT_TREE" --staged --worktree \
+              --pathspec-from-file="$CHANGED_FILES" --pathspec-file-nul
+
+            if git diff --cached --quiet; then
+              echo "Basketball changes already match origin/main."
+              exit 0
+            fi
+
+            git commit -m "$COMMIT_MESSAGE"
+            if git push origin HEAD:main; then
+              echo "Basketball changes published."
+              exit 0
+            fi
+
+            echo "Push rejected; checking updated main before retry."
+          done
+
+          echo "::error::Unable to publish basketball changes after three attempts."
+          exit 1

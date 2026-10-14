@@ -274,9 +274,33 @@ def process_league(league_key: str):
 
     try:
         if not input_dir.exists():
-            log(league_key, f"Input directory does not exist: {input_dir}")
-            write_summary(league_key, files_written, stats, "SUCCESS (nothing to do)")
-            return
+            raise FileNotFoundError(
+                f"Input directory does not exist: {input_dir}"
+            )
+
+        run_date = (
+            os.getenv("DATE")
+            or datetime.now().strftime("%Y_%m_%d")
+        )
+
+        current_raw_path = (
+            input_dir
+            / f"{run_date}_{league_key}_raw.json"
+        )
+
+        if not current_raw_path.exists():
+            raise FileNotFoundError(
+                f"Missing current raw input for "
+                f"{league_label}: {current_raw_path}"
+            )
+
+        current_games = load_json(current_raw_path)
+
+        if not current_games:
+            raise RuntimeError(
+                f"Current raw input contains zero usable "
+                f"{league_label} games: {current_raw_path}"
+            )
 
         json_files = sorted(input_dir.glob("*.json"))
         stats["input_files_found"] = len(json_files)

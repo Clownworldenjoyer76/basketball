@@ -378,6 +378,11 @@ def main():
                                 f"{traceback.format_exc()}"
                             )
 
+                    if not games:
+                        raise RuntimeError(
+                            f"{sport.upper()} scraper returned zero usable games"
+                        )
+
                     label = "ncaam" if sport == "ncaa" else sport
 
                     out_dir = base_out_dir / label
