@@ -167,6 +167,9 @@ jobs:
       - name: DRatings + SDV Ensemble
         run: python docs/win/basketball/scripts/00_intake/basketball_model_ensemble.py --mode predict
 
+      - name: Capture basketball point-in-time source evidence
+        run: python docs/win/basketball/scripts/pit_provenance.py --phase capture --date "$DATE"
+
       - name: Sanitize historical basketball inputs
         run: python docs/win/basketball/scripts/00_intake/sanitize_historical_inputs.py
 
@@ -190,6 +193,9 @@ jobs:
       # 04 SELECT
       - name: Run basketball bet selection
         run: python docs/win/basketball/scripts/04_select/basketball_select_bets.py
+
+      - name: Audit basketball point-in-time selection evidence
+        run: python docs/win/basketball/scripts/pit_provenance.py --phase selection --date "$DATE"
 
       - name: Run daily slate
         run: python docs/win/basketball/scripts/04_select/daily_slate.py
@@ -837,6 +843,14 @@ jobs:
               cat "$f"
             } || true
           done
+
+      - name: Upload basketball point-in-time provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: basketball-pit-provenance
+          path: docs/win/basketball/pit_audit/runs/
+          if-no-files-found: ignore
 
       - name: Upload basketball logs
         if: always()
