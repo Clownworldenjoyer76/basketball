@@ -181,6 +181,9 @@ jobs:
       - name: Basketball Clean Inputs
         run: python docs/win/basketball/scripts/00_intake/clean_basketball_inputs.py
 
+      - name: Remove unpriced orphan sportsbook placeholders
+        run: python docs/win/basketball/scripts/00_intake/cleanup_orphan_sportsbook.py --date "$DATE"
+
       # 01 MERGE
       - name: Run merge intake
         run: python docs/win/basketball/scripts/01_merge/merge_intake.py

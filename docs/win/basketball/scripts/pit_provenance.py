@@ -85,6 +85,43 @@ def game_key(row, league):
     return (league, str(row.get('game_date', '')).replace('-', '_').lower(), str(row.get('game_id', '')).strip(), str(row.get('home_team', '')).strip().casefold(), str(row.get('away_team', '')).strip().casefold())
 
 
+def load_active_schedule(root, game_date):
+    """Read the canonical daily output, not archived prediction/odds files.
+
+    Missing daily files represent zero confirmed scheduled games for this date.
+    This is an evidence classification, not independent confirmation of actual tipoff.
+    """
+    index = {}
+    source = {}
+    for league in LEAGUES:
+        path = (root / 'docs/win/basketball/daily_games' / league /
+                f'{game_date}_{league.upper()}.csv')
+        if path.is_file():
+            rows = read_csv(path)
+            keys = {game_key(r, league) for r in rows
+                    if str(r.get('game_date', '')).replace('-', '_') == game_date}
+            digest = sha(path)
+            source[league] = {'path': path.relative_to(root).as_posix(),
+                              'sha256': digest, 'active_games': len(keys)}
+        else:
+            keys = set()
+            source[league] = {'path': None, 'sha256': None, 'active_games': 0}
+        index[league] = keys
+    return index, source
+
+
+def classify_schedule(entry, league, schedule_index, schedule_sources):
+    """Keep rejected evidence visible while preventing it from certifying bets."""
+    source = schedule_sources[league]
+    active = tuple(entry['game_key']) in schedule_index[league]
+    entry['schedule_membership'] = 'ACTIVE_DAILY_SLATE' if active else 'ORPHAN_NOT_ON_DAILY_SLATE'
+    entry['schedule_source_file'] = source['path']
+    entry['schedule_source_sha256'] = source['sha256']
+    if not active:
+        entry['reasons'].append('game_not_on_active_daily_schedule')
+    return entry
+
+
 def numeric_equal(a, b, tol=1e-6):
     try:
         return abs(float(a) - float(b)) <= tol
@@ -134,7 +171,9 @@ def record(row, league, path, file_digest, kind, observed):
     }
 
 
-def collect(root, game_date, observed):
+def collect(root, game_date, observed, schedule_index=None, schedule_sources=None):
+    if schedule_index is None or schedule_sources is None:
+        schedule_index, schedule_sources = load_active_schedule(root, game_date)
     base = root / 'docs/win/basketball/00_intake'
     forecasts, quotes = [], []
     inputs = []
@@ -155,7 +194,10 @@ def collect(root, game_date, observed):
         for row in read_csv(p):
             if str(row.get('game_date', '')).replace('-', '_') != game_date:
                 continue
-            entry = record(row, league, relative, digest, kind, observed)
+            entry = classify_schedule(
+                record(row, league, relative, digest, kind, observed),
+                league, schedule_index, schedule_sources,
+            )
             if kind == 'forecast':
                 forecasts.append(entry)
             else:
@@ -226,12 +268,19 @@ def evaluate(selection, league, forecasts, quotes, root):
     else:
         if any(x['recorded_tipoff_utc'] != utc_iso(selected_tip) for x in eligible_quotes + eligible_forecasts):
             reasons.append('recorded_tipoff_disagreement')
-    # Source bytes must remain unchanged between premerge capture and postselect evaluation.
+    # Neither source evidence nor the active-slate proof may change after capture.
     candidates = eligible_forecasts + eligible_quotes
     for x in candidates:
         file_path = root / x['path']
         if not file_path.exists() or sha(file_path) != x['file_sha256']:
             reasons.append('source_file_changed_after_capture')
+            break
+        schedule_file = x.get('schedule_source_file')
+        schedule_hash = x.get('schedule_source_sha256')
+        if (not schedule_file or not schedule_hash or
+                not (root / schedule_file).is_file() or
+                sha(root / schedule_file) != schedule_hash):
+            reasons.append('active_daily_schedule_changed_after_capture')
             break
     chosen_forecast = eligible_forecasts[0] if eligible_forecasts else None
     chosen_quote = eligible_quotes[0] if eligible_quotes else None
@@ -273,13 +322,21 @@ def run(args):
     phase = args.phase
     if phase == 'capture':
         observed = now_utc()
-        forecasts, quotes = collect(root, date, observed)
+        schedule_index, schedule_sources = load_active_schedule(root, date)
+        forecasts, quotes = collect(root, date, observed, schedule_index, schedule_sources)
+        active_forecasts = sum(x['schedule_membership'] == 'ACTIVE_DAILY_SLATE' for x in forecasts)
+        active_quotes = sum(x['schedule_membership'] == 'ACTIVE_DAILY_SLATE' for x in quotes)
         data = {'schema_version': 'basketball_pit_v1', 'phase': 'capture',
                 'run_id': run_id, 'date': date, 'observed_at_utc': utc_iso(observed),
+                'active_schedule': schedule_sources,
                 'forecast_rows': forecasts, 'quote_rows': quotes,
-                'warning': 'Timestamped, hashed prospective evidence only; historical data not automatically certified.'}
+                'active_forecast_rows': active_forecasts,
+                'orphan_forecast_rows': len(forecasts) - active_forecasts,
+                'active_quote_rows': active_quotes,
+                'orphan_quote_rows': len(quotes) - active_quotes,
+                'warning': 'Schedule membership is based on a captured daily slate, not independent actual tipoff or provider proof. Orphaned records are retained for audit but cannot verify wagers.'}
         write_once(folder / 'capture.json', data)
-        print(f'PIT CAPTURE: forecasts={len(forecasts)} quotes={len(quotes)} file={folder / "capture.json"}')
+        print(f'PIT CAPTURE: active_forecasts={active_forecasts} orphan_forecasts={len(forecasts)-active_forecasts} active_quotes={active_quotes} orphan_quotes={len(quotes)-active_quotes} file={folder / "capture.json"}')
     elif phase == 'selection':
         input_path = folder / 'capture.json'
         with input_path.open('r', encoding='utf-8') as f:
