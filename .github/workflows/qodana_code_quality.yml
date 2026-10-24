@@ -1,3 +1,4 @@
+
 name: Qodana
 on:
   workflow_dispatch:
@@ -37,7 +38,7 @@ jobs:
         uses: JetBrains/qodana-action@v2026.2
         with:
           pr-mode: false
-          args: --linter qodana-python --within-docker false --only-directory docs/win/basketball/scripts
+          args: --linter qodana-python-community --within-docker false --only-directory docs/win/basketball/scripts
         env:
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN_1571935479 }}
           QODANA_ENDPOINT: https://qodana.cloud
