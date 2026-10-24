@@ -169,6 +169,12 @@ jobs:
       - name: DRatings + SDV Ensemble
         run: python docs/win/basketball/scripts/00_intake/basketball_model_ensemble.py --mode predict
 
+      # Historical NBA opening backfill: do not apply today's rolling bias to prior dates.
+      # Guarded: normal incremental runs never create these historical cleaned files.
+      - name: Seed NBA opening backfill historical cleaned ensemble
+        if: ${{ inputs.full_rebuild }}
+        run: python docs/win/basketball/scripts/00_intake/seed_nba_backfill_cleaned.py
+
       - name: Capture basketball point-in-time source evidence
         run: python docs/win/basketball/scripts/pit_provenance.py --phase capture --date "$DATE"
 

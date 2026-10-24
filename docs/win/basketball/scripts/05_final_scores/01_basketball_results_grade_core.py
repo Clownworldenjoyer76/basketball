@@ -302,7 +302,7 @@ def load_picks_for_league(league: str, *, locked: bool = False) -> pd.DataFrame:
     dfs = []
     for fp in files:
         try:
-            df = pd.read_csv(fp)
+            df = pd.read_csv(fp, dtype={"game_id": "string"})
             if not df.empty:
                 dfs.append(df)
         except Exception as e:
@@ -330,7 +330,7 @@ def load_scores_for_league(league: str) -> pd.DataFrame:
     dfs = []
     for fp in files:
         try:
-            df = pd.read_csv(fp)
+            df = pd.read_csv(fp, dtype={"game_id": "string"})
             if not df.empty:
                 dfs.append(df)
         except Exception as e:
@@ -382,6 +382,12 @@ def grade_league(league: str, summary: dict, *, locked: bool = False) -> None:
         _log(f"[{league} {label}] no scores; skipping")
         return
 
+    # Preserve IDs as text on BOTH sides, including in-memory fallback aliases.
+    # The two inputs may originate from CSV files with different pandas dtypes.
+    picks = picks.copy()
+    scores = scores.copy()
+    picks["game_id"] = picks["game_id"].astype("string").str.strip()
+    scores["game_id"] = scores["game_id"].astype("string").str.strip()
     merged = picks.merge(scores, on="game_id", how="left", suffixes=("", "_score"))
 
     for col in ("home_score", "away_score"):

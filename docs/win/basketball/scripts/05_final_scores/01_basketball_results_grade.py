@@ -12,6 +12,7 @@ This launcher:
   identify the same completed game.
 """
 from __future__ import annotations
+from functools import lru_cache
 
 import csv
 import importlib.util
@@ -36,16 +37,33 @@ def clean_date(v) -> str:
     return clean(v).replace("-", "_").replace("/", "_")
 
 
-def clean_team(v) -> str:
-    return " ".join(clean(v).split()).casefold()
+@lru_cache(maxsize=1)
+def _team_normalizer():
+    """Use the same NBA team map as the final-scores fetch script."""
+    path = Path(__file__).with_name("00_basketball_final_scores.py")
+    spec = importlib.util.spec_from_file_location("basketball_finals_aliases", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot import final-score normalizer: {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.normalize_team
 
 
-def comp(row: dict) -> tuple[str, str, str]:
+def clean_team(v, league: str = "") -> str:
+    return _team_normalizer()(v, league)
+
+
+
+
+def comp(row: dict, league: str | None = None) -> tuple[str, str, str]:
+    effective_league = league if league is not None else clean(row.get("league"))
     return (
         clean_date(row.get("game_date")),
-        clean_team(row.get("home_team")),
-        clean_team(row.get("away_team")),
+        clean_team(row.get("home_team"), effective_league),
+        clean_team(row.get("away_team"), effective_league),
     )
+
+
 
 
 def score_sig(row: dict) -> tuple[str, str]:
@@ -64,50 +82,52 @@ def clear_stale_diagnostics() -> None:
 
 def validate_final_scores() -> None:
     errors: list[str] = []
-
     for league in LEAGUES:
         by_id: dict[str, tuple[tuple[str, str, str], tuple[str, str], str]] = {}
         by_comp: dict[tuple[str, str, str], tuple[tuple[str, str], str, str]] = {}
-
         folder = RESULTS / league
         if not folder.exists():
             continue
-
         for path in sorted(folder.glob("*.csv")):
-            with open(path, newline="", encoding="utf-8") as f:
-                for n, row in enumerate(csv.DictReader(f), start=2):
-                    key = comp(row)
+            with path.open(newline="", encoding="utf-8-sig") as handle:
+                for n, row in enumerate(csv.DictReader(handle), start=2):
+                    key = comp(row, league)
                     scores = score_sig(row)
                     gid = clean(row.get("game_id"))
-
                     if not all(key) or not all(scores):
                         continue
-
+                    location = f"{path}:{n}"
                     if gid:
                         prior = by_id.get(gid)
-                        current = (key, scores, f"{path}:{n}")
-
                         if prior and (prior[0] != key or prior[1] != scores):
                             errors.append(
                                 f"{league.upper()} game_id {gid} has conflicting finals: "
-                                f"{prior[2]} vs {current[2]}"
+                                f"{prior[2]} vs {location}"
                             )
                         else:
-                            by_id[gid] = current
-
+                            by_id[gid] = (key, scores, location)
                     prior_comp = by_comp.get(key)
                     if prior_comp and prior_comp[0] != scores:
                         errors.append(
                             f"{league.upper()} {key} has conflicting scores: "
-                            f"{prior_comp[1]} vs {path}:{n}"
+                            f"{prior_comp[1]} vs {location}"
                         )
-                    else:
-                        by_comp[key] = (scores, f"{path}:{n}", gid)
-
+                    elif (prior_comp and prior_comp[2] and gid
+                          and prior_comp[2] != gid):
+                        errors.append(
+                            f"{league.upper()} {key} has conflicting game IDs: "
+                            f"{prior_comp[2]} vs {gid} at {prior_comp[1]} vs {location}"
+                        )
+                    elif prior_comp is None:
+                        by_comp[key] = (scores, location, gid)
+                    elif not prior_comp[2] and gid:
+                        by_comp[key] = (scores, location, gid)
     if errors:
         raise RuntimeError(
             "Final-score integrity validation failed:\n" + "\n".join(errors[:50])
         )
+
+
 
 
 def load_core():
@@ -134,7 +154,7 @@ def _read_final_score_composites(league: str) -> dict[tuple[str, str, str], tupl
     for path in sorted(folder.glob("*.csv")):
         with open(path, newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f):
-                key = comp(row)
+                key = comp(row, league)
                 scores = score_sig(row)
 
                 if not all(key) or not all(scores):
@@ -193,7 +213,7 @@ def install_composite_score_fallback(core) -> None:
             if not gid or gid in known_ids:
                 continue
 
-            key = comp(pick)
+            key = comp(pick, league)
             if not all(key):
                 continue
 
