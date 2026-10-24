@@ -69,7 +69,7 @@ def integer(v):
 
 
 def key(d, h, a, hs, a_s):
-    return (str(d), norm(h), norm(a), integer(hs), integer(a_s))
+    return str(d), norm(h), norm(a), integer(hs), integer(a_s)
 
 
 def iso_date(utc):

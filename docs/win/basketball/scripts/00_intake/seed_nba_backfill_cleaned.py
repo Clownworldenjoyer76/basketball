@@ -44,7 +44,7 @@ def clean(value: object) -> str:
 
 
 def matchup(row: dict[str, str]) -> tuple[str, str, str]:
-    return (clean(row.get('game_date')), clean(row.get('home_team')), clean(row.get('away_team')))
+    return clean(row.get('game_date')), clean(row.get('home_team')), clean(row.get('away_team'))
 
 
 def validate_ids(rows: list[dict[str, str]], expected: set[str], path: Path) -> None:
