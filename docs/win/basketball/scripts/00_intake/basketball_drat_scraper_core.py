@@ -116,8 +116,8 @@ def log(message: str) -> None:
     with LOG_FILE.open(
         "a",
         encoding="utf-8",
-    ) as handle:
-        handle.write(line + "\n")
+    ) as log_handle:
+        log_handle.write(line + "\n")
 
 
 def normalize_cell(value) -> str:
@@ -822,8 +822,8 @@ def load_saved_games(path: Path) -> list[dict]:
     with path.open(
         "r",
         encoding="utf-8",
-    ) as handle:
-        data = json.load(handle)
+    ) as saved_handle:
+        data = json.load(saved_handle)
 
     if not isinstance(data, list):
         raise ValueError(
@@ -961,14 +961,14 @@ def atomic_write_json(
         with temp_path.open(
             "w",
             encoding="utf-8",
-        ) as handle:
+        ) as output_handle:
             json.dump(
                 games,
-                handle,
+                output_handle,
                 indent=2,
                 ensure_ascii=False,
             )
-            handle.write("\n")
+            output_handle.write("\n")
 
         os.replace(temp_path, path)
 

@@ -585,19 +585,19 @@ def merge_rows(
     by_comp: dict[tuple[str, str, str], dict] = {}
     source = f" file={output_path};" if output_path is not None else ""
 
-    def signature(row: dict) -> tuple[str, ...]:
-        return tuple(str(row.get(field, "")).strip() for field in (
+    def signature(record: dict) -> tuple[str, ...]:
+        return tuple(str(record.get(field, "")).strip() for field in (
             "home_score", "away_score", "total", "home_spread", "away_spread"
         ))
 
-    def insert(row: dict, *, fetched_row: bool) -> None:
-        gid = str(row.get("game_id") or "").strip()
-        key = composite(row)
-        scores = signature(row)
+    def insert(record: dict, *, fetched_row: bool) -> None:
+        gid = str(record.get("game_id") or "").strip()
+        key = composite(record)
+        scores = signature(record)
         if not all(key) or not all(scores[:2]):
-            raise RuntimeError(f"{label}: incomplete final-score record;{source} {row}")
+            raise RuntimeError(f"{label}: incomplete final-score record;{source} {record}")
         if fetched_row and not gid:
-            raise RuntimeError(f"{label}: incoming game_id is blank;{source} {row}")
+            raise RuntimeError(f"{label}: incoming game_id is blank;{source} {record}")
 
         same_id = by_id.get(gid) if gid else None
         if same_id is not None and (
@@ -605,7 +605,7 @@ def merge_rows(
         ):
             raise RuntimeError(
                 f"{label}: conflicting final for game_id {gid};{source} "
-                f"stored={same_id} incoming={row}"
+                f"stored={same_id} incoming={record}"
             )
 
         previous = by_comp.get(key)
@@ -614,7 +614,7 @@ def merge_rows(
             if signature(previous) != scores:
                 raise RuntimeError(
                     f"{label}: conflicting final for {key};{source} "
-                    f"stored={previous} incoming={row}"
+                    f"stored={previous} incoming={record}"
                 )
             if old_id and gid and old_id != gid:
                 raise RuntimeError(
@@ -626,7 +626,7 @@ def merge_rows(
                 by_id[gid] = previous
             return
 
-        saved = dict(row)
+        saved = dict(record)
         merged.append(saved)
         by_comp[key] = saved
         if gid:
