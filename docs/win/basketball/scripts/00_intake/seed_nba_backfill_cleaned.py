@@ -39,7 +39,7 @@ def read(path: Path) -> tuple[list[str], list[dict[str, str]]]:
     return headers, rows
 
 
-def clean(value: object) -> str:
+def clean(value: str | None) -> str:
     return ' '.join(str(value or '').strip().split()).casefold()
 
 
