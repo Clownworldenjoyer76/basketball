@@ -35,7 +35,7 @@ def backup_dir():
     return Path.home() / 'Downloads' / 'WNBA_SDV_Daily_Backups'
 
 
-def fetch_2027(now: datetime, start: date, end: date):
+def fetch_2027(start: date, end: date):
     result={}
     if start>end:
         return result
@@ -212,7 +212,7 @@ def refresh(repo_root=None, *, dry_run=False, lookback=LOOKBACK, lookahead=LOOKA
         except (OSError,KeyError,TypeError,ValueError):full_scan=True
     if not full_scan and not full_stamp.exists():full_scan=True
     first=start if full_scan else max(start,today-timedelta(days=lookback))
-    events=fetch_2027(now,first,end)
+    events=fetch_2027(first,end)
     known_in_window={str(r['game_id']) for r in games.select(['game_id','game_date']).to_dicts() if first.strftime('%Y_%m_%d') <= str(r['game_date']) <= end.strftime('%Y_%m_%d')}
     missing=known_in_window-set(events)
     if missing:raise RuntimeError('ESPN 2027 scoreboard omitted staged completed games: '+repr(sorted(missing)[:15]))
