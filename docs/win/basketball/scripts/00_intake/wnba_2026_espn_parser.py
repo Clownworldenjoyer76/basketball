@@ -20,11 +20,11 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 try:
     NY = ZoneInfo("America/New_York")
-except Exception:
+except ZoneInfoNotFoundError:
     # Full default 2026 audit window is in US daylight saving time.
     # Exact UTC-04 fallback avoids requiring tzdata just to scan ESPN dates.
     NY = timezone(timedelta(hours=-4))
@@ -734,8 +734,4 @@ def main():
 
 
 if __name__=="__main__":
-    try:
-        main()
-    except Exception:
-        traceback.print_exc()
-        sys.exit(1)
+    main()
