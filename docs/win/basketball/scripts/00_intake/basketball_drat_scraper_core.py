@@ -233,11 +233,7 @@ def is_score(value) -> bool:
     try:
         number = float(str(value).strip())
 
-        return (
-            0 <= number
-            and number == int(number)
-            and number < 250
-        )
+        return 0 <= number == int(number) < 250
 
     except (ValueError, TypeError):
         return False
