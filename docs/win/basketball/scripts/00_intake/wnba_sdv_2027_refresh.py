@@ -16,6 +16,7 @@ import os
 import shutil
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import polars as pl
@@ -33,6 +34,15 @@ FULL_SCAN_INTERVAL_DAYS=7
 
 def backup_dir():
     return Path.home() / 'Downloads' / 'WNBA_SDV_Daily_Backups'
+
+
+
+def _is_wnba_season_event(event: Any) -> bool:
+    return str((event.get('season') or {}).get('type')) in ('2', '3')
+
+
+def _scoreboard_first_competition(event: Any) -> Any:
+    return (event.get('competitions') or [None])[0]
 
 
 def fetch_2027(start: date, end: date):
@@ -54,9 +64,9 @@ def fetch_2027(start: date, end: date):
             game_id=str(event.get('id') or '')
             if not game_id:
                 raise RuntimeError('Blank ESPN event ID for '+str(day))
-            if str((event.get('season') or {}).get('type')) not in ('2','3'):
+            if not _is_wnba_season_event(event):
                 continue
-            comp=(event.get('competitions') or [None])[0]
+            comp=_scoreboard_first_competition(event)
             if not isinstance(comp,dict):
                 raise RuntimeError('Missing ESPN WNBA competition for '+game_id)
             sides={x.get('homeAway'):x for x in comp.get('competitors') or [] if isinstance(x,dict)}

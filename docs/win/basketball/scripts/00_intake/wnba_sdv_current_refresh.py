@@ -14,6 +14,7 @@ import os
 import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 from wnba_2026_espn_parser import TEAM_NAMES, get_json, iso_date, norm, scoreboard_event, summary_tables
@@ -43,6 +44,15 @@ def read_canonical(path):
     return rows
 
 
+
+def _is_wnba_season_event(event: Any) -> bool:
+    return str((event.get('season') or {}).get('type')) in ('2', '3')
+
+
+def _scoreboard_first_competition(event: Any) -> Any:
+    return (event.get('competitions') or [None])[0]
+
+
 def fetch_window(now, lookback=LOOKBACK, lookahead=LOOKAHEAD):
     from zoneinfo import ZoneInfo
     et_today = now.astimezone(ZoneInfo('America/New_York')).date()
@@ -57,9 +67,9 @@ def fetch_window(now, lookback=LOOKBACK, lookahead=LOOKAHEAD):
         for ev in data['events']:
             eid = str(ev.get('id') or '')
             if not eid: raise RuntimeError('Blank ESPN event id')
-            if str((ev.get('season') or {}).get('type')) not in ('2','3'):
+            if not _is_wnba_season_event(ev):
                 continue
-            competition = (ev.get('competitions') or [None])[0]
+            competition = _scoreboard_first_competition(ev)
             if not isinstance(competition, dict): raise RuntimeError('Bad scoreboard competition '+eid)
             sides = {c.get('homeAway'): c for c in competition.get('competitors') or []}
             if set(sides) != {'home', 'away'}: raise RuntimeError('Incomplete teams on event '+eid)
