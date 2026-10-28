@@ -116,8 +116,8 @@ def log(message: str) -> None:
     with LOG_FILE.open(
         "a",
         encoding="utf-8",
-    ) as log_handle:
-        log_handle.write(line + "\n")
+    ) as handle:
+        handle.write(line + "\n")
 
 
 def normalize_cell(value) -> str:
@@ -233,7 +233,11 @@ def is_score(value) -> bool:
     try:
         number = float(str(value).strip())
 
-        return 0 <= number == int(number) < 250
+        return (
+            0 <= number
+            and number == int(number)
+            and number < 250
+        )
 
     except (ValueError, TypeError):
         return False
@@ -818,8 +822,8 @@ def load_saved_games(path: Path) -> list[dict]:
     with path.open(
         "r",
         encoding="utf-8",
-    ) as saved_handle:
-        data = json.load(saved_handle)
+    ) as handle:
+        data = json.load(handle)
 
     if not isinstance(data, list):
         raise ValueError(
@@ -957,14 +961,14 @@ def atomic_write_json(
         with temp_path.open(
             "w",
             encoding="utf-8",
-        ) as output_handle:
+        ) as handle:
             json.dump(
                 games,
-                output_handle,
+                handle,
                 indent=2,
                 ensure_ascii=False,
             )
-            output_handle.write("\n")
+            handle.write("\n")
 
         os.replace(temp_path, path)
 

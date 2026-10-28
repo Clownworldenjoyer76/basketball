@@ -1,3 +1,4 @@
+
 # docs/win/basketball/scripts/00_intake/transform_basketball.py
 
 import os
@@ -7,6 +8,7 @@ import traceback
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 ERROR_DIR = Path("docs/win/basketball/errors/00_intake")
 ERROR_DIR.mkdir(parents=True, exist_ok=True)
@@ -122,7 +124,21 @@ def process_predictions(
         log(league_key, f"No upcoming {league_label} games found in this file.")
         return
 
+    today_ny = datetime.now(ZoneInfo("America/New_York")).strftime("%Y_%m_%d")
+
     for date_val, group in upcoming.groupby("game_date"):
+        path = f"{cfg['predictions_dir']}/{date_val}_{league_label}_predictions.csv"
+
+        # A historical pregame snapshot must never be replaced by a later
+        # transformation of raw data that contains fewer/different games.
+        if (
+            re.fullmatch(r"\d{4}_\d{2}_\d{2}", str(date_val))
+            and str(date_val) < today_ny
+            and Path(path).is_file()
+        ):
+            log(league_key, f"PRESERVED HISTORICAL PREDICTIONS: {path}")
+            continue
+
         rows = []
         for _, row in group.iterrows():
             try:
@@ -158,7 +174,6 @@ def process_predictions(
             "home_team", "away_team", "home_prob", "away_prob",
             "home_projected_points", "away_projected_points", "total_projected_points",
         ])
-        path = f"{cfg['predictions_dir']}/{date_val}_{league_label}_predictions.csv"
         save(out, path, files_written, league_key)
         stats["prediction_files_written"] += 1
         stats["prediction_rows_written"] += len(out)

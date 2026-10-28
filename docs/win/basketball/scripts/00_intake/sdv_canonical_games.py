@@ -281,12 +281,6 @@ def bool_text(value: Any) -> str:
     return text
 
 
-def _coerce_schedule_frame(value: Any) -> pd.DataFrame:
-    if isinstance(value, pd.DataFrame):
-        return value
-    return pd.DataFrame(value)
-
-
 def fetch_schedule(
     league: str,
     sdv_season: int,
@@ -326,7 +320,13 @@ def fetch_schedule(
     else:
         raise ValueError(f"Unsupported league: {league}")
 
-    return _coerce_schedule_frame(df)
+    if df is None:
+        return pd.DataFrame()
+
+    if not isinstance(df, pd.DataFrame):
+        df = pd.DataFrame(df)
+
+    return df
 
 
 def validate_source_schema(

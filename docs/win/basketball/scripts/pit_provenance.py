@@ -82,7 +82,7 @@ def read_csv(path):
 
 
 def game_key(row, league):
-    return league, str(row.get('game_date', '')).replace('-', '_').lower(), str(row.get('game_id', '')).strip(), str(row.get('home_team', '')).strip().casefold(), str(row.get('away_team', '')).strip().casefold()
+    return (league, str(row.get('game_date', '')).replace('-', '_').lower(), str(row.get('game_id', '')).strip(), str(row.get('home_team', '')).strip().casefold(), str(row.get('away_team', '')).strip().casefold())
 
 
 def load_active_schedule(root, game_date):

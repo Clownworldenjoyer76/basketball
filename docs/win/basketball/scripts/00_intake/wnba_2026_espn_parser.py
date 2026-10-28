@@ -20,11 +20,11 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
 try:
     NY = ZoneInfo("America/New_York")
-except ZoneInfoNotFoundError:
+except Exception:
     # Full default 2026 audit window is in US daylight saving time.
     # Exact UTC-04 fallback avoids requiring tzdata just to scan ESPN dates.
     NY = timezone(timedelta(hours=-4))
@@ -69,7 +69,7 @@ def integer(v):
 
 
 def key(d, h, a, hs, a_s):
-    return str(d), norm(h), norm(a), integer(hs), integer(a_s)
+    return (str(d), norm(h), norm(a), integer(hs), integer(a_s))
 
 
 def iso_date(utc):
@@ -214,7 +214,7 @@ def parse_min(v):
     return num(v)
 
 
-def player_rows(entry, game, gid):
+def player_rows(entry, game, gid, issues):
     result = []
     team = entry.get("team") or {}
     tid = str(team.get("id") or "")
@@ -297,7 +297,7 @@ def summary_tables(s, game, issues):
             tid = str((entry.get("team") or {}).get("id") or "")
             if tid not in team_ids:
                 raise ValueError("player group team id does not match scoreboard")
-            players.extend(player_rows(entry, game, gid))
+            players.extend(player_rows(entry, game, gid, issues))
         counts = Counter(p["team_id"] for p in players)
         if any(counts.get(tid, 0) < 5 for tid in team_ids):
             raise ValueError(f"too few parsed player rows: {dict(counts)}")
@@ -549,7 +549,7 @@ def n_cdf(v):
 def proper_scores(rows, col):
     if not rows:
         return {"N":0}
-    brier=0; ll=0; picks=0
+    brier=0; ll=0; picks=0; err_margin=[]
     for x in rows:
         p=min(max(x[col],1e-12),1-1e-12)
         y=x["y"]
@@ -560,7 +560,7 @@ def proper_scores(rows, col):
             "Picks":f"{picks}/{len(rows)}"}
 
 
-def replay(args, base, output):
+def replay(args, base, output, manifest):
     import polars as pl
     sys.path.insert(0,str((base/"scripts/00_intake").resolve()))
     try:
@@ -730,8 +730,12 @@ def main():
             raise RuntimeError("Replay blocked: incomplete ESPN date coverage")
         if manifest["boxscore_validated_games"] < manifest["completed_wnba_regular_playoff"] * 0.90:
             raise RuntimeError("Replay blocked: fewer than 90% of completed WNBA games have validated box scores")
-        replay(args,base,out)
+        replay(args,base,out,manifest)
 
 
 if __name__=="__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        traceback.print_exc()
+        sys.exit(1)

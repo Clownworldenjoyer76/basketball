@@ -39,12 +39,12 @@ def read(path: Path) -> tuple[list[str], list[dict[str, str]]]:
     return headers, rows
 
 
-def clean(value: str | None) -> str:
+def clean(value: object) -> str:
     return ' '.join(str(value or '').strip().split()).casefold()
 
 
 def matchup(row: dict[str, str]) -> tuple[str, str, str]:
-    return clean(row.get('game_date')), clean(row.get('home_team')), clean(row.get('away_team'))
+    return (clean(row.get('game_date')), clean(row.get('home_team')), clean(row.get('away_team')))
 
 
 def validate_ids(rows: list[dict[str, str]], expected: set[str], path: Path) -> None:

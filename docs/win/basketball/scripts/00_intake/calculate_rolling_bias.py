@@ -119,6 +119,16 @@ PREDICTION_ROOTS = {
     ),
 }
 
+NBA_TEAM_MAP_PATH = (
+    REPO_ROOT
+    / "docs/win/basketball/maps/team_map_nba.csv"
+)
+
+_NBA_IDENTITY_ALIASES_CACHE: dict[str, dict[str, str] | None] = {
+    "value": None,
+}
+
+
 FINAL_SCORES_ROOT = (
     REPO_ROOT
     / "docs/win/basketball/05_final_scores/results"
@@ -2816,9 +2826,47 @@ def historical_coverage_sets(
     )
 
 
+def normalize_identity_team(
+    league: str,
+    value: Any,
+) -> str:
+    name = normalize_text(value)
+    if league.strip().lower() != "nba" or not name:
+        return name
+
+    aliases = _NBA_IDENTITY_ALIASES_CACHE["value"]
+    if aliases is None:
+        fieldnames, rows = read_csv_rows(NBA_TEAM_MAP_PATH)
+        require_columns(
+            NBA_TEAM_MAP_PATH,
+            fieldnames,
+            {"league", "alias", "canonical_team"},
+        )
+        aliases = {}
+        for row in rows:
+            if normalize_text(row.get("league")) != "nba":
+                continue
+            alias = normalize_text(row.get("alias"))
+            canonical = normalize_text(row.get("canonical_team"))
+            if not alias or not canonical:
+                continue
+            existing = aliases.get(alias)
+            if existing is not None and existing != canonical:
+                raise ValueError(
+                    f"Conflicting NBA team aliases for {alias!r} "
+                    f"in {repo_relative(NBA_TEAM_MAP_PATH)}"
+                )
+            aliases[alias] = canonical
+            aliases.setdefault(canonical, canonical)
+        _NBA_IDENTITY_ALIASES_CACHE["value"] = aliases
+
+    return aliases.get(name, name)
+
+
 def identities_agree(
     prediction: dict[str, str],
     final: dict[str, str],
+    league: str,
 ) -> bool | None:
     pred_date = normalize_date(
         prediction.get(
@@ -2832,25 +2880,29 @@ def identities_agree(
         )
     )
 
-    pred_home = normalize_text(
+    pred_home = normalize_identity_team(
+        league,
         prediction.get(
             "home_team"
         )
     )
 
-    final_home = normalize_text(
+    final_home = normalize_identity_team(
+        league,
         final.get(
             "home_team"
         )
     )
 
-    pred_away = normalize_text(
+    pred_away = normalize_identity_team(
+        league,
         prediction.get(
             "away_team"
         )
     )
 
-    final_away = normalize_text(
+    final_away = normalize_identity_team(
+        league,
         final.get(
             "away_team"
         )
@@ -3056,6 +3108,7 @@ def load_current_completed_games(
                 identities_agree(
                     candidate,
                     final,
+                    league,
                 )
             )
 
