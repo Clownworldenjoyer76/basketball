@@ -1,69 +1,65 @@
-=== 01_basketball_results_grade RUN 2026-10-28T09:31:33.572343+00:00 ===
-2026-10-28T09:31:33.572450+00:00 | INFO  | SELECT_BASE        : docs/win/basketball/04_select
-2026-10-28T09:31:33.572584+00:00 | INFO  | FINAL_SCORES_DIR   : docs/win/basketball/05_final_scores/results
-2026-10-28T09:31:33.572649+00:00 | INFO  | LOCKED_RESULTS_DIR : docs/win/basketball/05_final_scores/locked_picks
-2026-10-28T09:31:33.572702+00:00 | INFO  | ERROR_DIR          : docs/win/basketball/errors/05_final_scores
-2026-10-28T09:31:33.572780+00:00 | INFO  | LOCK GAME DATE   : 2026_10_28 (America/New_York)
-2026-10-28T09:31:33.573044+00:00 | INFO  | [nba] LOCKED PICKS CREATED: docs/win/basketball/04_select/nba/locked_picks/2026_10_28_nba_selected.csv
-2026-10-28T09:31:33.573141+00:00 | INFO  | [ncaam] no current daily pick file to lock: docs/win/basketball/04_select/ncaam/daily_picks/2026_10_28_ncaam_selected.csv
-2026-10-28T09:31:33.573210+00:00 | INFO  | [wnba] no current daily pick file to lock: docs/win/basketball/04_select/wnba/daily_picks/2026_10_28_wnba_selected.csv
-2026-10-28T09:31:33.654729+00:00 | INFO  | [nba] loaded 35 picks rows from 8 files
-2026-10-28T09:31:33.702936+00:00 | INFO  | [nba] loaded 124 unique scored games from 38 files
-2026-10-28T09:31:33.720815+00:00 | INFO  | [nba replay] 4 picks had no matching final score -> docs/win/basketball/errors/05_final_scores/nba_game_id_no_match.csv
-2026-10-28T09:31:33.735544+00:00 | INFO  | [nba replay] graded 31 bets -> docs/win/basketball/05_final_scores/results/nba/graded/NBA_final.csv
-2026-10-28T09:31:33.735669+00:00 | INFO  | [nba replay] W/L/P/Unk = 19/12/0/0  PnL_unit=+6.33  PnL_kelly=+0.1682
-2026-10-28T09:31:33.778346+00:00 | INFO  | [nba] loaded 19 locked picks rows from 5 files
-2026-10-28T09:31:33.825337+00:00 | INFO  | [nba] loaded 124 unique scored games from 38 files
-2026-10-28T09:31:33.840160+00:00 | INFO  | [nba locked] 4 picks had no matching final score -> docs/win/basketball/errors/05_final_scores/nba_locked_game_id_no_match.csv
-2026-10-28T09:31:33.851792+00:00 | INFO  | [nba locked] graded 15 bets -> docs/win/basketball/05_final_scores/locked_picks/nba/NBA_final.csv
-2026-10-28T09:31:33.851904+00:00 | INFO  | [nba locked] W/L/P/Unk = 5/10/0/0  PnL_unit=-1.51  PnL_kelly=-0.0850
-2026-10-28T09:31:33.852689+00:00 | WARN  | [ncaam] no picks files in docs/win/basketball/04_select/ncaam/daily_picks
-2026-10-28T09:31:33.852942+00:00 | INFO  | [ncaam replay] no picks; skipping
-2026-10-28T09:31:33.853145+00:00 | WARN  | [ncaam] no locked picks files in docs/win/basketball/04_select/ncaam/locked_picks
-2026-10-28T09:31:33.853300+00:00 | INFO  | [ncaam locked] no picks; skipping
-2026-10-28T09:31:34.223662+00:00 | INFO  | [wnba] loaded 59 picks rows from 39 files
-2026-10-28T09:31:34.390500+00:00 | INFO  | [wnba] loaded 350 unique scored games from 135 files
-2026-10-28T09:31:34.409023+00:00 | INFO  | [wnba] composite final-score fallback added 39 game_id alias(es)
-2026-10-28T09:31:34.433965+00:00 | INFO  | [wnba replay] graded 59 bets -> docs/win/basketball/05_final_scores/results/wnba/graded/WNBA_final.csv
-2026-10-28T09:31:34.434116+00:00 | INFO  | [wnba replay] W/L/P/Unk = 46/13/0/0  PnL_unit=+22.06  PnL_kelly=+0.9486
-2026-10-28T09:31:34.600667+00:00 | INFO  | [wnba] loaded 45 locked picks rows from 18 files
-2026-10-28T09:31:34.761232+00:00 | INFO  | [wnba] loaded 350 unique scored games from 135 files
-2026-10-28T09:31:34.780775+00:00 | INFO  | [wnba] composite final-score fallback added 39 game_id alias(es)
-2026-10-28T09:31:34.807577+00:00 | INFO  | [wnba locked] graded 45 bets -> docs/win/basketball/05_final_scores/locked_picks/wnba/WNBA_final.csv
-2026-10-28T09:31:34.807721+00:00 | INFO  | [wnba locked] W/L/P/Unk = 20/25/0/0  PnL_unit=-7.68  PnL_kelly=-0.0056
-2026-10-28T09:31:34.808858+00:00 | INFO  | --- SUMMARY ---
-2026-10-28T09:31:34.809047+00:00 | INFO  |   errors                   : 0
-2026-10-28T09:31:34.809116+00:00 | INFO  |   locked_nba_graded        : 15
-2026-10-28T09:31:34.809192+00:00 | INFO  |   locked_nba_losses        : 10
-2026-10-28T09:31:34.809299+00:00 | INFO  |   locked_nba_pnl_kelly     : -0.085
-2026-10-28T09:31:34.809391+00:00 | INFO  |   locked_nba_pnl_unit      : -1.51
-2026-10-28T09:31:34.809470+00:00 | INFO  |   locked_nba_pushes        : 0
-2026-10-28T09:31:34.809568+00:00 | INFO  |   locked_nba_unknown       : 0
-2026-10-28T09:31:34.809616+00:00 | INFO  |   locked_nba_unmatched     : 4
-2026-10-28T09:31:34.809665+00:00 | INFO  |   locked_nba_wins          : 5
-2026-10-28T09:31:34.809717+00:00 | INFO  |   locked_wnba_graded       : 45
-2026-10-28T09:31:34.809765+00:00 | INFO  |   locked_wnba_losses       : 25
-2026-10-28T09:31:34.809817+00:00 | INFO  |   locked_wnba_pnl_kelly    : -0.0056
-2026-10-28T09:31:34.809874+00:00 | INFO  |   locked_wnba_pnl_unit     : -7.6849
-2026-10-28T09:31:34.809926+00:00 | INFO  |   locked_wnba_pushes       : 0
-2026-10-28T09:31:34.809982+00:00 | INFO  |   locked_wnba_unknown      : 0
-2026-10-28T09:31:34.810037+00:00 | INFO  |   locked_wnba_wins         : 20
-2026-10-28T09:31:34.810085+00:00 | INFO  |   nba_graded               : 31
-2026-10-28T09:31:34.810135+00:00 | INFO  |   nba_locked_created       : 1
-2026-10-28T09:31:34.810190+00:00 | INFO  |   nba_losses               : 12
-2026-10-28T09:31:34.810238+00:00 | INFO  |   nba_pnl_kelly            : 0.1682
-2026-10-28T09:31:34.810295+00:00 | INFO  |   nba_pnl_unit             : 6.3309
-2026-10-28T09:31:34.810345+00:00 | INFO  |   nba_pushes               : 0
-2026-10-28T09:31:34.810393+00:00 | INFO  |   nba_unknown              : 0
-2026-10-28T09:31:34.810444+00:00 | INFO  |   nba_unmatched            : 4
-2026-10-28T09:31:34.810527+00:00 | INFO  |   nba_wins                 : 19
-2026-10-28T09:31:34.810586+00:00 | INFO  |   ncaam_locked_created     : 0
-2026-10-28T09:31:34.810647+00:00 | INFO  |   wnba_graded              : 59
-2026-10-28T09:31:34.810703+00:00 | INFO  |   wnba_locked_created      : 0
-2026-10-28T09:31:34.810758+00:00 | INFO  |   wnba_losses              : 13
-2026-10-28T09:31:34.810813+00:00 | INFO  |   wnba_pnl_kelly           : 0.9486
-2026-10-28T09:31:34.810870+00:00 | INFO  |   wnba_pnl_unit            : 22.0613
-2026-10-28T09:31:34.810928+00:00 | INFO  |   wnba_pushes              : 0
-2026-10-28T09:31:34.810983+00:00 | INFO  |   wnba_unknown             : 0
-2026-10-28T09:31:34.811039+00:00 | INFO  |   wnba_wins                : 46
-2026-10-28T09:31:34.811094+00:00 | INFO  | STATUS: SUCCESS
+=== 01_basketball_results_grade RUN 2026-10-29T09:32:09.125613+00:00 ===
+2026-10-29T09:32:09.125683+00:00 | INFO  | SELECT_BASE        : docs/win/basketball/04_select
+2026-10-29T09:32:09.125724+00:00 | INFO  | FINAL_SCORES_DIR   : docs/win/basketball/05_final_scores/results
+2026-10-29T09:32:09.125743+00:00 | INFO  | LOCKED_RESULTS_DIR : docs/win/basketball/05_final_scores/locked_picks
+2026-10-29T09:32:09.125770+00:00 | INFO  | ERROR_DIR          : docs/win/basketball/errors/05_final_scores
+2026-10-29T09:32:09.125809+00:00 | INFO  | LOCK GAME DATE   : 2026_10_29 (America/New_York)
+2026-10-29T09:32:09.125922+00:00 | INFO  | [nba] no current daily pick file to lock: docs/win/basketball/04_select/nba/daily_picks/2026_10_29_nba_selected.csv
+2026-10-29T09:32:09.125976+00:00 | INFO  | [ncaam] no current daily pick file to lock: docs/win/basketball/04_select/ncaam/daily_picks/2026_10_29_ncaam_selected.csv
+2026-10-29T09:32:09.126031+00:00 | INFO  | [wnba] no current daily pick file to lock: docs/win/basketball/04_select/wnba/daily_picks/2026_10_29_wnba_selected.csv
+2026-10-29T09:32:09.182711+00:00 | INFO  | [nba] loaded 35 picks rows from 8 files
+2026-10-29T09:32:09.221298+00:00 | INFO  | [nba] loaded 136 unique scored games from 39 files
+2026-10-29T09:32:09.245457+00:00 | INFO  | [nba replay] graded 35 bets -> docs/win/basketball/05_final_scores/results/nba/graded/NBA_final.csv
+2026-10-29T09:32:09.245548+00:00 | INFO  | [nba replay] W/L/P/Unk = 20/15/0/0  PnL_unit=+4.69  PnL_kelly=+0.1206
+2026-10-29T09:32:09.279448+00:00 | INFO  | [nba] loaded 19 locked picks rows from 5 files
+2026-10-29T09:32:09.317508+00:00 | INFO  | [nba] loaded 136 unique scored games from 39 files
+2026-10-29T09:32:09.335690+00:00 | INFO  | [nba locked] graded 19 bets -> docs/win/basketball/05_final_scores/locked_picks/nba/NBA_final.csv
+2026-10-29T09:32:09.335770+00:00 | INFO  | [nba locked] W/L/P/Unk = 6/13/0/0  PnL_unit=-3.15  PnL_kelly=-0.1326
+2026-10-29T09:32:09.336294+00:00 | WARN  | [ncaam] no picks files in docs/win/basketball/04_select/ncaam/daily_picks
+2026-10-29T09:32:09.336496+00:00 | INFO  | [ncaam replay] no picks; skipping
+2026-10-29T09:32:09.336637+00:00 | WARN  | [ncaam] no locked picks files in docs/win/basketball/04_select/ncaam/locked_picks
+2026-10-29T09:32:09.336761+00:00 | INFO  | [ncaam locked] no picks; skipping
+2026-10-29T09:32:09.584619+00:00 | INFO  | [wnba] loaded 59 picks rows from 39 files
+2026-10-29T09:32:09.713328+00:00 | INFO  | [wnba] loaded 350 unique scored games from 135 files
+2026-10-29T09:32:09.727302+00:00 | INFO  | [wnba] composite final-score fallback added 39 game_id alias(es)
+2026-10-29T09:32:09.747930+00:00 | INFO  | [wnba replay] graded 59 bets -> docs/win/basketball/05_final_scores/results/wnba/graded/WNBA_final.csv
+2026-10-29T09:32:09.748017+00:00 | INFO  | [wnba replay] W/L/P/Unk = 46/13/0/0  PnL_unit=+22.06  PnL_kelly=+0.9486
+2026-10-29T09:32:09.860204+00:00 | INFO  | [wnba] loaded 45 locked picks rows from 18 files
+2026-10-29T09:32:09.985494+00:00 | INFO  | [wnba] loaded 350 unique scored games from 135 files
+2026-10-29T09:32:09.999420+00:00 | INFO  | [wnba] composite final-score fallback added 39 game_id alias(es)
+2026-10-29T09:32:10.019257+00:00 | INFO  | [wnba locked] graded 45 bets -> docs/win/basketball/05_final_scores/locked_picks/wnba/WNBA_final.csv
+2026-10-29T09:32:10.019374+00:00 | INFO  | [wnba locked] W/L/P/Unk = 20/25/0/0  PnL_unit=-7.68  PnL_kelly=-0.0056
+2026-10-29T09:32:10.020147+00:00 | INFO  | --- SUMMARY ---
+2026-10-29T09:32:10.020386+00:00 | INFO  |   errors                   : 0
+2026-10-29T09:32:10.020426+00:00 | INFO  |   locked_nba_graded        : 19
+2026-10-29T09:32:10.020451+00:00 | INFO  |   locked_nba_losses        : 13
+2026-10-29T09:32:10.020484+00:00 | INFO  |   locked_nba_pnl_kelly     : -0.1326
+2026-10-29T09:32:10.020513+00:00 | INFO  |   locked_nba_pnl_unit      : -3.15
+2026-10-29T09:32:10.020536+00:00 | INFO  |   locked_nba_pushes        : 0
+2026-10-29T09:32:10.020566+00:00 | INFO  |   locked_nba_unknown       : 0
+2026-10-29T09:32:10.020594+00:00 | INFO  |   locked_nba_wins          : 6
+2026-10-29T09:32:10.020635+00:00 | INFO  |   locked_wnba_graded       : 45
+2026-10-29T09:32:10.020663+00:00 | INFO  |   locked_wnba_losses       : 25
+2026-10-29T09:32:10.020693+00:00 | INFO  |   locked_wnba_pnl_kelly    : -0.0056
+2026-10-29T09:32:10.020722+00:00 | INFO  |   locked_wnba_pnl_unit     : -7.6849
+2026-10-29T09:32:10.020749+00:00 | INFO  |   locked_wnba_pushes       : 0
+2026-10-29T09:32:10.020774+00:00 | INFO  |   locked_wnba_unknown      : 0
+2026-10-29T09:32:10.020800+00:00 | INFO  |   locked_wnba_wins         : 20
+2026-10-29T09:32:10.020826+00:00 | INFO  |   nba_graded               : 35
+2026-10-29T09:32:10.020852+00:00 | INFO  |   nba_locked_created       : 0
+2026-10-29T09:32:10.020877+00:00 | INFO  |   nba_losses               : 15
+2026-10-29T09:32:10.020905+00:00 | INFO  |   nba_pnl_kelly            : 0.1206
+2026-10-29T09:32:10.020932+00:00 | INFO  |   nba_pnl_unit             : 4.6909
+2026-10-29T09:32:10.020959+00:00 | INFO  |   nba_pushes               : 0
+2026-10-29T09:32:10.020985+00:00 | INFO  |   nba_unknown              : 0
+2026-10-29T09:32:10.021012+00:00 | INFO  |   nba_wins                 : 20
+2026-10-29T09:32:10.021038+00:00 | INFO  |   ncaam_locked_created     : 0
+2026-10-29T09:32:10.021076+00:00 | INFO  |   wnba_graded              : 59
+2026-10-29T09:32:10.021103+00:00 | INFO  |   wnba_locked_created      : 0
+2026-10-29T09:32:10.021128+00:00 | INFO  |   wnba_losses              : 13
+2026-10-29T09:32:10.021156+00:00 | INFO  |   wnba_pnl_kelly           : 0.9486
+2026-10-29T09:32:10.021184+00:00 | INFO  |   wnba_pnl_unit            : 22.0613
+2026-10-29T09:32:10.021210+00:00 | INFO  |   wnba_pushes              : 0
+2026-10-29T09:32:10.021237+00:00 | INFO  |   wnba_unknown             : 0
+2026-10-29T09:32:10.021263+00:00 | INFO  |   wnba_wins                : 46
+2026-10-29T09:32:10.021290+00:00 | INFO  | STATUS: SUCCESS
