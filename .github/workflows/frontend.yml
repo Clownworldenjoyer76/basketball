@@ -1,0 +1,24 @@
+name: Basketball Frontend
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build frontend files
+        run: python3 docs/win/basketball/scripts/frontend.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add frontend/basketball_slate.csv frontend/basketball_final.csv
+          git diff --cached --quiet || git commit -m "Update basketball frontend files"
+          git push
