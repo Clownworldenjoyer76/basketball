@@ -226,6 +226,24 @@ def load_core():
     return module
 
 
+def enable_espn_draftkings_name(core) -> None:
+    """Accept ESPN's 'Draft Kings' spelling without accepting other books."""
+    original_match = core.is_draftkings_odds
+
+    def matches_draftkings(odds: dict | None) -> bool:
+        if original_match(odds):
+            return True
+        if not isinstance(odds, dict):
+            return False
+        provider = odds.get("provider")
+        if not isinstance(provider, dict):
+            return False
+        name = str(provider.get("name") or "")
+        return "".join(char for char in name.casefold() if char.isalnum()) == "draftkings"
+
+    core.is_draftkings_odds = matches_draftkings
+
+
 def clean(value) -> str:
     return "" if value is None else str(value).strip()
 
@@ -505,6 +523,7 @@ def cleanup_sportsbook_aliases(core) -> tuple[int, int]:
 
 def main() -> None:
     core = load_core()
+    enable_espn_draftkings_name(core)
     now = datetime.now(NY)
 
     force_all = truthy(

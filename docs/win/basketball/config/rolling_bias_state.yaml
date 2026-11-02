@@ -1,9 +1,5 @@
 schema_version: 1
-<<<<<<< HEAD
-generated_at_utc: '2026-10-29T09:32:00+00:00'
-=======
-generated_at_utc: '2026-10-29T15:05:41+00:00'
->>>>>>> 31f90097cdde62c4c61498ce763fb026404ba404
+generated_at_utc: '2026-11-02T19:40:52+00:00'
 source_config: docs/win/basketball/config/model_config.yaml
 script_path: docs/win/basketball/scripts/00_intake/calculate_rolling_bias.py
 script_sha256: 546f03cf21ec2ef24180c7b215ddf2b257c9f33c6831018b0e1f995e0233384a
@@ -14,20 +10,20 @@ leagues:
     margin_bias:
       status: ready
       method: rolling
-      value: -2.367
+      value: -2.242
       window_games: 150
       games_used: 150
-      first_game_date: '2026-04-10'
-      last_game_date: '2026-10-27'
+      first_game_date: '2026-04-19'
+      last_game_date: '2026-10-31'
       mean_error_definition: projected_minus_actual
     total_bias:
       status: ready
       method: rolling
-      value: -0.861
+      value: 3.046
       window_games: 150
       games_used: 150
-      first_game_date: '2026-04-10'
-      last_game_date: '2026-10-27'
+      first_game_date: '2026-04-19'
+      last_game_date: '2026-10-31'
       mean_error_definition: projected_minus_actual
     history:
       historical_files_scanned: 1
@@ -43,14 +39,14 @@ leagues:
       historical_unreversible_bias_rows: 0
       current_season: 2026
       season_status: in_season
-      prediction_files_scanned: 9
-      prediction_rows_scanned: 64
-      prediction_rows_current_season: 64
+      prediction_files_scanned: 12
+      prediction_rows_scanned: 96
+      prediction_rows_current_season: 96
       prediction_rows_ignored_not_current_season: 0
       prediction_rows_invalid_date: 0
-      final_files_scanned: 38
-      final_rows_scanned: 139
-      final_rows_current_season: 56
+      final_files_scanned: 43
+      final_rows_scanned: 175
+      final_rows_current_season: 92
       final_rows_ignored_not_current_season: 83
       final_rows_invalid_date: 0
       prediction_rows_missing_game_id: 0
@@ -66,19 +62,19 @@ leagues:
       final_duplicate_rows_removed: 0
       final_conflicting_rows_excluded: 0
       finals_already_covered_by_historical: 0
-      matched_by_game_id: 49
+      matched_by_game_id: 81
       matched_by_composite: 0
       game_id_identity_mismatches: 0
       ambiguous_prediction_matches: 0
-      true_unmatched_current_finals: 7
+      true_unmatched_current_finals: 11
       invalid_current_matches: 0
-      current_matched_games: 49
+      current_matched_games: 81
       duplicates_removed_from_completed_history: 0
-      unique_completed_games: 1317
+      unique_completed_games: 1349
       first_game_date: '2025-10-21'
-      last_game_date: '2026-10-27'
+      last_game_date: '2026-10-31'
   ncaam:
-    status: ready
+    status: ready_with_warnings
     config_status: active
     margin_bias:
       status: ready
@@ -109,17 +105,102 @@ leagues:
       historical_rows_bias_reversed_legacy: 4031
       historical_rows_raw_unadjusted: 0
       historical_unreversible_bias_rows: 0
-      current_season: null
-      season_status: offseason
-      prediction_files_scanned: 0
-      prediction_rows_scanned: 0
-      prediction_rows_current_season: 0
+      current_season: 2026
+      season_status: in_season
+      prediction_files_scanned: 1
+      prediction_rows_scanned: 95
+      prediction_rows_current_season: 95
       prediction_rows_ignored_not_current_season: 0
       prediction_rows_invalid_date: 0
-      final_files_scanned: 0
-      final_rows_scanned: 0
+      final_files_scanned: 8
+      final_rows_scanned: 18
+      final_rows_current_season: 2
+      final_rows_ignored_not_current_season: 16
+      final_rows_invalid_date: 0
+      prediction_rows_missing_game_id: 0
+      prediction_rows_missing_composite: 0
+      duplicate_prediction_game_ids: 0
+      duplicate_prediction_composites: 0
+      conflicting_prediction_game_ids: 0
+      conflicting_prediction_composites: 0
+      duplicate_final_game_ids: 0
+      duplicate_final_composites: 0
+      conflicting_final_game_ids: 0
+      conflicting_final_composites: 0
+      final_duplicate_rows_removed: 0
+      final_conflicting_rows_excluded: 0
+      finals_already_covered_by_historical: 0
+      matched_by_game_id: 0
+      matched_by_composite: 0
+      game_id_identity_mismatches: 0
+      ambiguous_prediction_matches: 0
+      true_unmatched_current_finals: 2
+      invalid_current_matches: 0
+      current_matched_games: 0
+      duplicates_removed_from_completed_history: 0
+      unique_completed_games: 4031
+      first_game_date: '2025-11-04'
+      last_game_date: '2026-04-06'
+  wnba:
+    status: ready
+    config_status: active
+    margin_bias:
+      status: ready
+      method: rolling
+      value: -1.38
+      window_games: 100
+      games_used: 100
+      first_game_date: '2025-08-07'
+      last_game_date: '2025-10-10'
+      mean_error_definition: projected_minus_actual
+    total_bias:
+      status: ready
+      method: regime_aware
+      value: -0.564
+      window_games: 100
+      windows_games:
+      - 25
+      - 50
+      - 100
+      weights:
+      - 0.5
+      - 0.3
+      - 0.2
+      window_mean_residuals:
+        '25': -3.908
+        '50': 1.028
+        '100': 0.176
+      unshrunk_weighted_value: -1.6104
+      sign_conflict: true
+      sign_conflict_shrink: 0.35
+      regime_status: sign_conflict_shrunk
+      games_used: 100
+      first_game_date: '2025-08-07'
+      last_game_date: '2025-10-10'
+      mean_error_definition: projected_minus_actual
+    history:
+      historical_files_scanned: 1
+      historical_rows: 262
+      historical_usable_games: 262
+      historical_incomplete_rows: 0
+      historical_rows_invalid_date: 0
+      historical_invalid_bias_flag_rows: 0
+      historical_rows_bias_reversed: 262
+      historical_rows_bias_reversed_per_game: 0
+      historical_rows_bias_reversed_legacy: 262
+      historical_rows_raw_unadjusted: 0
+      historical_unreversible_bias_rows: 0
+      current_season: null
+      season_status: offseason
+      prediction_files_scanned: 127
+      prediction_rows_scanned: 355
+      prediction_rows_current_season: 0
+      prediction_rows_ignored_not_current_season: 355
+      prediction_rows_invalid_date: 0
+      final_files_scanned: 137
+      final_rows_scanned: 367
       final_rows_current_season: 0
-      final_rows_ignored_not_current_season: 0
+      final_rows_ignored_not_current_season: 367
       final_rows_invalid_date: 0
       prediction_rows_missing_game_id: 0
       prediction_rows_missing_composite: 0
@@ -142,92 +223,7 @@ leagues:
       invalid_current_matches: 0
       current_matched_games: 0
       duplicates_removed_from_completed_history: 0
-      unique_completed_games: 4031
-      first_game_date: '2025-11-04'
-      last_game_date: '2026-04-06'
-  wnba:
-    status: ready
-    config_status: active
-    margin_bias:
-      status: ready
-      method: rolling
-      value: -1.075
-      window_games: 100
-      games_used: 100
-      first_game_date: '2026-08-12'
-      last_game_date: '2026-10-26'
-      mean_error_definition: projected_minus_actual
-    total_bias:
-      status: ready
-      method: regime_aware
-      value: 3.827
-      window_games: 100
-      windows_games:
-      - 25
-      - 50
-      - 100
-      weights:
-      - 0.5
-      - 0.3
-      - 0.2
-      window_mean_residuals:
-        '25': 4.7402
-        '50': 2.1581
-        '100': 4.0453
-      unshrunk_weighted_value: 3.8266
-      sign_conflict: false
-      sign_conflict_shrink: 0.35
-      regime_status: aligned
-      games_used: 100
-      first_game_date: '2026-08-12'
-      last_game_date: '2026-10-26'
-      mean_error_definition: projected_minus_actual
-    history:
-      historical_files_scanned: 1
-      historical_rows: 262
-      historical_usable_games: 262
-      historical_incomplete_rows: 0
-      historical_rows_invalid_date: 0
-      historical_invalid_bias_flag_rows: 0
-      historical_rows_bias_reversed: 262
-      historical_rows_bias_reversed_per_game: 0
-      historical_rows_bias_reversed_legacy: 262
-      historical_rows_raw_unadjusted: 0
-      historical_unreversible_bias_rows: 0
-      current_season: 2026
-      season_status: in_season
-      prediction_files_scanned: 126
-      prediction_rows_scanned: 354
-      prediction_rows_current_season: 354
-      prediction_rows_ignored_not_current_season: 0
-      prediction_rows_invalid_date: 0
-      final_files_scanned: 135
-      final_rows_scanned: 365
-      final_rows_current_season: 349
-      final_rows_ignored_not_current_season: 16
-      final_rows_invalid_date: 0
-      prediction_rows_missing_game_id: 0
-      prediction_rows_missing_composite: 0
-      duplicate_prediction_game_ids: 0
-      duplicate_prediction_composites: 0
-      conflicting_prediction_game_ids: 0
-      conflicting_prediction_composites: 0
-      duplicate_final_game_ids: 0
-      duplicate_final_composites: 0
-      conflicting_final_game_ids: 0
-      conflicting_final_composites: 0
-      final_duplicate_rows_removed: 0
-      final_conflicting_rows_excluded: 0
-      finals_already_covered_by_historical: 0
-      matched_by_game_id: 349
-      matched_by_composite: 0
-      game_id_identity_mismatches: 0
-      ambiguous_prediction_matches: 0
-      true_unmatched_current_finals: 0
-      invalid_current_matches: 0
-      current_matched_games: 349
-      duplicates_removed_from_completed_history: 0
-      unique_completed_games: 611
+      unique_completed_games: 262
       first_game_date: '2025-05-16'
-      last_game_date: '2026-10-26'
+      last_game_date: '2025-10-10'
 run_status: success_with_warnings

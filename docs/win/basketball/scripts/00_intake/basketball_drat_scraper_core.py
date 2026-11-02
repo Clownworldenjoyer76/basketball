@@ -590,7 +590,7 @@ def normalize_section_heading(text: str) -> str:
     return ""
 
 
-def scrape_page(page, url):
+def scrape_page(page, url, sport=None):
     """
     Read game rows together with their table section.
 
@@ -609,6 +609,22 @@ def scrape_page(page, url):
         "table",
         timeout=60000,
     )
+
+    # NBA/NCAAM: a completed table is not an upcoming prediction table.
+    # Require an actual first-page pregame prediction row before extraction.
+    # Leave WNBA's existing behavior untouched.
+    if sport in ("nba", "ncaa"):
+        page.wait_for_function(
+            r"""() => Array.from(
+                document.querySelectorAll('table tbody tr')
+            ).some(row => {
+                const cells = Array.from(row.querySelectorAll('td'));
+                return cells.length >= 10
+                    && /\d+(?:\.\d+)?%/.test(cells[2]?.innerText || '')
+                    && /\d+\.\d+/.test(cells[5]?.innerText || '');
+            })""",
+            timeout=60000,
+        )
 
     extracted = page.evaluate(
         """() => {
@@ -1156,6 +1172,7 @@ def main():
                         scraped = scrape_page(
                             page,
                             url,
+                            sport,
                         )
 
                         log(

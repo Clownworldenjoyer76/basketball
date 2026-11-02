@@ -10,7 +10,12 @@ NBA:
     Validate current-day coverage and game identities.
     Preserve valid previously collected games.
 
-NCAAM/WNBA:
+NCAAM:
+    Supplement incomplete season-wide data with ESPN daily scoreboards for
+    each date in the configured season (no hardcoded calendar dates).
+    Verify every successfully queried day and all identified games.
+
+WNBA:
     Retain the existing SportsDataVerse season retrieval.
 
 Output:
@@ -30,13 +35,15 @@ import os
 import time
 import traceback
 
-from datetime import datetime, timedelta, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
+import yaml
 
 from sdv_season_mapping import sdv_season_id
 
@@ -53,6 +60,13 @@ ESPN_NBA_SCOREBOARD = (
     "https://site.api.espn.com/apis/site/v2/"
     "sports/basketball/nba/scoreboard"
 )
+ESPN_NCAAM_SCOREBOARD = (
+    "https://site.api.espn.com/apis/site/v2/"
+    "sports/basketball/mens-college-basketball/scoreboard"
+)
+SEASON_DATES_CONFIG = BASE / "config/season_dates.yaml"
+NCAAM_DAY_LIMIT = 1000
+NCAAM_FETCH_WORKERS = 5
 
 NBA_LOOKBACK_DAYS = 2
 NBA_LOOKAHEAD_DAYS = 7
@@ -729,6 +743,39 @@ def validate_canonical_identities(
         identities[identity] = game_id
 
 
+def normalize_cached_canonical_names(
+    rows: list[dict[str, str]],
+    league: str,
+) -> list[dict[str, str]]:
+    """Reconcile previously saved team aliases against the current team map.
+
+    Cached identities can predate a mapping update. Match freshly retrieved
+    events using current canonical names; do not weaken game-ID/date checks.
+    """
+    team_map = load_team_map(league)
+    updated: list[dict[str, str]] = []
+    changes = 0
+
+    for row in rows:
+        normalized = row.copy()
+        for field in ("home_team", "away_team"):
+            old_name = clean(row.get(field))
+            new_name = normalize_team_name(old_name, team_map)
+            if new_name != old_name:
+                normalized[field] = new_name
+                changes += 1
+        updated.append(normalized)
+
+    validate_canonical_identities(updated)
+    if changes:
+        log(
+            "CANONICAL CACHE NAME NORMALIZATION | "
+            f"league={LEAGUES[league]['label']} "
+            f"renamed_team_fields={changes}"
+        )
+    return updated
+
+
 def merge_canonical_rows(
     previous: list[dict[str, str]],
     fresh: list[dict[str, str]],
@@ -1151,6 +1198,268 @@ def validate_nba_current_coverage(
     )
 
 
+def ncaam_season_days(internal_season: int) -> list[date]:
+    """Resolve the entire NCAA operating season from season_dates.yaml."""
+    with SEASON_DATES_CONFIG.open(encoding="utf-8") as handle:
+        config = yaml.safe_load(handle) or {}
+
+    league_config = config.get("ncaam")
+    if not isinstance(league_config, dict):
+        raise ValueError("ncaam season dates missing from season_dates.yaml")
+
+    try:
+        start_md = (
+            int(league_config["start_month"]),
+            int(league_config["start_day"]),
+        )
+        end_md = (
+            int(league_config["end_month"]),
+            int(league_config["end_day"]),
+        )
+        first = date(internal_season, *start_md)
+        last = date(internal_season + (end_md < start_md), *end_md)
+    except (KeyError, ValueError, TypeError) as exc:
+        raise ValueError(f"Invalid NCAAM season dates: {exc}") from exc
+
+    if last < first:
+        raise ValueError("NCAAM season end precedes season start")
+
+    return [first + timedelta(days=offset)
+            for offset in range((last - first).days + 1)]
+
+
+def request_espn_ncaam_day(day: date) -> tuple[date, list[dict[str, Any]]]:
+    """Fetch one complete Division I day; never mistake an HTTP failure for zero games."""
+    date_string = day.strftime("%Y%m%d")
+    last_error = None
+
+    for attempt in range(1, HTTP_ATTEMPTS + 1):
+        try:
+            response = requests.get(
+                ESPN_NCAAM_SCOREBOARD,
+                params={
+                    "dates": date_string,
+                    "groups": 50,
+                    "limit": NCAAM_DAY_LIMIT,
+                },
+                timeout=HTTP_TIMEOUT,
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": "bet-tracker-canonical-schedule/1.0",
+                },
+            )
+            response.raise_for_status()
+            payload = response.json()
+            if not isinstance(payload, dict):
+                raise ValueError("NCAAM scoreboard did not return a JSON object")
+            if payload.get("code") in (400, 404, 500):
+                raise ValueError(f"NCAAM ESPN error code={payload['code']}")
+            events = payload.get("events")
+            if not isinstance(events, list):
+                raise ValueError("NCAAM scoreboard has no valid events array")
+            if len(events) >= NCAAM_DAY_LIMIT:
+                raise ValueError(
+                    f"NCAAM {date_string} reached daily limit "
+                    f"{NCAAM_DAY_LIMIT}; possible truncation"
+                )
+            log(f"NCAAM DAILY FETCH | date={date_string} events={len(events)}")
+            return day, events
+        except (requests.RequestException, ValueError) as exc:
+            last_error = exc
+            log(
+                f"NCAAM DAILY RETRY | date={date_string} "
+                f"attempt={attempt}/{HTTP_ATTEMPTS} error={exc}"
+            )
+            if attempt < HTTP_ATTEMPTS:
+                time.sleep(attempt * 2)
+
+    raise RuntimeError(
+        f"NCAAM daily scoreboard unavailable for {date_string}: {last_error}"
+    )
+
+
+def ncaam_scoreboard_row(
+    event: dict[str, Any],
+    *,
+    internal_season: int,
+    sdv_season: int,
+    fetched_at_utc: str,
+    team_map: dict[str, str],
+) -> dict[str, str] | None:
+    """Convert an ESPN event to canonical columns, retaining official game IDs."""
+    game_id = clean_id(event.get("id"))
+    if not game_id:
+        raise ValueError("NCAAM daily event has blank game ID")
+
+    competitions = event.get("competitions")
+    if not isinstance(competitions, list) or not competitions:
+        raise ValueError(f"NCAAM game_id={game_id}: missing competitions")
+    competition = competitions[0]
+    if not isinstance(competition, dict):
+        raise ValueError(f"NCAAM game_id={game_id}: invalid competition")
+
+    competitors = competition.get("competitors")
+    if not isinstance(competitors, list):
+        raise ValueError(f"NCAAM game_id={game_id}: invalid competitors")
+    teams: dict[str, dict[str, str]] = {}
+    for competitor in competitors:
+        if not isinstance(competitor, dict):
+            continue
+        side = clean(competitor.get("homeAway")).lower()
+        if side not in {"home", "away"}:
+            continue
+        team = competitor.get("team") or {}
+        if not isinstance(team, dict):
+            continue
+        teams[side] = {
+            "name": normalize_team_name(
+                team.get("displayName") or team.get("name"), team_map
+            ),
+            "id": clean_id(team.get("id")),
+        }
+
+    if set(teams) != {"home", "away"} or not all(
+        teams[side]["name"] for side in ("home", "away")
+    ):
+        # Bracket placeholders are not yet identifiable games.
+        log(f"NCAAM UNRESOLVED MATCHUP | game_id={game_id}")
+        return None
+
+    if any(
+        teams[side]["name"].casefold() in {
+            "tbd", "tba", "to be determined", "unknown"
+        }
+        for side in ("home", "away")
+    ):
+        log(f"NCAAM UNRESOLVED MATCHUP | game_id={game_id}")
+        return None
+
+    event_dt = parse_event_datetime(
+        competition.get("date") or event.get("date")
+    )
+    venue = competition.get("venue") or {}
+    if not isinstance(venue, dict):
+        venue = {}
+    venue_name = clean(venue.get("fullName") or venue.get("name"))
+    status_obj = event.get("status") or {}
+    if not isinstance(status_obj, dict):
+        status_obj = {}
+    status_type = status_obj.get("type") or {}
+    if not isinstance(status_type, dict):
+        status_type = {}
+
+    return {
+        "sport": "basketball",
+        "league": "NCAAM",
+        "internal_season": str(internal_season),
+        "sdv_season": str(sdv_season),
+        "game_date": event_dt.strftime("%Y_%m_%d"),
+        "game_time": event_dt.strftime("%I:%M %p"),
+        "home_team": teams["home"]["name"],
+        "away_team": teams["away"]["name"],
+        "game_id": game_id,
+        "home_team_id": teams["home"]["id"],
+        "away_team_id": teams["away"]["id"],
+        "neutral_site": bool_text(competition.get("neutralSite")),
+        "venue_id": clean_id(venue.get("id")),
+        "venue_full_name": venue_name,
+        "venue_name": normalize_venue_name(venue_name),
+        "status": clean(status_type.get("description") or status_type.get("name")),
+        "source": "espn_ncaam_daily_scoreboard",
+        "fetched_at_utc": fetched_at_utc,
+    }
+
+
+def fetch_ncaam_season_days(
+    *,
+    internal_season: int,
+    sdv_season: int,
+    fetched_at_utc: str,
+) -> tuple[list[dict[str, str]], set[str]]:
+    """Query all dynamically configured season days and preserve every valid event."""
+    days = ncaam_season_days(internal_season)
+    log(
+        "NCAAM DAILY COVERAGE START | "
+        f"first={days[0]} last={days[-1]} days={len(days)}"
+    )
+    collected: dict[date, list[dict[str, Any]]] = {}
+    with ThreadPoolExecutor(max_workers=NCAAM_FETCH_WORKERS) as pool:
+        futures = {
+            pool.submit(request_espn_ncaam_day, day): day for day in days
+        }
+        for future in as_completed(futures):
+            day, events = future.result()  # A failed day fails the entire refresh.
+            collected[day] = events
+
+    if set(collected) != set(days):
+        raise RuntimeError("NCAAM schedule missing one or more requested dates")
+
+    team_map = load_team_map("ncaam")
+    by_id: dict[str, dict[str, str]] = {}
+    skipped_unresolved = 0
+    for day in days:
+        for event in collected[day]:
+            if not isinstance(event, dict):
+                raise ValueError(f"NCAAM {day}: invalid event object")
+            row = ncaam_scoreboard_row(
+                event,
+                internal_season=internal_season,
+                sdv_season=sdv_season,
+                fetched_at_utc=fetched_at_utc,
+                team_map=team_map,
+            )
+            if row is None:
+                skipped_unresolved += 1
+                continue
+            # ESPN's requested date can differ from tipoff date in ET.
+            # Only that event's ET day owns the record.
+            if row["game_date"] != day.strftime("%Y_%m_%d"):
+                continue
+            game_id = row["game_id"]
+            prior = by_id.get(game_id)
+            if prior is not None and identity_key(prior) != identity_key(row):
+                raise ValueError(f"NCAAM conflicting daily identity for {game_id}")
+            by_id[game_id] = row
+
+    rows = sort_rows(list(by_id.values()))
+    validate_canonical_identities(rows)
+    log(
+        "NCAAM DAILY COVERAGE COMPLETE | "
+        f"dates={len(collected)} games={len(rows)} "
+        f"unresolved={skipped_unresolved}"
+    )
+    return rows, {day.strftime("%Y_%m_%d") for day in collected}
+
+
+def validate_ncaam_coverage(
+    result: list[dict[str, str]],
+    daily_rows: list[dict[str, str]],
+    queried_dates: set[str],
+    internal_season: int,
+) -> None:
+    """Require all requested dates and identified ESPN games in canonical output."""
+    expected_days = {
+        day.strftime("%Y_%m_%d") for day in ncaam_season_days(internal_season)
+    }
+    missing_dates = expected_days - queried_dates
+    if missing_dates:
+        raise ValueError(f"NCAAM missing queried days: {sorted(missing_dates)}")
+
+    output = {row["game_id"]: identity_key(row) for row in result}
+    missing = [
+        row["game_id"] for row in daily_rows
+        if output.get(row["game_id"]) != identity_key(row)
+    ]
+    if missing:
+        raise ValueError(f"NCAAM canonical output missing ESPN IDs: {missing}")
+
+    log(
+        "NCAAM DAILY COVERAGE VERIFIED | "
+        f"dates={len(queried_dates)} "
+        f"scoreboard_games={len(daily_rows)} canonical_games={len(output)}"
+    )
+
+
 def build_league(
     league: str,
     *,
@@ -1221,10 +1530,17 @@ def build_league(
                 f"path={path} error={exc}"
             )
 
+    # Reapply current alias mappings to valid cached NCAAM rows before
+    # comparing ESPN game identities. Historical mapping changes are not
+    # schedule conflicts, but changed dates/opponents still fail closed.
+    if league == "ncaam" and previous:
+        previous = normalize_cached_canonical_names(previous, league)
+
     current_nba = (
         league == "nba"
         and internal == current_internal_season("nba")
     )
+    verify_ncaam = league == "ncaam"
 
     try:
         df = fetch_schedule(
@@ -1272,6 +1588,14 @@ def build_league(
                 daily_rows,
             )
 
+        if verify_ncaam:
+            ncaam_rows, ncaam_queried_dates = fetch_ncaam_season_days(
+                internal_season=internal,
+                sdv_season=mapped_sdv_season,
+                fetched_at_utc=fetched_at_utc,
+            )
+            fresh = merge_canonical_rows(fresh, ncaam_rows)
+
         # Preserve previously verified canonical rows.
         # Newer data takes precedence for matching IDs.
         result = merge_canonical_rows(
@@ -1284,6 +1608,14 @@ def build_league(
                 result,
                 daily_rows,
                 queried_dates,
+            )
+
+        if verify_ncaam:
+            validate_ncaam_coverage(
+                result,
+                ncaam_rows,
+                ncaam_queried_dates,
+                internal,
             )
 
         if not result:
@@ -1318,7 +1650,7 @@ def build_league(
         # Never fall back to the previously incomplete
         # current NBA schedule. It was the original
         # failure condition.
-        if current_nba:
+        if current_nba or verify_ncaam:
             raise
 
         if (
