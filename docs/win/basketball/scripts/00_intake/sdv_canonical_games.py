@@ -776,16 +776,60 @@ def normalize_cached_canonical_names(
     return updated
 
 
+def is_verified_ncaam_neutral_reversal(
+    cached: dict[str, str],
+    fresh: dict[str, str],
+) -> bool:
+    """Recognize a neutral-site home/away label flip, not a new game.
+
+    Both records must describe the same NCAAM game on the same date,
+    with the exact same two named teams and ESPN team IDs reversed.
+    Explicit neutral-site flags on both records are required.
+    """
+    if (
+        clean(cached.get("league")).upper() != "NCAAM"
+        or clean(fresh.get("league")).upper() != "NCAAM"
+        or clean(cached.get("game_date")) != clean(fresh.get("game_date"))
+        or bool_text(cached.get("neutral_site")) != "true"
+        or bool_text(fresh.get("neutral_site")) != "true"
+    ):
+        return False
+
+    cached_home_id = clean_id(cached.get("home_team_id"))
+    cached_away_id = clean_id(cached.get("away_team_id"))
+    fresh_home_id = clean_id(fresh.get("home_team_id"))
+    fresh_away_id = clean_id(fresh.get("away_team_id"))
+
+    if not all((cached_home_id, cached_away_id, fresh_home_id, fresh_away_id)):
+        return False
+
+    cached_home = clean(cached.get("home_team")).casefold()
+    cached_away = clean(cached.get("away_team")).casefold()
+    fresh_home = clean(fresh.get("home_team")).casefold()
+    fresh_away = clean(fresh.get("away_team")).casefold()
+
+    return (
+        cached_home != cached_away
+        and cached_home_id != cached_away_id
+        and cached_home == fresh_away
+        and cached_away == fresh_home
+        and cached_home_id == fresh_away_id
+        and cached_away_id == fresh_home_id
+    )
+
+
 def merge_canonical_rows(
     previous: list[dict[str, str]],
     fresh: list[dict[str, str]],
 ) -> list[dict[str, str]]:
     """
-    Preserve verified prior dates while allowing freshly
-    retrieved records to update existing games.
+    Preserve verified prior dates while allowing freshly retrieved
+    records to update existing games.
 
-    Never allow one game ID to change identity, or one
-    identity to acquire a different game ID.
+    An NCAAM neutral-site home/away designation may be reversed when
+    the date, team names, and corresponding ESPN team IDs still match.
+    All other game-ID/identity conflicts remain fatal, and one identity
+    must never acquire a different game ID.
     """
     validate_canonical_identities(previous)
     validate_canonical_identities(fresh)
@@ -799,14 +843,32 @@ def merge_canonical_rows(
         game_id = clean_id(row["game_id"])
 
         if game_id in by_id:
-            if (
-                identity_key(by_id[game_id])
-                != identity_key(row)
-            ):
-                raise ValueError(
-                    f"Fresh schedule conflicts with "
-                    f"cached game_id={game_id}"
-                )
+            cached = by_id[game_id]
+            cached_identity = identity_key(cached)
+            fresh_identity = identity_key(row)
+
+            if cached_identity != fresh_identity:
+                if is_verified_ncaam_neutral_reversal(cached, row):
+                    log(
+                        "CANONICAL NEUTRAL-SITE REVERSAL | "
+                        f"game_id={game_id} "
+                        f"cached={cached_identity!r} "
+                        f"fresh={fresh_identity!r}"
+                    )
+                else:
+                    details = (
+                        f"Fresh schedule conflicts with cached game_id={game_id}; "
+                        f"cached={cached_identity!r} "
+                        f"fresh={fresh_identity!r}; "
+                        f"cached_team_ids=(home={clean_id(cached.get('home_team_id'))},"
+                        f"away={clean_id(cached.get('away_team_id'))}) "
+                        f"fresh_team_ids=(home={clean_id(row.get('home_team_id'))},"
+                        f"away={clean_id(row.get('away_team_id'))}); "
+                        f"neutral_site=(cached={bool_text(cached.get('neutral_site'))},"
+                        f"fresh={bool_text(row.get('neutral_site'))})"
+                    )
+                    log(f"CANONICAL IDENTITY CONFLICT | {details}")
+                    raise ValueError(details)
 
         by_id[game_id] = row.copy()
 
