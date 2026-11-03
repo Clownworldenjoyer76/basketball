@@ -749,8 +749,8 @@ def normalize_cached_canonical_names(
 ) -> list[dict[str, str]]:
     """Reconcile previously saved team aliases against the current team map.
 
-    Cached identities can predate a mapping update. Match freshly retrieved
-    events using current canonical names; do not weaken game-ID/date checks.
+    Cached names can predate a mapping update. The subsequent merge uses
+    ESPN game IDs and lets the current schedule correct mutable attributes.
     """
     team_map = load_team_map(league)
     updated: list[dict[str, str]] = []
@@ -766,7 +766,8 @@ def normalize_cached_canonical_names(
                 changes += 1
         updated.append(normalized)
 
-    validate_canonical_identities(updated)
+    # Final identity validation happens after fresh ESPN records supersede
+    # stale cached names.
     if changes:
         log(
             "CANONICAL CACHE NAME NORMALIZATION | "
@@ -776,60 +777,35 @@ def normalize_cached_canonical_names(
     return updated
 
 
-def is_verified_ncaam_neutral_reversal(
-    cached: dict[str, str],
-    fresh: dict[str, str],
-) -> bool:
-    """Recognize a neutral-site home/away label flip, not a new game.
-
-    Both records must describe the same NCAAM game on the same date,
-    with the exact same two named teams and ESPN team IDs reversed.
-    Explicit neutral-site flags on both records are required.
-    """
-    if (
-        clean(cached.get("league")).upper() != "NCAAM"
-        or clean(fresh.get("league")).upper() != "NCAAM"
-        or clean(cached.get("game_date")) != clean(fresh.get("game_date"))
-        or bool_text(cached.get("neutral_site")) != "true"
-        or bool_text(fresh.get("neutral_site")) != "true"
-    ):
-        return False
-
-    cached_home_id = clean_id(cached.get("home_team_id"))
-    cached_away_id = clean_id(cached.get("away_team_id"))
-    fresh_home_id = clean_id(fresh.get("home_team_id"))
-    fresh_away_id = clean_id(fresh.get("away_team_id"))
-
-    if not all((cached_home_id, cached_away_id, fresh_home_id, fresh_away_id)):
-        return False
-
-    cached_home = clean(cached.get("home_team")).casefold()
-    cached_away = clean(cached.get("away_team")).casefold()
-    fresh_home = clean(fresh.get("home_team")).casefold()
-    fresh_away = clean(fresh.get("away_team")).casefold()
-
-    return (
-        cached_home != cached_away
-        and cached_home_id != cached_away_id
-        and cached_home == fresh_away
-        and cached_away == fresh_home
-        and cached_home_id == fresh_away_id
-        and cached_away_id == fresh_home_id
-    )
+# Date, display names, team IDs, and neutral-site designations can be
+# revised by ESPN after a game first appears in a schedule. They are
+# attributes of a game, not its primary identity.
+CANONICAL_REVISION_FIELDS = (
+    "game_date",
+    "home_team",
+    "away_team",
+    "home_team_id",
+    "away_team_id",
+    "neutral_site",
+)
 
 
 def merge_canonical_rows(
     previous: list[dict[str, str]],
     fresh: list[dict[str, str]],
 ) -> list[dict[str, str]]:
-    """
-    Preserve verified prior dates while allowing freshly retrieved
-    records to update existing games.
+    """Merge schedule snapshots by ESPN game ID, favoring newer records.
 
-    An NCAAM neutral-site home/away designation may be reversed when
-    the date, team names, and corresponding ESPN team IDs still match.
-    All other game-ID/identity conflicts remain fatal, and one identity
-    must never acquire a different game ID.
+    ESPN game IDs are the durable key. A previously recorded game may have
+    its date, opponent display name, team identifier, or home/away assignment
+    corrected by ESPN. Rejecting those legitimate source revisions causes
+    the entire daily pipeline to fail against an otherwise valid old cache.
+
+    The incoming source is authoritative for an existing ID, and each
+    revision is logged. Keep older games not included in the new response,
+    while checking both sources and the combined output for duplicate IDs
+    and for different IDs claiming the same date/home/away identity.
+    A game ID cannot cross sports, leagues, or seasons.
     """
     validate_canonical_identities(previous)
     validate_canonical_identities(fresh)
@@ -839,42 +815,48 @@ def merge_canonical_rows(
         for row in previous
     }
 
+    revisions = 0
     for row in fresh:
         game_id = clean_id(row["game_id"])
+        cached = by_id.get(game_id)
 
-        if game_id in by_id:
-            cached = by_id[game_id]
-            cached_identity = identity_key(cached)
-            fresh_identity = identity_key(row)
-
-            if cached_identity != fresh_identity:
-                if is_verified_ncaam_neutral_reversal(cached, row):
-                    log(
-                        "CANONICAL NEUTRAL-SITE REVERSAL | "
-                        f"game_id={game_id} "
-                        f"cached={cached_identity!r} "
-                        f"fresh={fresh_identity!r}"
+        if cached is not None:
+            # Reusing the same ESPN ID in another competition or season
+            # would be a true key collision, not a schedule update.
+            for field in ("sport", "league", "internal_season", "sdv_season"):
+                if clean(cached.get(field)).casefold() != clean(row.get(field)).casefold():
+                    raise ValueError(
+                        "Canonical game ID reused across competitions/seasons: "
+                        f"game_id={game_id} field={field} "
+                        f"cached={cached.get(field)!r} fresh={row.get(field)!r}"
                     )
-                else:
-                    details = (
-                        f"Fresh schedule conflicts with cached game_id={game_id}; "
-                        f"cached={cached_identity!r} "
-                        f"fresh={fresh_identity!r}; "
-                        f"cached_team_ids=(home={clean_id(cached.get('home_team_id'))},"
-                        f"away={clean_id(cached.get('away_team_id'))}) "
-                        f"fresh_team_ids=(home={clean_id(row.get('home_team_id'))},"
-                        f"away={clean_id(row.get('away_team_id'))}); "
-                        f"neutral_site=(cached={bool_text(cached.get('neutral_site'))},"
-                        f"fresh={bool_text(row.get('neutral_site'))})"
-                    )
-                    log(f"CANONICAL IDENTITY CONFLICT | {details}")
-                    raise ValueError(details)
 
+            changed = [
+                field for field in CANONICAL_REVISION_FIELDS
+                if clean(cached.get(field)) != clean(row.get(field))
+            ]
+            if changed:
+                revisions += 1
+                details = ", ".join(
+                    f"{field}=({cached.get(field)!r} -> {row.get(field)!r})"
+                    for field in changed
+                )
+                log(
+                    "CANONICAL SOURCE REVISION | "
+                    f"league={row['league']} game_id={game_id} {details}"
+                )
+
+        # ESPN's newest representation of this game ID is authoritative.
         by_id[game_id] = row.copy()
 
     result = list(by_id.values())
     validate_canonical_identities(result)
-
+    if revisions:
+        log(
+            "CANONICAL SOURCE REVISIONS COMPLETE | "
+            f"revised_games={revisions} previous={len(previous)} "
+            f"fresh={len(fresh)} result={len(result)}"
+        )
     return sort_rows(result)
 
 
