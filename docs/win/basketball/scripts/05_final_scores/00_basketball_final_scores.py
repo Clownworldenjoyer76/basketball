@@ -37,6 +37,8 @@ LOG_FILE = ERROR_DIR / "00_basketball_final_scores.txt"
 NBA_TEAM_MAP = BASE / "maps/team_map_nba.csv"
 NY = ZoneInfo("America/New_York")
 NCAAM_SCOREBOARD_LIMIT = 1000
+LOCKED_PICKS_ROOT = BASE / "04_select"
+CANONICAL_GAMES_ROOT = BASE / "00_intake/sdv/canonical_games"
 
 LEAGUES = {
     "nba": {
@@ -680,6 +682,121 @@ def write_rows(path: Path, rows: list[dict]) -> None:
             temp.unlink()
 
 
+
+def _locked_final_ids(league_key: str, game_date: date) -> set[str]:
+    """Get final ESPN game IDs for this date's immutable locked selections.
+
+    Only the canonical ESPN schedule is allowed to establish that a locked
+    game is complete. A past date alone is not completion evidence.
+    """
+    date_key = game_date.strftime("%Y_%m_%d")
+    picks_file = (
+        LOCKED_PICKS_ROOT / league_key / "locked_picks"
+        / f"{date_key}_{league_key}_selected.csv"
+    )
+    if not picks_file.exists():
+        return set()
+
+    with picks_file.open(newline="", encoding="utf-8-sig") as handle:
+        reader = csv.DictReader(handle)
+        required = {"game_id", "game_date"}
+        if not required.issubset(reader.fieldnames or []):
+            raise ValueError(f"Locked pick file missing {required}: {picks_file}")
+        ids = {
+            str(row.get("game_id") or "").strip()
+            for row in reader
+            if str(row.get("game_date") or "").strip().replace("-", "_") == date_key
+            and str(row.get("game_id") or "").strip()
+        }
+    if not ids:
+        return set()
+
+    canonical_dir = CANONICAL_GAMES_ROOT / league_key
+    if not canonical_dir.is_dir():
+        raise FileNotFoundError(
+            f"Canonical ESPN schedule unavailable for locked picks: {canonical_dir}"
+        )
+    files = sorted(canonical_dir.glob(f"*_{LEAGUES[league_key]['label']}_games.csv"))
+    if not files:
+        raise FileNotFoundError(f"No canonical ESPN schedule files: {canonical_dir}")
+
+    completed = set()
+    for path in files:
+        with path.open(newline="", encoding="utf-8-sig") as handle:
+            for row in csv.DictReader(handle):
+                gid = str(row.get("game_id") or "").strip()
+                if gid not in ids:
+                    continue
+                if str(row.get("game_date") or "").strip().replace("-", "_") != date_key:
+                    continue
+                status = str(row.get("status") or "").strip().casefold()
+                if status.startswith("final") or status in {"complete", "completed"}:
+                    completed.add(gid)
+    return completed
+
+
+def _summary_final(league_key: str, game_date: date, game_id: str) -> dict:
+    """Fetch one confirmed-complete ESPN game omitted by the date scoreboard.
+
+    Fail rather than fabricate a result if the ESPN summary is incomplete or
+    returns an unrelated game. This fallback only runs for locked selections.
+    """
+    slug = LEAGUES[league_key]["espn_slug"]
+    url = (
+        "https://site.api.espn.com/apis/site/v2/sports/basketball/"
+        f"{slug}/summary?event={urllib.parse.quote(game_id, safe='')}"
+    )
+    payload = fetch_json(url)
+    header = payload.get("header") if isinstance(payload, dict) else None
+    if not isinstance(header, dict):
+        raise RuntimeError(f"{league_key} {game_id}: invalid ESPN summary header")
+    competitions = header.get("competitions")
+    if not isinstance(competitions, list) or not competitions:
+        raise RuntimeError(f"{league_key} {game_id}: ESPN summary has no competition")
+
+    competition = competitions[0]
+    returned_id = str(header.get("id") or competition.get("id") or "").strip()
+    if returned_id != game_id:
+        raise RuntimeError(
+            f"{league_key} {game_id}: ESPN summary returned game_id={returned_id!r}"
+        )
+    event = {"id": returned_id, "competitions": [competition]}
+    rows = parse_completed_games({"events": [event]}, league_key, game_date)
+    if len(rows) != 1 or rows[0]["game_id"] != game_id:
+        raise RuntimeError(
+            f"{league_key} {game_id}: ESPN summary lacks a verified final score"
+        )
+    return rows[0]
+
+
+def _recover_missing_locked_finals(
+    league_key: str,
+    game_date: date,
+    fetched: list[dict],
+    existing: list[dict],
+) -> list[dict]:
+    """Recover ESPN-confirmed locked finals omitted by scoreboard filtering."""
+    required = _locked_final_ids(league_key, game_date)
+    found = {
+        str(row.get("game_id") or "").strip()
+        for row in [*fetched, *existing]
+    }
+    missing = sorted(required - found)
+    if missing:
+        log(
+            f"[{LEAGUES[league_key]['label']}] {game_date}: "
+            f"scoreboard omitted {len(missing)} confirmed final locked games: {missing}",
+            "WARN",
+        )
+    for game_id in missing:
+        fetched.append(_summary_final(league_key, game_date, game_id))
+        log(
+            f"[{LEAGUES[league_key]['label']}] {game_date}: "
+            f"recovered locked final game_id={game_id} via ESPN summary"
+        )
+    return fetched
+
+
 def fetch_one(
     league_key: str,
     game_date: date,
@@ -710,13 +827,6 @@ def fetch_one(
         game_date,
     )
 
-    if not fetched:
-        log(
-            f"[{cfg['label']}] {game_date}: "
-            "no completed games"
-        )
-        return 0, None
-
     output = (
         RESULTS_BASE
         / league_key
@@ -727,6 +837,16 @@ def fetch_one(
     )
 
     existing = read_existing(output)
+    # Independently verify locked, completed games; even a full-size or
+    # successful ESPN scoreboard request can omit a Division I matchup.
+    if league_key == "ncaam":
+        fetched = _recover_missing_locked_finals(
+            league_key, game_date, fetched, existing
+        )
+
+    if not fetched:
+        log(f"[{cfg['label']}] {game_date}: no completed games")
+        return 0, None
 
     merged = merge_rows(
         existing,
