@@ -36,6 +36,7 @@ ERROR_DIR = BASE / "errors/05_final_scores"
 LOG_FILE = ERROR_DIR / "00_basketball_final_scores.txt"
 NBA_TEAM_MAP = BASE / "maps/team_map_nba.csv"
 NY = ZoneInfo("America/New_York")
+NCAAM_SCOREBOARD_LIMIT = 1000
 
 LEAGUES = {
     "nba": {
@@ -345,10 +346,15 @@ def scoreboard_url(
     espn_slug: str,
     game_date: date,
 ) -> str:
-    query = urllib.parse.urlencode({
+    # NCAAM must use the same Division I group and limit as the canonical
+    # schedule fetcher. Without groups=50 ESPN may return an incomplete slate.
+    params = {
         "dates": game_date.strftime("%Y%m%d"),
-        "limit": 500,
-    })
+        "limit": NCAAM_SCOREBOARD_LIMIT if espn_slug == "mens-college-basketball" else 500,
+    }
+    if espn_slug == "mens-college-basketball":
+        params["groups"] = 50
+    query = urllib.parse.urlencode(params)
 
     return (
         "https://site.api.espn.com/apis/site/v2/"
@@ -685,6 +691,17 @@ def fetch_one(
             cfg["espn_slug"],
             game_date,
         )
+    )
+    if not isinstance(payload, dict) or not isinstance(payload.get("events"), list):
+        raise RuntimeError(f"{cfg['label']} {game_date}: invalid ESPN scoreboard events")
+    if league_key == "ncaam" and len(payload["events"]) >= NCAAM_SCOREBOARD_LIMIT:
+        raise RuntimeError(
+            f"NCAAM {game_date}: scoreboard reached the configured limit "
+            f"({NCAAM_SCOREBOARD_LIMIT}); possible truncated slate"
+        )
+    log(
+        f"[{cfg['label']}] {game_date}: "
+        f"scoreboard_events={len(payload['events'])}"
     )
 
     fetched = parse_completed_games(

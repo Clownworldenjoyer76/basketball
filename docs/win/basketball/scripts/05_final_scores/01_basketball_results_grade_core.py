@@ -35,6 +35,7 @@
 #                 = 0                              if Push
 #                 (None if bet_stake_pct is missing)
 
+import csv
 import os
 import sys
 import traceback
@@ -63,6 +64,7 @@ LOCK_TIMEZONE = ZoneInfo("America/New_York")
 BASE               = Path("docs/win/basketball")
 SELECT_BASE        = BASE / "04_select"
 FINAL_SCORES_DIR   = BASE / "05_final_scores/results"
+CANONICAL_GAMES_DIR = BASE / "00_intake/sdv/canonical_games"
 LOCKED_RESULTS_DIR = BASE / "05_final_scores/locked_picks"
 ERROR_DIR          = BASE / "errors/05_final_scores"
 LOG_FILE           = ERROR_DIR / "01_basketball_results_grade.txt"
@@ -351,6 +353,69 @@ def load_scores_for_league(league: str) -> pd.DataFrame:
     return out
 
 
+def _completed_canonical_games(league: str, target_games: set[tuple[str, str]]) -> set[tuple[str, str]]:
+    """Return game IDs/dates independently confirmed Final in ESPN's canonical schedule.
+
+    A past-date pick alone is not evidence that its game was played: postponements
+    and cancellations must not be treated as grading failures.
+    """
+    if not target_games:
+        return set()
+
+    folder = CANONICAL_GAMES_DIR / league
+    result: set[tuple[str, str]] = set()
+    for path in sorted(folder.glob(f"*_{league.upper()}_games.csv")):
+        with path.open(newline="", encoding="utf-8-sig") as handle:
+            for row in csv.DictReader(handle):
+                key = (str(row.get("game_id") or "").strip(),
+                       str(row.get("game_date") or "").strip())
+                if key not in target_games:
+                    continue
+                status = str(row.get("status") or "").strip().casefold()
+                if status.startswith("final") or status in {"complete", "completed"}:
+                    result.add(key)
+    return result
+
+
+def _audit_ungraded_locked(league: str, unmatched: pd.DataFrame, summary: dict) -> None:
+    """Fail closed only for past-date locked bets ESPN confirms are completed."""
+    today = _current_game_date()
+    eligible: set[tuple[str, str]] = set()
+    for _, row in unmatched.iterrows():
+        gid = row.get("game_id")
+        if pd.isna(gid):
+            continue
+        game_date = str(row.get("game_date") or "").strip()
+        if game_date and game_date < today:
+            eligible.add((str(gid).strip(), game_date))
+
+    completed = _completed_canonical_games(league, eligible)
+    incomplete = unmatched[
+        unmatched.apply(
+            lambda row: (
+                (str(row.get("game_id") or "").strip(),
+                 str(row.get("game_date") or "").strip()) in completed
+            ),
+            axis=1,
+        )
+    ] if completed else unmatched.iloc[0:0]
+
+    count = len(incomplete)
+    summary[f"locked_{league}_completed_ungraded"] = count
+    if count:
+        details = sorted({
+            f"{row.get('game_date')}:{row.get('game_id')} "
+            f"{row.get('market_type')}/{row.get('bet_side')}"
+            for _, row in incomplete.iterrows()
+        })
+        _log(
+            f"[{league} locked] {count} completed past-date locked bet(s) "
+            f"have no final score: {details}",
+            "ERROR",
+        )
+        summary["errors"] += 1
+
+
 def grade_league(league: str, summary: dict, *, locked: bool = False) -> None:
     upper = league.upper()
     label = "locked" if locked else "replay"
@@ -379,8 +444,10 @@ def grade_league(league: str, summary: dict, *, locked: bool = False) -> None:
 
     scores = load_scores_for_league(league)
     if scores.empty:
-        _log(f"[{league} {label}] no scores; skipping")
-        return
+        # Still audit locked picks when the score directory is empty. Silently
+        # returning here previously hid even confirmed-completed games.
+        _log(f"[{league} {label}] no scores; recording unmatched picks")
+        scores = pd.DataFrame(columns=["game_id", "home_score", "away_score"])
 
     # Preserve IDs as text on BOTH sides, including in-memory fallback aliases.
     # The two inputs may originate from CSV files with different pandas dtypes.
@@ -413,6 +480,9 @@ def grade_league(league: str, summary: dict, *, locked: bool = False) -> None:
             f"-> {unmatched_path}"
         )
         summary[f"{summary_prefix}{league}_unmatched"] = len(unmatched_out)
+
+    if locked:
+        _audit_ungraded_locked(league, unmatched, summary)
 
     if matched.empty:
         _log(f"[{league} {label}] no picks matched a final score; nothing to grade")

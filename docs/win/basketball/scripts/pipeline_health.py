@@ -13,6 +13,7 @@ import math
 import os
 import sys
 from datetime import datetime, UTC
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -28,6 +29,9 @@ SDV_STORAGE_CONFIG = BASE / "config/sdv_storage.yaml"
 SDV_MODEL_CONFIG = BASE / "config/sdv_model.yaml"
 MODEL_CONFIG = BASE / "config/model_config.yaml"
 WNBA_DRIFT_REPORT = ERRORS / "99_validation/wnba_bias_drift.csv"
+CANONICAL_GAMES_ROOT = BASE / "00_intake/sdv/canonical_games"
+LOCKED_PICKS_ROOT = BASE / "04_select"
+LOCKED_GRADES_ROOT = BASE / "05_final_scores/locked_picks"
 SDV_FEATURE_ROOT = BASE / "00_intake/sdv/features/current"
 SDV_PREDICTION_ROOT = BASE / "00_intake/predictions_sdv"
 ENSEMBLE_PREDICTION_ROOT = BASE / "00_intake/predictions_ensemble"
@@ -52,6 +56,7 @@ STAGE_LOGS = [
     ERRORS / "03_edges/compute_ev_kelly.txt",
     ERRORS / "04_select/select_bets.txt",
     ERRORS / "04_select/daily_slate.txt",
+    ERRORS / "05_final_scores/00_basketball_final_scores.txt",
     ERRORS / "05_final_scores/01_basketball_results_grade.txt",
 ]
 BAD_STATUS = ("STATUS: FAILED", "STATUS: PARTIAL", "STATUS: COMPLETED WITH ERRORS")
@@ -268,6 +273,93 @@ def sdv_health(now: datetime, seasons: dict, leagues: dict):
     return {"configured_production_source": production_source, "current": current, "warnings": warnings, "historical_manifests": {"skipped": True, "reason": "Current-slate health check does not revalidate historical SDV manifests", "valid_count": 0, "required_count": 0}, "validation_scope": "current_dratings_slate"}, errors
 
 
+def _grade_key(row: dict) -> tuple[str, str, str, str, str]:
+    """Identify a locked bet, tolerating CSV float formatting of its line."""
+    line = clean(row.get("bet_line"))
+    if line:
+        try:
+            line = str(Decimal(line).normalize())
+        except InvalidOperation:
+            line = line.casefold()
+    return (
+        clean_id(row.get("game_id")),
+        clean(row.get("game_date")),
+        clean(row.get("market_type")).casefold(),
+        clean(row.get("bet_side")).casefold(),
+        line,
+    )
+
+
+def locked_grading_health(now: datetime) -> tuple[dict, list[str]]:
+    """Audit past-date locked picks against independent ESPN Final evidence.
+
+    Same-day selections and postponed/cancelled games are not overdue. A game
+    only requires a graded result once the canonical schedule marks it Final.
+    """
+    today = now.strftime("%Y_%m_%d")
+    result, errors = {}, []
+    for league in LEAGUES:
+        label = LABEL[league]
+        folder = LOCKED_PICKS_ROOT / league / "locked_picks"
+        past_picks = [
+            row
+            for path in sorted(folder.glob("*.csv"))
+            for row in read_rows(path)
+            if clean(row.get("game_date")) and clean(row.get("game_date")) < today
+        ]
+        candidates = {
+            (clean_id(row.get("game_id")), clean(row.get("game_date")))
+            for row in past_picks if clean_id(row.get("game_id"))
+        }
+        completed = set()
+        schedules = sorted((CANONICAL_GAMES_ROOT / league).glob(f"*_{label}_games.csv"))
+        for path in schedules:
+            with path.open(newline="", encoding="utf-8-sig") as handle:
+                for row in csv.DictReader(handle):
+                    key = (clean_id(row.get("game_id")), clean(row.get("game_date")))
+                    if key in candidates:
+                        status = clean(row.get("status")).casefold()
+                        if status.startswith("final") or status in {"complete", "completed"}:
+                            completed.add(key)
+
+        grade_path = LOCKED_GRADES_ROOT / league / f"{label}_final.csv"
+        graded = {
+            _grade_key(row)
+            for row in read_rows(grade_path)
+            if clean(row.get("bet_result")) in {"Win", "Loss", "Push"}
+        }
+        completed_picks = [
+            row for row in past_picks
+            if (clean_id(row.get("game_id")), clean(row.get("game_date"))) in completed
+        ]
+        missing = [
+            {
+                "game_id": clean_id(row.get("game_id")),
+                "game_date": clean(row.get("game_date")),
+                "home_team": clean(row.get("home_team")),
+                "away_team": clean(row.get("away_team")),
+                "market_type": clean(row.get("market_type")),
+                "bet_side": clean(row.get("bet_side")),
+            }
+            for row in completed_picks if _grade_key(row) not in graded
+        ]
+        result[league] = {
+            "past_locked_bets": len(past_picks),
+            "confirmed_completed_locked_bets": len(completed_picks),
+            "completed_locked_bets_missing_grades": missing,
+            "graded_completed_locked_bets": len(completed_picks) - len(missing),
+            "canonical_schedule_files": len(schedules),
+            "graded_results_path": str(grade_path),
+        }
+        if missing:
+            ids = sorted({row["game_id"] for row in missing})
+            errors.append(
+                f"{label}: {len(missing)} completed past-date locked bets "
+                f"are missing graded results: game_ids={ids}"
+            )
+    return result, errors
+
+
 def wnba_bias_drift():
     return {"windows": {str(n): {"games": 0, "margin_mean_residual": None, "total_mean_residual": None, "warning": False} for n in (25, 50, 100)}, "warnings": [], "report_path": str(WNBA_DRIFT_REPORT)}
 
@@ -289,10 +381,12 @@ def main() -> None:
         errors.extend(fatal)
     sdv, sdv_errors = sdv_health(now, seasons, leagues)
     errors.extend(sdv_errors)
+    grading, grading_errors = locked_grading_health(now)
+    errors.extend(grading_errors)
     errors = list(dict.fromkeys(errors))
     now_utc = datetime.now(UTC).isoformat()
     drift = wnba_bias_drift()
-    payload = {"schema_version": 1, "generated_at_utc": now_utc, "game_date_new_york": now.strftime("%Y_%m_%d"), "season_config_path": str(SEASON_CONFIG), "status": "failed" if errors else "healthy", "fatal_errors": errors, "stage_status": stages, "leagues": leagues, "sdv_health": sdv, "wnba_bias_drift": drift}
+    payload = {"schema_version": 1, "generated_at_utc": now_utc, "game_date_new_york": now.strftime("%Y_%m_%d"), "season_config_path": str(SEASON_CONFIG), "status": "failed" if errors else "healthy", "fatal_errors": errors, "stage_status": stages, "leagues": leagues, "sdv_health": sdv, "locked_grading_health": grading, "wnba_bias_drift": drift}
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     lines = [f"=== basketball pipeline health {now_utc} ===", f"game_date_new_york: {payload['game_date_new_york']}", f"season_config: {SEASON_CONFIG}", f"status: {payload['status']}"]
