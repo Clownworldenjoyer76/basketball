@@ -24,7 +24,7 @@ import yaml
 from staking_runtime import (
     KELLY_FRACTION,
     UNCERTAINTY_METHOD, UNCERTAINTY_VERSION,
-    attach_candidate_uncertainty, requested_stake, enforce_exposure_limits,
+    attach_candidate_uncertainty, requested_stake,
 )
 
 INPUT_DIR        = Path("docs/win/basketball/03_edges/ev_kelly")
@@ -46,6 +46,7 @@ with open(MODEL_CONFIG_PATH, "r", encoding="utf-8") as model_config_handle:
 ML_VS_SPREAD_TIEBREAK = str(CONFIG.get("ml_vs_spread_tiebreak", "ev")).strip().lower()
 TIEBREAK_COL_MAP = {
     "ev":              "bet_ev",
+    "model_prob":      "bet_model_prob",
     "kelly":           "bet_kelly",
     "edge_vs_market":  "bet_edge_vs_market",
 }
@@ -127,14 +128,13 @@ def _write_summary(summary: dict, per_file: list) -> None:
         f"  ncaam_bets            : {summary['ncaam_bets']}",
         f"  wnba_bets             : {summary['wnba_bets']}",
         f"  ml_vs_spread_dropped  : {summary['ml_vs_spread_dropped']}",
-        f"  exposure_dropped      : {summary['exposure_dropped']}",
-        f"  exposure_capped       : {summary['exposure_capped']}",
         f"  skipped               : {summary['skipped']}",
         f"  errors                : {summary['errors']}",
         f"  kelly_fraction        : {KELLY_FRACTION}",
         f"  uncertainty_method    : {UNCERTAINTY_METHOD}",
         f"  uncertainty_version   : {UNCERTAINTY_VERSION}",
         f"  ml_vs_spread_tiebreak : {ML_VS_SPREAD_TIEBREAK}",
+        "  staking_selection_filter : disabled",
         "",
         "--- Filter Reject Counts ---",
     ]
@@ -221,7 +221,7 @@ def passes_filters(values: dict, scfg: dict, game_date: str) -> bool:
         ("odds_bands", "odds", "fail_odds", False),
         ("line_bands", "line", "fail_line", True),
         ("ev_bands", "ev", "fail_ev", False),
-        ("kelly_bands", "kelly", "fail_kelly", False),
+        # Kelly is for stake information, not bet qualification.
         ("model_prob_bands", "model_prob", "fail_model_prob", False),
         (
             "edge_vs_market_bands",
@@ -283,9 +283,9 @@ def extract_date(filename):
 
 
 def stake_pct(kelly, uncertainty_multiplier=1.0):
-    # raw Kelly is a sizing input only; it is not a predicted win rate.
+    # Stake suggestions are informational, including when adjusted EV <= 0.
     _, _, requested = requested_stake(kelly, uncertainty_multiplier)
-    return requested if requested > 0 else None
+    return requested
 
 
 def clear_old_select_outputs() -> None:
@@ -540,8 +540,13 @@ def process_file(file: Path, league: str, market_type: str):
                 "bet_uncertainty_multiplier": sel["uncertainty_multiplier"],
                 "bet_uncertainty_points": sel["uncertainty_points"],
                 "bet_signal_points": sel["signal_points"],
-                "bet_requested_stake_pct": stake_pct(sel["kelly"], 1.0),
-                "bet_stake_pct":      stake_pct(sel["kelly"], 1.0),
+                "bet_requested_stake_pct": stake_pct(
+                    sel["kelly"], sel["uncertainty_multiplier"]
+                ),
+                "bet_stake_pct": stake_pct(
+                    sel["kelly"], sel["uncertainty_multiplier"]
+                ),
+                "bet_stake_allocation": "informational_only",
                 "market_type":        market_type,
                 "league_lower":       league,
                 "league":             league.upper(),
@@ -625,17 +630,13 @@ def _combine_candidate_frames(league_dfs, summary):
     if not all_candidates.empty:
         all_candidates, dropped = reconcile_ml_vs_spread(all_candidates)
         summary["ml_vs_spread_dropped"] = dropped
-        before_exposure = len(all_candidates)
-        all_candidates = enforce_exposure_limits(all_candidates)
-        summary['exposure_dropped'] = before_exposure - len(all_candidates)
-        summary['exposure_capped'] = int((all_candidates['bet_stake_allocation'] == 'capped').sum())
     return all_candidates
 
 
 def _write_final_pick_files(all_candidates, summary):
     final_picks = all_candidates.copy()
     summary["total_candidates"] = (
-        len(all_candidates) + summary["ml_vs_spread_dropped"] + summary['exposure_dropped']
+        len(all_candidates) + summary["ml_vs_spread_dropped"]
     )
     summary["total_selected"] = len(final_picks)
 
@@ -675,8 +676,6 @@ def main():
         "ncaam_bets": 0,
         "wnba_bets": 0,
         "ml_vs_spread_dropped": 0,
-        "exposure_dropped": 0,
-        "exposure_capped": 0,
         "skipped": 0,
         "errors": 0,
     }
@@ -689,7 +688,7 @@ def main():
         "staking.yaml: "
         f"kelly_fraction={KELLY_FRACTION} "
         f"uncertainty={UNCERTAINTY_METHOD}/{UNCERTAINTY_VERSION}; "
-        "exposure limits enforced on adjusted-Kelly requests"
+        "stake estimates are informational; no exposure or Kelly selection filter"
     )
     _log(f"ml_vs_spread_tiebreak: {ML_VS_SPREAD_TIEBREAK}")
 

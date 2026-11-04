@@ -145,7 +145,7 @@ def add_uncertainty_adjusted_ev(
         adjusted_ev = adjusted_prob * decimal - 1.0
         raw_ev_col = f'{prefix}_ev'
         out[f'{prefix}_raw_ev'] = out[raw_ev_col]
-        out[f'{prefix}_raw_kelly'] = out[raw_kelly_col]
+        out[f'{prefix}_raw_kelly'] = _numeric(out, raw_kelly_col)
         out[f'{prefix}_uncertainty_adjusted_ev'] = adjusted_ev
         out[f'{prefix}_adjusted_model_prob'] = adjusted_prob
         out[f'{prefix}_uncertainty_multiplier'] = multiplier
@@ -178,14 +178,14 @@ def attach_candidate_uncertainty(row: Any, market: str, candidate: dict) -> dict
     market_p = fv(row.get(market_col))
     raw_p = fv(candidate.get('model_prob'))
     raw_ev = fv(candidate.get('ev'))
-    raw_kelly = fv(candidate.get('kelly'))
+    raw_kelly = fv(candidate.get('kelly'))  # Diagnostic only; not an eligibility requirement.
     provided_adj_ev = fv(row.get(f'{prefix}_uncertainty_adjusted_ev'))
     american = fv(candidate.get('odds'))
     wager_line = fv(candidate.get('line'))
     if (american is None or american == 0 or (market != 'moneyline' and wager_line is None) or
         p is None or not 0 < p < 1 or decimal is None or decimal <= 1 or
         market_p is None or not 0 < market_p < 1 or raw_p is None or
-        not 0 <= raw_p <= 1 or raw_ev is None or raw_kelly is None or
+        not 0 <= raw_p <= 1 or raw_ev is None or
         provided_adj_ev is None):
         return None
 
@@ -215,66 +215,23 @@ def attach_candidate_uncertainty(row: Any, market: str, candidate: dict) -> dict
 
 
 def enforce_exposure_limits(df: pd.DataFrame) -> pd.DataFrame:
-    """Greedily allocate one bankroll across a slate, never exceeding any cap.
+    """Legacy compatibility wrapper: preserve every selected row.
 
-    Ordered by adjusted EV per dollar; correlation beyond same-game caps is not
-    estimated. Requests with missing game identities or invalid amounts fail closed.
+    Exposure limits are not part of bet selection. Any stake field is an
+    informational Kelly-based estimate only; missing or zero stakes never
+    exclude a qualifying pick. The historical function name is retained for
+    callers that have not yet migrated to a direct pass-through.
     """
-    if df.empty:
-        return df.copy()
-    limits = STAKING_CONFIG.get('exposure_limits') or {}
-    names = ('maximum_individual_bet_kelly_fraction', 'maximum_exposure_per_game',
-             'maximum_exposure_per_league_per_day', 'maximum_total_daily_exposure')
-    cap = {}
-    for name in names:
-        value = fv(limits.get(name))
-        if value is None or not 0 <= value <= 1:
-            raise ValueError(f'Invalid staking exposure limit: {name}')
-        cap[name] = value
-
     out = df.copy()
-    required = ('game_date', 'league_lower', 'game_id', 'bet_requested_stake_pct', 'bet_ev')
-    missing = [col for col in required if col not in out.columns]
-    if missing:
-        raise ValueError(f'Missing stake allocation fields: {missing}')
-    out['_alloc_order'] = range(len(out))
-    out['_alloc_ev'] = pd.to_numeric(out['bet_ev'], errors='coerce')
-    out = out.sort_values(['_alloc_ev', '_alloc_order'], ascending=[False, True], kind='stable')
-    game_use, league_use, date_use = {}, {}, {}
-    stakes, notes = {}, {}
-    for index, r in out.iterrows():
-        date = str(r['game_date']).strip() if pd.notna(r['game_date']) else ''
-        league = str(r['league_lower']).strip().lower() if pd.notna(r['league_lower']) else ''
-        gid = str(r['game_id']).strip() if pd.notna(r['game_id']) else ''
-        requested = fv(r['bet_requested_stake_pct'])
-        ev = fv(r['bet_ev'])
-        if not date or date.lower() in {'none', 'nan', 'unknown_date'} or \
-           league not in LEAGUES or not gid or gid.lower() in {'none', 'nan'} or \
-           requested is None or requested <= 0 or ev is None or ev <= 0:
-            stakes[index], notes[index] = 0.0, 'invalid_or_nonpositive'
-            continue
-        game_key = (date, league, gid)
-        league_key = (date, league)
-        amounts = [
-            requested,
-            cap['maximum_individual_bet_kelly_fraction'],
-            cap['maximum_exposure_per_game'] - game_use.get(game_key, 0.0),
-            cap['maximum_exposure_per_league_per_day'] - league_use.get(league_key, 0.0),
-            cap['maximum_total_daily_exposure'] - date_use.get(date, 0.0),
-        ]
-        stake = max(0.0, min(amounts))
-        if stake < 1e-12:
-            stakes[index], notes[index] = 0.0, 'exhausted_exposure'
-            continue
-        stakes[index] = stake
-        notes[index] = 'capped' if stake < requested - 1e-12 else 'full_requested'
-        game_use[game_key] = game_use.get(game_key, 0.0) + stake
-        league_use[league_key] = league_use.get(league_key, 0.0) + stake
-        date_use[date] = date_use.get(date, 0.0) + stake
-    out['bet_stake_pct'] = out.index.map(stakes.get).astype(float)
-    out['bet_stake_allocation'] = out.index.map(notes.get)
-    out = out[out['bet_stake_pct'] > 0].sort_values('_alloc_order')
-    return out.drop(columns=['_alloc_order', '_alloc_ev'])
+    if 'bet_requested_stake_pct' in out.columns:
+        stake = pd.to_numeric(out['bet_requested_stake_pct'], errors='coerce')
+    elif 'bet_stake_pct' in out.columns:
+        stake = pd.to_numeric(out['bet_stake_pct'], errors='coerce')
+    else:
+        stake = pd.Series(0.0, index=out.index, dtype=float)
+    out['bet_stake_pct'] = stake.fillna(0.0).clip(lower=0.0)
+    out['bet_stake_allocation'] = 'informational_only'
+    return out
 
 
 def requested_stake(raw_kelly: Any, uncertainty_multiplier: Any = 1.0) -> tuple[float, float, float]:
