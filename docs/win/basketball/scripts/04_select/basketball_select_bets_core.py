@@ -134,7 +134,8 @@ def _write_summary(summary: dict, per_file: list) -> None:
         f"  uncertainty_method    : {UNCERTAINTY_METHOD}",
         f"  uncertainty_version   : {UNCERTAINTY_VERSION}",
         f"  ml_vs_spread_tiebreak : {ML_VS_SPREAD_TIEBREAK}",
-        "  staking_selection_filter : disabled",
+        "  exposure_stake_filter  : disabled",
+        "  kelly_eligibility      : markets.yaml kelly_bands",
         "",
         "--- Filter Reject Counts ---",
     ]
@@ -221,7 +222,7 @@ def passes_filters(values: dict, scfg: dict, game_date: str) -> bool:
         ("odds_bands", "odds", "fail_odds", False),
         ("line_bands", "line", "fail_line", True),
         ("ev_bands", "ev", "fail_ev", False),
-        # Kelly is for stake information, not bet qualification.
+        ("kelly_bands", "kelly", "fail_kelly", False),
         ("model_prob_bands", "model_prob", "fail_model_prob", False),
         (
             "edge_vs_market_bands",
@@ -688,7 +689,8 @@ def main():
         "staking.yaml: "
         f"kelly_fraction={KELLY_FRACTION} "
         f"uncertainty={UNCERTAINTY_METHOD}/{UNCERTAINTY_VERSION}; "
-        "stake estimates are informational; no exposure or Kelly selection filter"
+        "stake estimates are informational; exposure filtering disabled; "
+        "Kelly eligibility controlled by markets.yaml kelly_bands"
     )
     _log(f"ml_vs_spread_tiebreak: {ML_VS_SPREAD_TIEBREAK}")
 
