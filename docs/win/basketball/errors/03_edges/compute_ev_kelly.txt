@@ -1,36 +1,813 @@
-=== compute_ev_kelly RUN 2026-11-04T12:20:28.607671+00:00 ===
-2026-11-04T12:20:28.608085+00:00 | INFO  | Wiped old outputs.
-2026-11-04T12:20:28.608109+00:00 | INFO  | INPUT_DIR : /tmp/basketball_ev_vhsjaepv/input
-2026-11-04T12:20:28.608119+00:00 | INFO  | OUTPUT_DIR: /tmp/basketball_ev_vhsjaepv/output
-2026-11-04T12:20:28.620677+00:00 | INFO  | WROTE: /tmp/basketball_ev_vhsjaepv/output/nba/moneyline/2026_11_04_NBA_moneyline.csv (14 rows)
-2026-11-04T12:20:28.630106+00:00 | INFO  | WROTE: /tmp/basketball_ev_vhsjaepv/output/nba/spread/2026_11_04_NBA_spread.csv (14 rows)
-2026-11-04T12:20:28.638208+00:00 | INFO  | WROTE: /tmp/basketball_ev_vhsjaepv/output/nba/total/2026_11_04_NBA_total.csv (14 rows)
-2026-11-04T12:20:28.645971+00:00 | INFO  | WROTE: /tmp/basketball_ev_vhsjaepv/output/ncaam/moneyline/2026_11_04_NCAAM_moneyline.csv (10 rows)
-2026-11-04T12:20:28.654257+00:00 | INFO  | WROTE: /tmp/basketball_ev_vhsjaepv/output/ncaam/spread/2026_11_04_NCAAM_spread.csv (10 rows)
-2026-11-04T12:20:28.661859+00:00 | INFO  | WROTE: /tmp/basketball_ev_vhsjaepv/output/ncaam/total/2026_11_04_NCAAM_total.csv (10 rows)
-2026-11-04T12:20:28.661943+00:00 | WARN  | INPUT FOLDER MISSING: /tmp/basketball_ev_vhsjaepv/input/wnba/moneyline
-2026-11-04T12:20:28.661965+00:00 | WARN  | INPUT FOLDER MISSING: /tmp/basketball_ev_vhsjaepv/input/wnba/spread
-2026-11-04T12:20:28.661980+00:00 | WARN  | INPUT FOLDER MISSING: /tmp/basketball_ev_vhsjaepv/input/wnba/total
+=== compute_ev_kelly RUN 2026-11-04T13:06:11.895772+00:00 ===
+2026-11-04T13:06:11.949303+00:00 | INFO  | Wiped old outputs.
+2026-11-04T13:06:11.949379+00:00 | INFO  | INPUT_DIR : docs/win/basketball/01_merge/01_merguiced
+2026-11-04T13:06:11.949401+00:00 | INFO  | OUTPUT_DIR: docs/win/basketball/03_edges/ev_kelly
+2026-11-04T13:06:11.964458+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/moneyline/2026_10_20_NBA_moneyline.csv (3 rows)
+2026-11-04T13:06:11.975756+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/moneyline/2026_10_21_NBA_moneyline.csv (11 rows)
+2026-11-04T13:06:11.985177+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/moneyline/2026_10_22_NBA_moneyline.csv (2 rows)
+2026-11-04T13:06:11.995387+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/moneyline/2026_10_23_NBA_moneyline.csv (12 rows)
+2026-11-04T13:06:12.005184+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/moneyline/2026_10_24_NBA_moneyline.csv (8 rows)
+2026-11-04T13:06:12.014844+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/moneyline/2026_10_26_NBA_moneyline.csv (9 rows)
+2026-11-04T13:06:12.024220+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/moneyline/2026_10_27_NBA_moneyline.csv (4 rows)
+2026-11-04T13:06:12.034128+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/moneyline/2026_10_28_NBA_moneyline.csv (12 rows)
+2026-11-04T13:06:12.043709+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/moneyline/2026_10_29_NBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.053743+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/moneyline/2026_10_30_NBA_moneyline.csv (10 rows)
+2026-11-04T13:06:12.063464+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/moneyline/2026_10_31_NBA_moneyline.csv (7 rows)
+2026-11-04T13:06:12.073842+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/moneyline/2026_11_02_NBA_moneyline.csv (15 rows)
+2026-11-04T13:06:12.084149+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/moneyline/2026_11_04_NBA_moneyline.csv (14 rows)
+2026-11-04T13:06:12.093523+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/spread/2026_10_20_NBA_spread.csv (3 rows)
+2026-11-04T13:06:12.103807+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/spread/2026_10_21_NBA_spread.csv (11 rows)
+2026-11-04T13:06:12.113467+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/spread/2026_10_22_NBA_spread.csv (2 rows)
+2026-11-04T13:06:12.123511+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/spread/2026_10_23_NBA_spread.csv (12 rows)
+2026-11-04T13:06:12.133339+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/spread/2026_10_24_NBA_spread.csv (8 rows)
+2026-11-04T13:06:12.143242+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/spread/2026_10_26_NBA_spread.csv (9 rows)
+2026-11-04T13:06:12.153205+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/spread/2026_10_27_NBA_spread.csv (4 rows)
+2026-11-04T13:06:12.163790+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/spread/2026_10_28_NBA_spread.csv (12 rows)
+2026-11-04T13:06:12.173451+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/spread/2026_10_29_NBA_spread.csv (3 rows)
+2026-11-04T13:06:12.183734+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/spread/2026_10_30_NBA_spread.csv (10 rows)
+2026-11-04T13:06:12.193453+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/spread/2026_10_31_NBA_spread.csv (7 rows)
+2026-11-04T13:06:12.203719+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/spread/2026_11_02_NBA_spread.csv (15 rows)
+2026-11-04T13:06:12.213968+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/spread/2026_11_04_NBA_spread.csv (14 rows)
+2026-11-04T13:06:12.223244+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/total/2026_10_20_NBA_total.csv (3 rows)
+2026-11-04T13:06:12.233111+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/total/2026_10_21_NBA_total.csv (11 rows)
+2026-11-04T13:06:12.243006+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/total/2026_10_22_NBA_total.csv (2 rows)
+2026-11-04T13:06:12.252852+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/total/2026_10_23_NBA_total.csv (12 rows)
+2026-11-04T13:06:12.262218+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/total/2026_10_24_NBA_total.csv (8 rows)
+2026-11-04T13:06:12.271431+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/total/2026_10_26_NBA_total.csv (9 rows)
+2026-11-04T13:06:12.280547+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/total/2026_10_27_NBA_total.csv (4 rows)
+2026-11-04T13:06:12.291033+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/total/2026_10_28_NBA_total.csv (12 rows)
+2026-11-04T13:06:12.300120+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/total/2026_10_29_NBA_total.csv (3 rows)
+2026-11-04T13:06:12.309920+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/total/2026_10_30_NBA_total.csv (10 rows)
+2026-11-04T13:06:12.318964+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/total/2026_10_31_NBA_total.csv (7 rows)
+2026-11-04T13:06:12.328485+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/total/2026_11_02_NBA_total.csv (15 rows)
+2026-11-04T13:06:12.337980+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/nba/total/2026_11_04_NBA_total.csv (14 rows)
+2026-11-04T13:06:12.352226+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/ncaam/moneyline/2026_11_02_NCAAM_moneyline.csv (95 rows)
+2026-11-04T13:06:12.362780+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/ncaam/moneyline/2026_11_03_NCAAM_moneyline.csv (18 rows)
+2026-11-04T13:06:12.372804+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/ncaam/moneyline/2026_11_04_NCAAM_moneyline.csv (10 rows)
+2026-11-04T13:06:12.387249+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/ncaam/spread/2026_11_02_NCAAM_spread.csv (95 rows)
+2026-11-04T13:06:12.397852+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/ncaam/spread/2026_11_03_NCAAM_spread.csv (18 rows)
+2026-11-04T13:06:12.407496+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/ncaam/spread/2026_11_04_NCAAM_spread.csv (10 rows)
+2026-11-04T13:06:12.421655+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/ncaam/total/2026_11_02_NCAAM_total.csv (95 rows)
+2026-11-04T13:06:12.432990+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/ncaam/total/2026_11_03_NCAAM_total.csv (18 rows)
+2026-11-04T13:06:12.442824+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/ncaam/total/2026_11_04_NCAAM_total.csv (10 rows)
+2026-11-04T13:06:12.452478+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_08_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.461641+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_09_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:12.470610+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_10_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:12.479662+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_12_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.488971+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_13_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:12.498359+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_14_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:12.507350+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_15_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:12.516251+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_17_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:12.525157+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_18_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:12.534282+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_19_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:12.543559+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_20_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.552632+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_21_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.562068+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_22_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.571425+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_23_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.580490+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_24_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.589655+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_25_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:12.599159+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_27_WNBA_moneyline.csv (5 rows)
+2026-11-04T13:06:12.608546+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_28_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:12.618239+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_29_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:12.627667+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_30_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.637097+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_05_31_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:12.646411+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_01_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:12.655893+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_02_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:12.665352+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_03_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:12.674783+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_04_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:12.684122+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_05_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.693593+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_06_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:12.702847+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_07_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:12.712913+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_08_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.722387+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_09_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.731925+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_10_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:12.741532+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_11_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:12.750905+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_12_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:12.760817+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_13_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:12.770824+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_14_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:12.780580+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_15_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:12.790247+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_16_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:12.800063+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_17_WNBA_moneyline.csv (6 rows)
+2026-11-04T13:06:12.809552+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_18_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:12.818961+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_19_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.828220+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_20_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.837615+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_21_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.847504+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_22_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:12.857196+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_23_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:12.889489+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_24_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:12.899850+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_25_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.909570+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_26_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.919339+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_27_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.928825+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_28_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:12.938123+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_06_30_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:12.947538+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_02_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.956800+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_03_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:12.965948+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_04_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:12.975216+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_05_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:12.984708+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_06_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:12.993897+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_07_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.003092+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_08_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.012251+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_09_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.021701+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_10_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.031522+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_11_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.041287+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_12_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:13.050745+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_13_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.059840+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_14_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.069067+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_15_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.078338+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_16_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.087430+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_17_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:13.096352+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_18_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.105532+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_19_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.114794+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_20_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:13.124255+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_22_WNBA_moneyline.csv (6 rows)
+2026-11-04T13:06:13.133795+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_28_WNBA_moneyline.csv (5 rows)
+2026-11-04T13:06:13.143375+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_29_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.152604+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_30_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.161900+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_07_31_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.170899+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_01_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.179912+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_02_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:13.189018+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_03_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.198354+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_04_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:13.207728+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_05_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:13.217082+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_06_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.226283+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_07_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.235434+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_08_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.244864+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_09_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:13.254172+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_10_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.263628+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_11_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.272873+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_12_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.281950+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_13_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.291316+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_14_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.300738+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_15_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.310269+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_16_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.319132+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_17_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:13.328279+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_18_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:13.337325+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_19_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.347880+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_20_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.357617+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_08_30_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:13.367469+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_09_17_WNBA_moneyline.csv (5 rows)
+2026-11-04T13:06:13.377146+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_09_18_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.386287+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_09_19_WNBA_moneyline.csv (3 rows)
+2026-11-04T13:06:13.395743+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_09_20_WNBA_moneyline.csv (5 rows)
+2026-11-04T13:06:13.405214+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_09_21_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.414292+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_09_22_WNBA_moneyline.csv (5 rows)
+2026-11-04T13:06:13.423020+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_09_23_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.431779+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_09_24_WNBA_moneyline.csv (5 rows)
+2026-11-04T13:06:13.440724+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_09_27_WNBA_moneyline.csv (4 rows)
+2026-11-04T13:06:13.449690+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_09_29_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.458705+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_09_30_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.467726+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_10_01_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:13.476670+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_10_02_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:13.485608+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_10_04_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.494990+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_10_07_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.504172+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_10_09_WNBA_moneyline.csv (2 rows)
+2026-11-04T13:06:13.513376+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_10_17_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:13.522100+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_10_24_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:13.530993+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_10_26_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:13.540126+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_10_29_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:13.549596+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/moneyline/2026_10_31_WNBA_moneyline.csv (1 rows)
+2026-11-04T13:06:13.559723+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_08_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.569203+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_09_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:13.578895+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_10_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:13.588533+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_12_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.597959+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_13_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:13.607024+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_14_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:13.616002+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_15_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:13.625130+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_17_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:13.634258+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_18_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:13.643782+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_19_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:13.652609+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_20_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.661385+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_21_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.670125+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_22_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.678854+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_23_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.688011+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_24_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.697546+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_25_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:13.706842+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_27_WNBA_spread.csv (5 rows)
+2026-11-04T13:06:13.715921+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_28_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:13.724836+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_29_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:13.733623+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_30_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.742370+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_05_31_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:13.751000+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_01_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:13.759844+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_02_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:13.768367+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_03_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:13.777006+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_04_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:13.785818+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_05_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.794649+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_06_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:13.804043+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_07_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:13.812891+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_08_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.821785+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_09_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.830599+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_10_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:13.839346+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_11_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:13.847966+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_12_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:13.856781+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_13_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:13.865736+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_14_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:13.874336+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_15_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:13.883192+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_16_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:13.892728+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_17_WNBA_spread.csv (6 rows)
+2026-11-04T13:06:13.901567+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_18_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:13.910583+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_19_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.919695+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_20_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.928600+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_21_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.937318+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_22_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:13.945958+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_23_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:13.954895+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_24_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:13.963596+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_25_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.972172+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_26_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.980814+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_27_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:13.989513+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_28_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:13.998084+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_06_30_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:14.006873+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_02_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.016071+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_03_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.025089+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_04_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.033801+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_05_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.042694+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_06_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.051742+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_07_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.060857+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_08_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.070241+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_09_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.079509+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_10_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.088605+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_11_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.097893+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_12_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:14.107409+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_13_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.116425+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_14_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.125542+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_15_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.134284+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_16_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.143290+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_17_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:14.152179+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_18_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.161108+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_19_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.170183+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_20_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:14.179385+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_22_WNBA_spread.csv (6 rows)
+2026-11-04T13:06:14.188453+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_28_WNBA_spread.csv (5 rows)
+2026-11-04T13:06:14.197724+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_29_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.207229+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_30_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.216508+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_07_31_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.225572+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_01_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.234534+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_02_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:14.243348+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_03_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.252106+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_04_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:14.261110+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_05_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:14.270014+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_06_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.278996+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_07_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.288261+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_08_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.297710+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_09_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:14.306792+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_10_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.316085+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_11_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.325293+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_12_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.334593+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_13_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.343737+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_14_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.352991+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_15_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.362257+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_16_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.371387+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_17_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:14.380838+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_18_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:14.390521+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_19_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.399964+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_20_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.409476+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_08_30_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:14.419233+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_09_17_WNBA_spread.csv (5 rows)
+2026-11-04T13:06:14.428510+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_09_18_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.437869+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_09_19_WNBA_spread.csv (3 rows)
+2026-11-04T13:06:14.447428+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_09_20_WNBA_spread.csv (5 rows)
+2026-11-04T13:06:14.456798+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_09_21_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.466583+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_09_22_WNBA_spread.csv (5 rows)
+2026-11-04T13:06:14.476378+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_09_23_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.486098+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_09_24_WNBA_spread.csv (5 rows)
+2026-11-04T13:06:14.495903+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_09_27_WNBA_spread.csv (4 rows)
+2026-11-04T13:06:14.505477+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_09_29_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.514558+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_09_30_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.523902+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_10_01_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:14.533138+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_10_02_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:14.542596+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_10_04_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.552384+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_10_07_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.561799+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_10_09_WNBA_spread.csv (2 rows)
+2026-11-04T13:06:14.571049+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_10_17_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:14.580248+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_10_24_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:14.589543+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_10_26_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:14.598653+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_10_29_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:14.607632+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/spread/2026_10_31_WNBA_spread.csv (1 rows)
+2026-11-04T13:06:14.617251+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_08_WNBA_total.csv (3 rows)
+2026-11-04T13:06:14.627086+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_09_WNBA_total.csv (4 rows)
+2026-11-04T13:06:14.636913+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_10_WNBA_total.csv (4 rows)
+2026-11-04T13:06:14.646068+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_12_WNBA_total.csv (3 rows)
+2026-11-04T13:06:14.654917+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_13_WNBA_total.csv (4 rows)
+2026-11-04T13:06:14.663980+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_14_WNBA_total.csv (2 rows)
+2026-11-04T13:06:14.672978+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_15_WNBA_total.csv (4 rows)
+2026-11-04T13:06:14.681905+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_17_WNBA_total.csv (4 rows)
+2026-11-04T13:06:14.690649+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_18_WNBA_total.csv (2 rows)
+2026-11-04T13:06:14.699528+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_19_WNBA_total.csv (1 rows)
+2026-11-04T13:06:14.708588+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_20_WNBA_total.csv (3 rows)
+2026-11-04T13:06:14.717840+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_21_WNBA_total.csv (3 rows)
+2026-11-04T13:06:14.727400+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_22_WNBA_total.csv (3 rows)
+2026-11-04T13:06:14.736494+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_23_WNBA_total.csv (3 rows)
+2026-11-04T13:06:14.745732+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_24_WNBA_total.csv (3 rows)
+2026-11-04T13:06:14.755087+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_25_WNBA_total.csv (2 rows)
+2026-11-04T13:06:14.764565+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_27_WNBA_total.csv (5 rows)
+2026-11-04T13:06:14.774011+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_28_WNBA_total.csv (2 rows)
+2026-11-04T13:06:14.783035+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_29_WNBA_total.csv (4 rows)
+2026-11-04T13:06:14.792172+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_30_WNBA_total.csv (3 rows)
+2026-11-04T13:06:14.801314+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_05_31_WNBA_total.csv (1 rows)
+2026-11-04T13:06:14.810293+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_01_WNBA_total.csv (2 rows)
+2026-11-04T13:06:14.819541+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_02_WNBA_total.csv (4 rows)
+2026-11-04T13:06:14.829015+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_03_WNBA_total.csv (2 rows)
+2026-11-04T13:06:14.838284+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_04_WNBA_total.csv (2 rows)
+2026-11-04T13:06:14.847442+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_05_WNBA_total.csv (3 rows)
+2026-11-04T13:06:14.856816+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_06_WNBA_total.csv (4 rows)
+2026-11-04T13:06:14.866637+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_07_WNBA_total.csv (2 rows)
+2026-11-04T13:06:14.875478+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_08_WNBA_total.csv (3 rows)
+2026-11-04T13:06:14.884154+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_09_WNBA_total.csv (3 rows)
+2026-11-04T13:06:14.893029+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_10_WNBA_total.csv (2 rows)
+2026-11-04T13:06:14.902170+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_11_WNBA_total.csv (4 rows)
+2026-11-04T13:06:14.911315+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_12_WNBA_total.csv (2 rows)
+2026-11-04T13:06:14.920624+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_13_WNBA_total.csv (4 rows)
+2026-11-04T13:06:14.929937+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_14_WNBA_total.csv (2 rows)
+2026-11-04T13:06:14.938828+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_15_WNBA_total.csv (1 rows)
+2026-11-04T13:06:14.947870+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_16_WNBA_total.csv (1 rows)
+2026-11-04T13:06:14.957734+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_17_WNBA_total.csv (6 rows)
+2026-11-04T13:06:14.966939+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_18_WNBA_total.csv (1 rows)
+2026-11-04T13:06:14.976227+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_19_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.008131+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_20_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.017733+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_21_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.027203+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_22_WNBA_total.csv (4 rows)
+2026-11-04T13:06:15.036167+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_23_WNBA_total.csv (1 rows)
+2026-11-04T13:06:15.045446+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_24_WNBA_total.csv (4 rows)
+2026-11-04T13:06:15.055222+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_25_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.064971+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_26_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.074356+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_27_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.083516+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_28_WNBA_total.csv (4 rows)
+2026-11-04T13:06:15.092600+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_06_30_WNBA_total.csv (1 rows)
+2026-11-04T13:06:15.101506+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_02_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.110421+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_03_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.119095+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_04_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.128242+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_05_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.137082+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_06_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.146332+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_07_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.155690+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_08_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.164726+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_09_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.173852+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_10_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.183011+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_11_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.192598+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_12_WNBA_total.csv (4 rows)
+2026-11-04T13:06:15.202720+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_13_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.211853+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_14_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.220599+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_15_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.229356+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_16_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.238306+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_17_WNBA_total.csv (4 rows)
+2026-11-04T13:06:15.247216+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_18_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.255916+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_19_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.264708+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_20_WNBA_total.csv (4 rows)
+2026-11-04T13:06:15.273730+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_22_WNBA_total.csv (6 rows)
+2026-11-04T13:06:15.282474+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_28_WNBA_total.csv (5 rows)
+2026-11-04T13:06:15.291039+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_29_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.299793+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_30_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.309390+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_07_31_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.318793+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_01_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.327903+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_02_WNBA_total.csv (4 rows)
+2026-11-04T13:06:15.336999+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_03_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.346061+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_04_WNBA_total.csv (1 rows)
+2026-11-04T13:06:15.355609+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_05_WNBA_total.csv (4 rows)
+2026-11-04T13:06:15.365207+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_06_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.374465+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_07_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.383996+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_08_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.393368+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_09_WNBA_total.csv (4 rows)
+2026-11-04T13:06:15.402626+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_10_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.411730+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_11_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.420730+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_12_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.430431+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_13_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.440200+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_14_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.449507+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_15_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.458734+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_16_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.468099+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_17_WNBA_total.csv (1 rows)
+2026-11-04T13:06:15.477641+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_18_WNBA_total.csv (4 rows)
+2026-11-04T13:06:15.486794+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_19_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.496208+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_20_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.505932+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_08_30_WNBA_total.csv (4 rows)
+2026-11-04T13:06:15.515415+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_09_17_WNBA_total.csv (5 rows)
+2026-11-04T13:06:15.524597+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_09_18_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.533930+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_09_19_WNBA_total.csv (3 rows)
+2026-11-04T13:06:15.543422+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_09_20_WNBA_total.csv (5 rows)
+2026-11-04T13:06:15.552989+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_09_21_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.562567+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_09_22_WNBA_total.csv (5 rows)
+2026-11-04T13:06:15.571896+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_09_23_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.581332+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_09_24_WNBA_total.csv (5 rows)
+2026-11-04T13:06:15.590663+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_09_27_WNBA_total.csv (4 rows)
+2026-11-04T13:06:15.599640+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_09_29_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.608512+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_09_30_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.617351+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_10_01_WNBA_total.csv (1 rows)
+2026-11-04T13:06:15.626486+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_10_02_WNBA_total.csv (1 rows)
+2026-11-04T13:06:15.635726+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_10_04_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.644825+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_10_07_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.653794+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_10_09_WNBA_total.csv (2 rows)
+2026-11-04T13:06:15.662661+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_10_17_WNBA_total.csv (1 rows)
+2026-11-04T13:06:15.671450+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_10_24_WNBA_total.csv (1 rows)
+2026-11-04T13:06:15.680231+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_10_26_WNBA_total.csv (1 rows)
+2026-11-04T13:06:15.689171+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_10_29_WNBA_total.csv (1 rows)
+2026-11-04T13:06:15.698251+00:00 | INFO  | WROTE: docs/win/basketball/03_edges/ev_kelly/wnba/total/2026_10_31_WNBA_total.csv (1 rows)
 
 ======================================================================
-SUMMARY  2026-11-04T12:20:28.661985+00:00
+SUMMARY  2026-11-04T13:06:15.698367+00:00
 ======================================================================
-  files_processed   : 6
-  rows_processed    : 72
-  moneyline_files   : 2
-  spread_files      : 2
-  total_files       : 2
+  files_processed   : 396
+  rows_processed    : 1677
+  moneyline_files   : 132
+  spread_files      : 132
+  total_files       : 132
   skipped           : 0
   schema_errors     : 0
   errors            : 0
 
   file                                             league market       rows     status
+  2026_10_20_NBA_moneyline.csv                        NBA moneyline       3         ok
+  2026_10_21_NBA_moneyline.csv                        NBA moneyline      11         ok
+  2026_10_22_NBA_moneyline.csv                        NBA moneyline       2         ok
+  2026_10_23_NBA_moneyline.csv                        NBA moneyline      12         ok
+  2026_10_24_NBA_moneyline.csv                        NBA moneyline       8         ok
+  2026_10_26_NBA_moneyline.csv                        NBA moneyline       9         ok
+  2026_10_27_NBA_moneyline.csv                        NBA moneyline       4         ok
+  2026_10_28_NBA_moneyline.csv                        NBA moneyline      12         ok
+  2026_10_29_NBA_moneyline.csv                        NBA moneyline       3         ok
+  2026_10_30_NBA_moneyline.csv                        NBA moneyline      10         ok
+  2026_10_31_NBA_moneyline.csv                        NBA moneyline       7         ok
+  2026_11_02_NBA_moneyline.csv                        NBA moneyline      15         ok
   2026_11_04_NBA_moneyline.csv                        NBA moneyline      14         ok
+  2026_10_20_NBA_spread.csv                           NBA spread          3         ok
+  2026_10_21_NBA_spread.csv                           NBA spread         11         ok
+  2026_10_22_NBA_spread.csv                           NBA spread          2         ok
+  2026_10_23_NBA_spread.csv                           NBA spread         12         ok
+  2026_10_24_NBA_spread.csv                           NBA spread          8         ok
+  2026_10_26_NBA_spread.csv                           NBA spread          9         ok
+  2026_10_27_NBA_spread.csv                           NBA spread          4         ok
+  2026_10_28_NBA_spread.csv                           NBA spread         12         ok
+  2026_10_29_NBA_spread.csv                           NBA spread          3         ok
+  2026_10_30_NBA_spread.csv                           NBA spread         10         ok
+  2026_10_31_NBA_spread.csv                           NBA spread          7         ok
+  2026_11_02_NBA_spread.csv                           NBA spread         15         ok
   2026_11_04_NBA_spread.csv                           NBA spread         14         ok
+  2026_10_20_NBA_total.csv                            NBA total           3         ok
+  2026_10_21_NBA_total.csv                            NBA total          11         ok
+  2026_10_22_NBA_total.csv                            NBA total           2         ok
+  2026_10_23_NBA_total.csv                            NBA total          12         ok
+  2026_10_24_NBA_total.csv                            NBA total           8         ok
+  2026_10_26_NBA_total.csv                            NBA total           9         ok
+  2026_10_27_NBA_total.csv                            NBA total           4         ok
+  2026_10_28_NBA_total.csv                            NBA total          12         ok
+  2026_10_29_NBA_total.csv                            NBA total           3         ok
+  2026_10_30_NBA_total.csv                            NBA total          10         ok
+  2026_10_31_NBA_total.csv                            NBA total           7         ok
+  2026_11_02_NBA_total.csv                            NBA total          15         ok
   2026_11_04_NBA_total.csv                            NBA total          14         ok
+  2026_11_02_NCAAM_moneyline.csv                    NCAAM moneyline      95         ok
+  2026_11_03_NCAAM_moneyline.csv                    NCAAM moneyline      18         ok
   2026_11_04_NCAAM_moneyline.csv                    NCAAM moneyline      10         ok
+  2026_11_02_NCAAM_spread.csv                       NCAAM spread         95         ok
+  2026_11_03_NCAAM_spread.csv                       NCAAM spread         18         ok
   2026_11_04_NCAAM_spread.csv                       NCAAM spread         10         ok
+  2026_11_02_NCAAM_total.csv                        NCAAM total          95         ok
+  2026_11_03_NCAAM_total.csv                        NCAAM total          18         ok
   2026_11_04_NCAAM_total.csv                        NCAAM total          10         ok
+  2026_05_08_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_05_09_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_05_10_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_05_12_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_05_13_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_05_14_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_05_15_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_05_17_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_05_18_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_05_19_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_05_20_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_05_21_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_05_22_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_05_23_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_05_24_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_05_25_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_05_27_WNBA_moneyline.csv                      WNBA moneyline       5         ok
+  2026_05_28_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_05_29_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_05_30_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_05_31_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_06_01_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_06_02_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_06_03_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_06_04_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_06_05_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_06_06_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_06_07_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_06_08_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_06_09_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_06_10_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_06_11_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_06_12_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_06_13_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_06_14_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_06_15_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_06_16_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_06_17_WNBA_moneyline.csv                      WNBA moneyline       6         ok
+  2026_06_18_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_06_19_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_06_20_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_06_21_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_06_22_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_06_23_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_06_24_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_06_25_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_06_26_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_06_27_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_06_28_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_06_30_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_07_02_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_07_03_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_07_04_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_07_05_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_07_06_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_07_07_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_07_08_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_07_09_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_07_10_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_07_11_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_07_12_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_07_13_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_07_14_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_07_15_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_07_16_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_07_17_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_07_18_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_07_19_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_07_20_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_07_22_WNBA_moneyline.csv                      WNBA moneyline       6         ok
+  2026_07_28_WNBA_moneyline.csv                      WNBA moneyline       5         ok
+  2026_07_29_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_07_30_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_07_31_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_08_01_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_08_02_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_08_03_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_08_04_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_08_05_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_08_06_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_08_07_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_08_08_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_08_09_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_08_10_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_08_11_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_08_12_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_08_13_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_08_14_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_08_15_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_08_16_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_08_17_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_08_18_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_08_19_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_08_20_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_08_30_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_09_17_WNBA_moneyline.csv                      WNBA moneyline       5         ok
+  2026_09_18_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_09_19_WNBA_moneyline.csv                      WNBA moneyline       3         ok
+  2026_09_20_WNBA_moneyline.csv                      WNBA moneyline       5         ok
+  2026_09_21_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_09_22_WNBA_moneyline.csv                      WNBA moneyline       5         ok
+  2026_09_23_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_09_24_WNBA_moneyline.csv                      WNBA moneyline       5         ok
+  2026_09_27_WNBA_moneyline.csv                      WNBA moneyline       4         ok
+  2026_09_29_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_09_30_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_10_01_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_10_02_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_10_04_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_10_07_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_10_09_WNBA_moneyline.csv                      WNBA moneyline       2         ok
+  2026_10_17_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_10_24_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_10_26_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_10_29_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_10_31_WNBA_moneyline.csv                      WNBA moneyline       1         ok
+  2026_05_08_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_05_09_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_05_10_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_05_12_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_05_13_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_05_14_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_05_15_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_05_17_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_05_18_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_05_19_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_05_20_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_05_21_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_05_22_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_05_23_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_05_24_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_05_25_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_05_27_WNBA_spread.csv                         WNBA spread          5         ok
+  2026_05_28_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_05_29_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_05_30_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_05_31_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_06_01_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_06_02_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_06_03_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_06_04_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_06_05_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_06_06_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_06_07_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_06_08_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_06_09_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_06_10_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_06_11_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_06_12_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_06_13_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_06_14_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_06_15_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_06_16_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_06_17_WNBA_spread.csv                         WNBA spread          6         ok
+  2026_06_18_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_06_19_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_06_20_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_06_21_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_06_22_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_06_23_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_06_24_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_06_25_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_06_26_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_06_27_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_06_28_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_06_30_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_07_02_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_07_03_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_07_04_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_07_05_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_07_06_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_07_07_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_07_08_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_07_09_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_07_10_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_07_11_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_07_12_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_07_13_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_07_14_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_07_15_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_07_16_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_07_17_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_07_18_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_07_19_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_07_20_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_07_22_WNBA_spread.csv                         WNBA spread          6         ok
+  2026_07_28_WNBA_spread.csv                         WNBA spread          5         ok
+  2026_07_29_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_07_30_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_07_31_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_08_01_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_08_02_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_08_03_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_08_04_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_08_05_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_08_06_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_08_07_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_08_08_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_08_09_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_08_10_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_08_11_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_08_12_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_08_13_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_08_14_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_08_15_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_08_16_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_08_17_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_08_18_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_08_19_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_08_20_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_08_30_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_09_17_WNBA_spread.csv                         WNBA spread          5         ok
+  2026_09_18_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_09_19_WNBA_spread.csv                         WNBA spread          3         ok
+  2026_09_20_WNBA_spread.csv                         WNBA spread          5         ok
+  2026_09_21_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_09_22_WNBA_spread.csv                         WNBA spread          5         ok
+  2026_09_23_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_09_24_WNBA_spread.csv                         WNBA spread          5         ok
+  2026_09_27_WNBA_spread.csv                         WNBA spread          4         ok
+  2026_09_29_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_09_30_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_10_01_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_10_02_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_10_04_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_10_07_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_10_09_WNBA_spread.csv                         WNBA spread          2         ok
+  2026_10_17_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_10_24_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_10_26_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_10_29_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_10_31_WNBA_spread.csv                         WNBA spread          1         ok
+  2026_05_08_WNBA_total.csv                          WNBA total           3         ok
+  2026_05_09_WNBA_total.csv                          WNBA total           4         ok
+  2026_05_10_WNBA_total.csv                          WNBA total           4         ok
+  2026_05_12_WNBA_total.csv                          WNBA total           3         ok
+  2026_05_13_WNBA_total.csv                          WNBA total           4         ok
+  2026_05_14_WNBA_total.csv                          WNBA total           2         ok
+  2026_05_15_WNBA_total.csv                          WNBA total           4         ok
+  2026_05_17_WNBA_total.csv                          WNBA total           4         ok
+  2026_05_18_WNBA_total.csv                          WNBA total           2         ok
+  2026_05_19_WNBA_total.csv                          WNBA total           1         ok
+  2026_05_20_WNBA_total.csv                          WNBA total           3         ok
+  2026_05_21_WNBA_total.csv                          WNBA total           3         ok
+  2026_05_22_WNBA_total.csv                          WNBA total           3         ok
+  2026_05_23_WNBA_total.csv                          WNBA total           3         ok
+  2026_05_24_WNBA_total.csv                          WNBA total           3         ok
+  2026_05_25_WNBA_total.csv                          WNBA total           2         ok
+  2026_05_27_WNBA_total.csv                          WNBA total           5         ok
+  2026_05_28_WNBA_total.csv                          WNBA total           2         ok
+  2026_05_29_WNBA_total.csv                          WNBA total           4         ok
+  2026_05_30_WNBA_total.csv                          WNBA total           3         ok
+  2026_05_31_WNBA_total.csv                          WNBA total           1         ok
+  2026_06_01_WNBA_total.csv                          WNBA total           2         ok
+  2026_06_02_WNBA_total.csv                          WNBA total           4         ok
+  2026_06_03_WNBA_total.csv                          WNBA total           2         ok
+  2026_06_04_WNBA_total.csv                          WNBA total           2         ok
+  2026_06_05_WNBA_total.csv                          WNBA total           3         ok
+  2026_06_06_WNBA_total.csv                          WNBA total           4         ok
+  2026_06_07_WNBA_total.csv                          WNBA total           2         ok
+  2026_06_08_WNBA_total.csv                          WNBA total           3         ok
+  2026_06_09_WNBA_total.csv                          WNBA total           3         ok
+  2026_06_10_WNBA_total.csv                          WNBA total           2         ok
+  2026_06_11_WNBA_total.csv                          WNBA total           4         ok
+  2026_06_12_WNBA_total.csv                          WNBA total           2         ok
+  2026_06_13_WNBA_total.csv                          WNBA total           4         ok
+  2026_06_14_WNBA_total.csv                          WNBA total           2         ok
+  2026_06_15_WNBA_total.csv                          WNBA total           1         ok
+  2026_06_16_WNBA_total.csv                          WNBA total           1         ok
+  2026_06_17_WNBA_total.csv                          WNBA total           6         ok
+  2026_06_18_WNBA_total.csv                          WNBA total           1         ok
+  2026_06_19_WNBA_total.csv                          WNBA total           3         ok
+  2026_06_20_WNBA_total.csv                          WNBA total           3         ok
+  2026_06_21_WNBA_total.csv                          WNBA total           3         ok
+  2026_06_22_WNBA_total.csv                          WNBA total           4         ok
+  2026_06_23_WNBA_total.csv                          WNBA total           1         ok
+  2026_06_24_WNBA_total.csv                          WNBA total           4         ok
+  2026_06_25_WNBA_total.csv                          WNBA total           3         ok
+  2026_06_26_WNBA_total.csv                          WNBA total           3         ok
+  2026_06_27_WNBA_total.csv                          WNBA total           3         ok
+  2026_06_28_WNBA_total.csv                          WNBA total           4         ok
+  2026_06_30_WNBA_total.csv                          WNBA total           1         ok
+  2026_07_02_WNBA_total.csv                          WNBA total           3         ok
+  2026_07_03_WNBA_total.csv                          WNBA total           2         ok
+  2026_07_04_WNBA_total.csv                          WNBA total           2         ok
+  2026_07_05_WNBA_total.csv                          WNBA total           2         ok
+  2026_07_06_WNBA_total.csv                          WNBA total           3         ok
+  2026_07_07_WNBA_total.csv                          WNBA total           2         ok
+  2026_07_08_WNBA_total.csv                          WNBA total           3         ok
+  2026_07_09_WNBA_total.csv                          WNBA total           3         ok
+  2026_07_10_WNBA_total.csv                          WNBA total           3         ok
+  2026_07_11_WNBA_total.csv                          WNBA total           3         ok
+  2026_07_12_WNBA_total.csv                          WNBA total           4         ok
+  2026_07_13_WNBA_total.csv                          WNBA total           2         ok
+  2026_07_14_WNBA_total.csv                          WNBA total           2         ok
+  2026_07_15_WNBA_total.csv                          WNBA total           3         ok
+  2026_07_16_WNBA_total.csv                          WNBA total           2         ok
+  2026_07_17_WNBA_total.csv                          WNBA total           4         ok
+  2026_07_18_WNBA_total.csv                          WNBA total           3         ok
+  2026_07_19_WNBA_total.csv                          WNBA total           3         ok
+  2026_07_20_WNBA_total.csv                          WNBA total           4         ok
+  2026_07_22_WNBA_total.csv                          WNBA total           6         ok
+  2026_07_28_WNBA_total.csv                          WNBA total           5         ok
+  2026_07_29_WNBA_total.csv                          WNBA total           2         ok
+  2026_07_30_WNBA_total.csv                          WNBA total           3         ok
+  2026_07_31_WNBA_total.csv                          WNBA total           3         ok
+  2026_08_01_WNBA_total.csv                          WNBA total           2         ok
+  2026_08_02_WNBA_total.csv                          WNBA total           4         ok
+  2026_08_03_WNBA_total.csv                          WNBA total           3         ok
+  2026_08_04_WNBA_total.csv                          WNBA total           1         ok
+  2026_08_05_WNBA_total.csv                          WNBA total           4         ok
+  2026_08_06_WNBA_total.csv                          WNBA total           3         ok
+  2026_08_07_WNBA_total.csv                          WNBA total           3         ok
+  2026_08_08_WNBA_total.csv                          WNBA total           3         ok
+  2026_08_09_WNBA_total.csv                          WNBA total           4         ok
+  2026_08_10_WNBA_total.csv                          WNBA total           2         ok
+  2026_08_11_WNBA_total.csv                          WNBA total           3         ok
+  2026_08_12_WNBA_total.csv                          WNBA total           3         ok
+  2026_08_13_WNBA_total.csv                          WNBA total           3         ok
+  2026_08_14_WNBA_total.csv                          WNBA total           2         ok
+  2026_08_15_WNBA_total.csv                          WNBA total           3         ok
+  2026_08_16_WNBA_total.csv                          WNBA total           3         ok
+  2026_08_17_WNBA_total.csv                          WNBA total           1         ok
+  2026_08_18_WNBA_total.csv                          WNBA total           4         ok
+  2026_08_19_WNBA_total.csv                          WNBA total           2         ok
+  2026_08_20_WNBA_total.csv                          WNBA total           3         ok
+  2026_08_30_WNBA_total.csv                          WNBA total           4         ok
+  2026_09_17_WNBA_total.csv                          WNBA total           5         ok
+  2026_09_18_WNBA_total.csv                          WNBA total           3         ok
+  2026_09_19_WNBA_total.csv                          WNBA total           3         ok
+  2026_09_20_WNBA_total.csv                          WNBA total           5         ok
+  2026_09_21_WNBA_total.csv                          WNBA total           2         ok
+  2026_09_22_WNBA_total.csv                          WNBA total           5         ok
+  2026_09_23_WNBA_total.csv                          WNBA total           2         ok
+  2026_09_24_WNBA_total.csv                          WNBA total           5         ok
+  2026_09_27_WNBA_total.csv                          WNBA total           4         ok
+  2026_09_29_WNBA_total.csv                          WNBA total           2         ok
+  2026_09_30_WNBA_total.csv                          WNBA total           2         ok
+  2026_10_01_WNBA_total.csv                          WNBA total           1         ok
+  2026_10_02_WNBA_total.csv                          WNBA total           1         ok
+  2026_10_04_WNBA_total.csv                          WNBA total           2         ok
+  2026_10_07_WNBA_total.csv                          WNBA total           2         ok
+  2026_10_09_WNBA_total.csv                          WNBA total           2         ok
+  2026_10_17_WNBA_total.csv                          WNBA total           1         ok
+  2026_10_24_WNBA_total.csv                          WNBA total           1         ok
+  2026_10_26_WNBA_total.csv                          WNBA total           1         ok
+  2026_10_29_WNBA_total.csv                          WNBA total           1         ok
+  2026_10_31_WNBA_total.csv                          WNBA total           1         ok
 
 STATUS: SUCCESS
 ======================================================================
