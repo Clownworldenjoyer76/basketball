@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
-# docs/win/basketball/scripts/00_intake/basketball_game_id.py
+"""Assign schedule game IDs to basketball predictions and final scores.
 
-import sys
+NCAAM teams are matched through the repository's validated alias map. Matches
+must have the same normalized date, the same home/away orientation, and one
+unambiguous schedule game ID. No game ID is invented from a team name.
+"""
+
 import csv
+import re
+import sys
 import traceback
-from pathlib import Path
+import unicodedata
+from collections import Counter, defaultdict
 from datetime import datetime
-from collections import defaultdict
+from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
@@ -14,60 +21,118 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from basketball_shared import resolve_repository_path
 
-# =========================
-# PATHS
-# =========================
-
 LEAGUES = {
-    "nba": {
-        "league_label": "NBA",
-        "daily_games_dir": Path("docs/win/basketball/daily_games/nba"),
-        "predictions_dir": Path("docs/win/basketball/00_intake/predictions/nba"),
-        "final_scores_dir": Path("docs/win/basketball/05_final_scores/results/nba"),
+    'nba': {
+        'league_label': 'NBA',
+        'daily_games_dir': Path('docs/win/basketball/daily_games/nba'),
+        'predictions_dir': Path('docs/win/basketball/00_intake/predictions/nba'),
+        'final_scores_dir': Path('docs/win/basketball/05_final_scores/results/nba'),
     },
-    "ncaam": {
-        "league_label": "NCAAM",
-        "daily_games_dir": Path("docs/win/basketball/daily_games/ncaam"),
-        "predictions_dir": Path("docs/win/basketball/00_intake/predictions/ncaam"),
-        "final_scores_dir": Path("docs/win/basketball/05_final_scores/results/ncaam"),
+    'ncaam': {
+        'league_label': 'NCAAM',
+        'daily_games_dir': Path('docs/win/basketball/daily_games/ncaam'),
+        'predictions_dir': Path('docs/win/basketball/00_intake/predictions/ncaam'),
+        'final_scores_dir': Path('docs/win/basketball/05_final_scores/results/ncaam'),
     },
-    "wnba": {
-        "league_label": "WNBA",
-        "daily_games_dir": Path("docs/win/basketball/daily_games/wnba"),
-        "predictions_dir": Path("docs/win/basketball/00_intake/predictions/wnba"),
-        "final_scores_dir": Path("docs/win/basketball/05_final_scores/results/wnba"),
+    'wnba': {
+        'league_label': 'WNBA',
+        'daily_games_dir': Path('docs/win/basketball/daily_games/wnba'),
+        'predictions_dir': Path('docs/win/basketball/00_intake/predictions/wnba'),
+        'final_scores_dir': Path('docs/win/basketball/05_final_scores/results/wnba'),
     },
 }
 
-ERROR_DIR = Path("docs/win/basketball/errors/00_intake")
+NCAAM_MAP_FILE = Path('docs/win/basketball/maps/team_map_ncaam.csv')
+ERROR_DIR = Path('docs/win/basketball/errors/00_intake')
 ERROR_DIR.mkdir(parents=True, exist_ok=True)
-LOG_FILE = ERROR_DIR / "basketball_game_id.txt"
+LOG_FILE = ERROR_DIR / 'basketball_game_id.txt'
 
-with open(LOG_FILE, "w", encoding="utf-8") as startup_log_handle:
-    startup_log_handle.write(f"=== basketball_game_id RUN {datetime.now().isoformat()} ===\n")
+with open(LOG_FILE, 'w', encoding='utf-8') as startup_log_handle:
+    startup_log_handle.write(f'=== basketball_game_id RUN {datetime.now().isoformat()} ===\n')
+
+_ALIAS_MAPS = {}
+ERRORS = []
 
 
 def log(msg: str) -> None:
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(f"{datetime.now().isoformat()} | {msg}\n")
+    with open(LOG_FILE, 'a', encoding='utf-8') as f:
+        f.write(f'{datetime.now().isoformat()} | {msg}\n')
 
-
-# =========================
-# HELPERS
-# =========================
 
 def clean_value(val):
     if val is None:
-        return ""
-    return str(val).strip()
+        return ''
+    value = str(val).strip()
+    return '' if value.casefold() in {'nan', 'none', 'null', 'nat'} else value
 
 
-def make_key(game_date, home_team, away_team):
-    return (
-        clean_value(game_date),
-        clean_value(home_team).lower(),
-        clean_value(away_team).lower(),
-    )
+def normalize_date(value):
+    """Normalize known dates only. Never infer a day from an invalid date."""
+    raw = clean_value(value)
+    for fmt in ('%Y_%m_%d', '%Y-%m-%d', '%Y/%m/%d'):
+        try:
+            return datetime.strptime(raw, fmt).strftime('%Y_%m_%d')
+        except ValueError:
+            continue
+    return ''
+
+
+def normalize_team(value):
+    """Normalize case, accents, spacing and punctuation (not team identities)."""
+    value = unicodedata.normalize('NFKD', clean_value(value)).casefold()
+    value = ''.join(c for c in value if not unicodedata.combining(c))
+    return ' '.join(re.findall(r'[a-z0-9]+', value))
+
+
+def load_team_alias_map(league_label):
+    if league_label != 'NCAAM':
+        return {}
+    if league_label in _ALIAS_MAPS:
+        return _ALIAS_MAPS[league_label]
+
+    safe_path = resolve_repository_path(NCAAM_MAP_FILE, strict=True)
+    mapping = {}
+    with safe_path.open(newline='', encoding='utf-8-sig') as f:
+        reader = csv.DictReader(f)
+        required = {'league', 'alias', 'canonical_team'}
+        if not required.issubset(set(reader.fieldnames or [])):
+            raise ValueError(f'Invalid NCAAM team map headers: {safe_path}')
+        for number, row in enumerate(reader, start=2):
+            if clean_value(row.get('league')).upper() != 'NCAAM':
+                continue
+            alias = normalize_team(row.get('alias'))
+            canonical = normalize_team(row.get('canonical_team'))
+            if not alias or not canonical:
+                raise ValueError(f'Empty NCAAM alias/canonical team at {safe_path}:{number}')
+            for name in (alias, canonical):
+                existing = mapping.get(name)
+                if existing is not None and existing != canonical:
+                    raise ValueError(
+                        f'Conflicting NCAAM team alias {name!r}: '
+                        f'{existing!r} vs {canonical!r} at {safe_path}:{number}'
+                    )
+                mapping[name] = canonical
+    if not mapping:
+        raise ValueError(f'No NCAAM aliases loaded from {safe_path}')
+    _ALIAS_MAPS[league_label] = mapping
+    log(f'NCAAM validated alias keys loaded: {len(mapping)} from {safe_path}')
+    return mapping
+
+
+def canonical_team(team, league_label):
+    if league_label != 'NCAAM':
+        return clean_value(team).lower()
+    name = normalize_team(team)
+    return load_team_alias_map(league_label).get(name, name)
+
+
+def make_key(game_date, home_team, away_team, league_label=None):
+    date = normalize_date(game_date)
+    home = canonical_team(home_team, league_label)
+    away = canonical_team(away_team, league_label)
+    if not date or not home or not away or home == away:
+        return None
+    return date, home, away
 
 
 def ensure_fieldnames(fieldnames, wanted):
@@ -79,12 +144,8 @@ def ensure_fieldnames(fieldnames, wanted):
 
 
 def read_csv_rows(path: Path):
-    safe_path = resolve_repository_path(
-        path,
-        strict=True,
-    )
-
-    with safe_path.open(newline="", encoding="utf-8") as f:
+    safe_path = resolve_repository_path(path, strict=True)
+    with safe_path.open(newline='', encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
         rows = list(reader)
         fieldnames = reader.fieldnames or []
@@ -92,382 +153,345 @@ def read_csv_rows(path: Path):
 
 
 def write_csv_rows(path: Path, fieldnames, rows):
-    safe_path = resolve_repository_path(
-        path,
-        strict=False,
-    )
-
-    with safe_path.open("w", newline="", encoding="utf-8") as f:
+    safe_path = resolve_repository_path(path, strict=False)
+    with safe_path.open('w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+
+
+def _issue_row(league_label, path, row, reason, *, game_id=None):
+    return {
+        'league': league_label,
+        'file': str(path),
+        'source_file': str(path),
+        'game_date': clean_value(row.get('game_date')),
+        'home_team': clean_value(row.get('home_team')),
+        'away_team': clean_value(row.get('away_team')),
+        'game_id': clean_value(row.get('game_id')) if game_id is None else game_id,
+        'reason': reason,
+    }
 
 
 def load_daily_games_for_league(daily_games_dir: Path, league_label: str):
     daily_map = {}
     daily_keys_by_date = defaultdict(set)
     duplicate_rows = []
-    files_found = 0
-    rows_loaded = 0
+    files_found = rows_loaded = 0
+    entries = defaultdict(list)
 
     if not daily_games_dir.exists():
-        log(f"DAILY GAMES DIR NOT FOUND: {daily_games_dir}")
+        log(f'DAILY GAMES DIR NOT FOUND: {daily_games_dir}')
         return daily_map, daily_keys_by_date, duplicate_rows, files_found, rows_loaded
 
-    for csv_path in sorted(daily_games_dir.glob("*.csv")):
+    for csv_path in sorted(daily_games_dir.glob('*.csv')):
         files_found += 1
         try:
             rows, _ = read_csv_rows(csv_path)
             for row in rows:
                 rows_loaded += 1
+                key = make_key(
+                    row.get('game_date'), row.get('home_team'),
+                    row.get('away_team'), league_label,
+                )
+                gid = clean_value(row.get('game_id'))
+                if key is None or not gid:
+                    duplicate_rows.append(_issue_row(
+                        league_label, csv_path, row, 'invalid_identity_or_missing_schedule_id'))
+                    continue
+                entries[key].append({
+                    'game_id': gid,
+                    'game_time': clean_value(row.get('game_time')),
+                    'source_file': str(csv_path),
+                    'game_date': key[0],
+                    'home_team': clean_value(row.get('home_team')),
+                    'away_team': clean_value(row.get('away_team')),
+                })
+        except Exception as exc:
+            msg = f'ERROR loading daily games file {csv_path}: {exc}\n{traceback.format_exc()}'
+            log(msg)
+            ERRORS.append(msg)
 
-                game_date = clean_value(row.get("game_date"))
-                home_team = clean_value(row.get("home_team"))
-                away_team = clean_value(row.get("away_team"))
-                game_id = clean_value(row.get("game_id"))
-                game_time = clean_value(row.get("game_time"))
+    id_to_keys = defaultdict(set)
+    for key, values in entries.items():
+        for item in values:
+            id_to_keys[item['game_id']].add(key)
 
-                key = make_key(game_date, home_team, away_team)
-                daily_keys_by_date[game_date].add(key)
+    for key, values in entries.items():
+        ids = {item['game_id'] for item in values}
+        collision = len(ids) != 1 or any(len(id_to_keys[gid]) != 1 for gid in ids)
+        if collision:
+            reason = 'ambiguous_schedule_ids_or_game_id_reused'
+            for item in values:
+                duplicate_rows.append({
+                    'league': league_label,
+                    'game_date': key[0],
+                    'home_team': item['home_team'],
+                    'away_team': item['away_team'],
+                    'game_id': item['game_id'],
+                    'source_file': item['source_file'],
+                    'reason': reason,
+                })
+            log(f'AMBIGUOUS SCHEDULE KEY SKIPPED: {league_label} {key} ids={sorted(ids)}')
+            continue
 
-                if key in daily_map:
-                    duplicate_rows.append({
-                        "league": league_label,
-                        "source_file": str(csv_path),
-                        "game_date": game_date,
-                        "home_team": home_team,
-                        "away_team": away_team,
-                        "game_id": game_id,
-                    })
-                else:
-                    daily_map[key] = {
-                        "game_id": game_id,
-                        "game_time": game_time,
-                        "source_file": str(csv_path),
-                    }
+        if len(values) > 1:
+            # Multiple exports of the same date/matchup/ID are one game.
+            log(f'DUPLICATE CONSISTENT SCHEDULE ROWS: {league_label} {key} count={len(values)}')
 
-        except Exception as e:
-            log(f"ERROR loading daily games file {csv_path}: {e}\n{traceback.format_exc()}")
+        # Never allow a blank time from a duplicate export to replace a known time.
+        times = {item['game_time'] for item in values if item['game_time']}
+        if len(times) > 1:
+            log(f'SCHEDULE TIME CONFLICT (ID STILL UNIQUE): {league_label} {key} times={sorted(times)}')
+        meta = dict(values[0])
+        meta['game_time'] = sorted(times)[0] if len(times) == 1 else ''
+        daily_map[key] = meta
+        daily_keys_by_date[key[0]].add(key)
 
     return daily_map, daily_keys_by_date, duplicate_rows, files_found, rows_loaded
 
 
-def track_duplicate_row(
-    row: dict,
-    seen_keys: set,
-    duplicate_rows: list,
-    league_label: str,
-    csv_path: Path,
-):
+def track_duplicate_row(row, seen_keys, duplicate_rows, league_label, csv_path):
     key = make_key(
-        row.get("game_date"),
-        row.get("home_team"),
-        row.get("away_team"),
+        row.get('game_date'), row.get('home_team'),
+        row.get('away_team'), league_label,
     )
-
-    if key in seen_keys:
-        duplicate_rows.append({
-            "league": league_label,
-            "file": str(csv_path),
-            "game_date": clean_value(
-                row.get("game_date")
-            ),
-            "home_team": clean_value(
-                row.get("home_team")
-            ),
-            "away_team": clean_value(
-                row.get("away_team")
-            ),
-        })
-    else:
-        seen_keys.add(
-            key
-        )
-
+    if key is not None and key in seen_keys:
+        duplicate_rows.append(_issue_row(
+            league_label, csv_path, row, 'duplicate_source_matchup'))
+    if key is not None:
+        seen_keys.add(key)
     return key
 
+
+def _match_reason(row, daily_map, league_label):
+    key = make_key(
+        row.get('game_date'), row.get('home_team'),
+        row.get('away_team'), league_label,
+    )
+    if key is None:
+        return None, 'invalid_date_or_team'
+    if key in daily_map:
+        return key, None
+    reverse_key = key[0], key[2], key[1]
+    if reverse_key in daily_map:
+        # Assigning an ID without swapping side-specific probabilities/points
+        # would link the wrong team to the model's home/away predictions.
+        return None, 'reversed_home_away_not_auto_assigned'
+    return None, 'no_validated_matchup_alias_or_schedule_game'
+
+
 def update_predictions(predictions_dir: Path, daily_map: dict, league_label: str):
-    files_processed = 0
-    rows_processed = 0
-    rows_updated = 0
+    files_processed = rows_processed = rows_updated = 0
     matched_keys = set()
     prediction_no_match = []
     duplicate_prediction_rows = []
 
     if not predictions_dir.exists():
-        log(f"PREDICTIONS DIR NOT FOUND: {predictions_dir}")
-        return (
-            files_processed,
-            rows_processed,
-            rows_updated,
-            matched_keys,
-            prediction_no_match,
-            duplicate_prediction_rows,
-        )
+        log(f'PREDICTIONS DIR NOT FOUND: {predictions_dir}')
+        return (files_processed, rows_processed, rows_updated, matched_keys,
+                prediction_no_match, duplicate_prediction_rows)
 
-    for csv_path in sorted(predictions_dir.glob("*.csv")):
+    for csv_path in sorted(predictions_dir.glob('*.csv')):
         try:
             files_processed += 1
             rows, fieldnames = read_csv_rows(csv_path)
-            fieldnames = ensure_fieldnames(fieldnames, ["game_id", "game_time"])
-
-            modified = False
+            fieldnames = ensure_fieldnames(fieldnames, ['game_id', 'game_time'])
+            keys = [make_key(row.get('game_date'), row.get('home_team'),
+                             row.get('away_team'), league_label) for row in rows]
+            counts = Counter(k for k in keys if k is not None)
             seen_keys = set()
+            modified = False
 
-            for row in rows:
+            for row, candidate_key in zip(rows, keys):
                 rows_processed += 1
+                track_duplicate_row(row, seen_keys, duplicate_prediction_rows,
+                                    league_label, csv_path)
+                if candidate_key is not None and counts[candidate_key] > 1:
+                    prediction_no_match.append(_issue_row(
+                        league_label, csv_path, row, 'ambiguous_duplicate_prediction_matchup'))
+                    continue
+                key, reason = _match_reason(row, daily_map, league_label)
+                if key is None:
+                    prediction_no_match.append(_issue_row(league_label, csv_path, row, reason))
+                    continue
 
-                key = track_duplicate_row(
-                    row,
-                    seen_keys,
-                    duplicate_prediction_rows,
-                    league_label,
-                    csv_path,
-                )
-
-                if key in daily_map:
-                    matched_keys.add(key)
-                    source_game_id = clean_value(daily_map[key].get("game_id"))
-                    source_game_time = clean_value(daily_map[key].get("game_time"))
-
-                    if clean_value(row.get("game_id")) != source_game_id:
-                        row["game_id"] = source_game_id
-                        modified = True
-                        rows_updated += 1
-
-                    if clean_value(row.get("game_time")) != source_game_time:
-                        row["game_time"] = source_game_time
-                        modified = True
-                        rows_updated += 1
-                else:
-                    prediction_no_match.append({
-                        "league": league_label,
-                        "file": str(csv_path),
-                        "game_date": clean_value(row.get("game_date")),
-                        "home_team": clean_value(row.get("home_team")),
-                        "away_team": clean_value(row.get("away_team")),
-                    })
+                source = daily_map[key]
+                matched_keys.add(key)
+                source_gid = source['game_id']
+                source_time = source['game_time']
+                if clean_value(row.get('game_id')) != source_gid:
+                    previous = clean_value(row.get('game_id'))
+                    if previous:
+                        log(f'CORRECTED PREDICTION GAME ID: {csv_path} {key} {previous} -> {source_gid}')
+                    row['game_id'] = source_gid
+                    rows_updated += 1
+                    modified = True
+                if source_time and clean_value(row.get('game_time')) != source_time:
+                    row['game_time'] = source_time
+                    rows_updated += 1
+                    modified = True
 
             if modified:
                 write_csv_rows(csv_path, fieldnames, rows)
-                log(f"UPDATED PREDICTIONS: {csv_path}")
+                log(f'UPDATED PREDICTIONS: {csv_path}')
             else:
-                log(f"NO CHANGES PREDICTIONS: {csv_path}")
+                log(f'NO CHANGES PREDICTIONS: {csv_path}')
+        except Exception as exc:
+            msg = f'ERROR updating predictions file {csv_path}: {exc}\n{traceback.format_exc()}'
+            log(msg)
+            ERRORS.append(msg)
 
-        except Exception as e:
-            log(f"ERROR updating predictions file {csv_path}: {e}\n{traceback.format_exc()}")
-
-    return (
-        files_processed,
-        rows_processed,
-        rows_updated,
-        matched_keys,
-        prediction_no_match,
-        duplicate_prediction_rows,
-    )
+    return (files_processed, rows_processed, rows_updated, matched_keys,
+            prediction_no_match, duplicate_prediction_rows)
 
 
 def update_final_scores(final_scores_dir: Path, daily_map: dict, league_label: str):
-    files_processed = 0
-    rows_processed = 0
-    rows_updated = 0
+    files_processed = rows_processed = rows_updated = 0
     duplicate_final_score_rows = []
-
     if not final_scores_dir.exists():
-        log(f"FINAL SCORES DIR NOT FOUND: {final_scores_dir}")
+        log(f'FINAL SCORES DIR NOT FOUND: {final_scores_dir}')
         return files_processed, rows_processed, rows_updated, duplicate_final_score_rows
 
-    for csv_path in sorted(final_scores_dir.glob("*.csv")):
+    for csv_path in sorted(final_scores_dir.glob('*.csv')):
         try:
             files_processed += 1
             rows, fieldnames = read_csv_rows(csv_path)
-            fieldnames = ensure_fieldnames(fieldnames, ["game_id"])
-
-            modified = False
+            fieldnames = ensure_fieldnames(fieldnames, ['game_id'])
+            keys = [make_key(row.get('game_date'), row.get('home_team'),
+                             row.get('away_team'), league_label) for row in rows]
+            counts = Counter(k for k in keys if k is not None)
             seen_keys = set()
-
-            for row in rows:
+            modified = False
+            for row, candidate_key in zip(rows, keys):
                 rows_processed += 1
-
-                key = track_duplicate_row(
-                    row,
-                    seen_keys,
-                    duplicate_final_score_rows,
-                    league_label,
-                    csv_path,
-                )
-
-                if key in daily_map:
-                    source_game_id = clean_value(daily_map[key].get("game_id"))
-                    if clean_value(row.get("game_id")) != source_game_id:
-                        row["game_id"] = source_game_id
-                        modified = True
-                        rows_updated += 1
-
+                track_duplicate_row(row, seen_keys, duplicate_final_score_rows,
+                                    league_label, csv_path)
+                if candidate_key is not None and counts[candidate_key] > 1:
+                    continue
+                key, reason = _match_reason(row, daily_map, league_label)
+                if key is None:
+                    if reason == 'reversed_home_away_not_auto_assigned':
+                        log(f'REVERSED FINAL SCORE MATCHUP SKIPPED: {csv_path}: '
+                            f'{row.get("home_team")} vs {row.get("away_team")}')
+                    continue
+                source_gid = daily_map[key]['game_id']
+                if clean_value(row.get('game_id')) != source_gid:
+                    previous = clean_value(row.get('game_id'))
+                    if previous:
+                        log(f'CORRECTED FINAL SCORE GAME ID: {csv_path} {key} {previous} -> {source_gid}')
+                    row['game_id'] = source_gid
+                    rows_updated += 1
+                    modified = True
             if modified:
                 write_csv_rows(csv_path, fieldnames, rows)
-                log(f"UPDATED FINAL SCORES: {csv_path}")
+                log(f'UPDATED FINAL SCORES: {csv_path}')
             else:
-                log(f"NO CHANGES FINAL SCORES: {csv_path}")
-
-        except Exception as e:
-            log(f"ERROR updating final scores file {csv_path}: {e}\n{traceback.format_exc()}")
-
+                log(f'NO CHANGES FINAL SCORES: {csv_path}')
+        except Exception as exc:
+            msg = f'ERROR updating final scores file {csv_path}: {exc}\n{traceback.format_exc()}'
+            log(msg)
+            ERRORS.append(msg)
     return files_processed, rows_processed, rows_updated, duplicate_final_score_rows
 
 
-# =========================
-# MAIN
-# =========================
-
 def main():
-    total_daily_files_found = 0
-    total_daily_rows_loaded = 0
-    total_prediction_files_processed = 0
-    total_prediction_rows_processed = 0
-    total_prediction_updates = 0
-    total_final_score_files_processed = 0
-    total_final_score_rows_processed = 0
-    total_final_score_updates = 0
-
+    totals = defaultdict(int)
     sportsbook_no_prediction_match = []
     prediction_no_sportsbook_match = []
     duplicate_key_rows = []
+    ERRORS.clear()
 
     try:
         for cfg in LEAGUES.values():
-            league_label = cfg["league_label"]
-            log(f"--- LEAGUE {league_label} ---")
+            league_label = cfg['league_label']
+            log(f'--- LEAGUE {league_label} ---')
+            if league_label == 'NCAAM':
+                load_team_alias_map(league_label)
 
-            (
-                daily_map,
-                _,
-                daily_duplicate_rows,
-                daily_files_found,
-                daily_rows_loaded,
-            ) = load_daily_games_for_league(cfg["daily_games_dir"], league_label)
+            (daily_map, _, daily_duplicates, daily_files, daily_rows) = (
+                load_daily_games_for_league(cfg['daily_games_dir'], league_label))
+            totals['daily_files'] += daily_files
+            totals['daily_rows'] += daily_rows
+            duplicate_key_rows.extend(daily_duplicates)
 
-            total_daily_files_found += daily_files_found
-            total_daily_rows_loaded += daily_rows_loaded
-            duplicate_key_rows.extend(daily_duplicate_rows)
+            (prediction_files, prediction_rows, prediction_updates,
+             matched_keys, prediction_mismatches, prediction_duplicates) = (
+                update_predictions(cfg['predictions_dir'], daily_map, league_label))
+            totals['prediction_files'] += prediction_files
+            totals['prediction_rows'] += prediction_rows
+            totals['prediction_updates'] += prediction_updates
+            prediction_no_sportsbook_match.extend(prediction_mismatches)
+            duplicate_key_rows.extend(prediction_duplicates)
 
-            (
-                prediction_files_processed,
-                prediction_rows_processed,
-                prediction_updates,
-                matched_prediction_keys,
-                prediction_no_match,
-                duplicate_prediction_rows,
-            ) = update_predictions(
-                cfg["predictions_dir"],
-                daily_map,
-                league_label,
-            )
+            (score_files, score_rows, score_updates, score_duplicates) = (
+                update_final_scores(cfg['final_scores_dir'], daily_map, league_label))
+            totals['score_files'] += score_files
+            totals['score_rows'] += score_rows
+            totals['score_updates'] += score_updates
+            duplicate_key_rows.extend(score_duplicates)
 
-            total_prediction_files_processed += prediction_files_processed
-            total_prediction_rows_processed += prediction_rows_processed
-            total_prediction_updates += prediction_updates
-            prediction_no_sportsbook_match.extend(prediction_no_match)
-            duplicate_key_rows.extend(duplicate_prediction_rows)
-
-            (
-                final_score_files_processed,
-                final_score_rows_processed,
-                final_score_updates,
-                duplicate_final_score_rows,
-            ) = update_final_scores(
-                cfg["final_scores_dir"],
-                daily_map,
-                league_label,
-            )
-
-            total_final_score_files_processed += final_score_files_processed
-            total_final_score_rows_processed += final_score_rows_processed
-            total_final_score_updates += final_score_updates
-            duplicate_key_rows.extend(duplicate_final_score_rows)
-
-            unmatched_daily_keys = set(daily_map.keys()) - matched_prediction_keys
-            for key in sorted(unmatched_daily_keys):
+            for key in sorted(set(daily_map) - matched_keys):
                 meta = daily_map[key]
                 sportsbook_no_prediction_match.append({
-                    "league": league_label,
-                    "source_file": meta.get("source_file", ""),
-                    "game_date": key[0],
-                    "home_team": key[1],
-                    "away_team": key[2],
-                    "game_id": meta.get("game_id", ""),
+                    'league': league_label,
+                    'source_file': meta['source_file'],
+                    'game_date': key[0],
+                    'home_team': meta['home_team'],
+                    'away_team': meta['away_team'],
+                    'game_id': meta['game_id'],
                 })
 
-        # =========================
-        # SUMMARY / MISMATCH REPORT
-        # =========================
+        log('--- SUMMARY ---')
+        log(f"Daily games files found: {totals['daily_files']}")
+        log(f"Daily games rows loaded: {totals['daily_rows']}")
+        log(f"Prediction files processed: {totals['prediction_files']}")
+        log(f"Prediction rows processed: {totals['prediction_rows']}")
+        log(f"Prediction field updates made: {totals['prediction_updates']}")
+        log(f"Final score files processed: {totals['score_files']}")
+        log(f"Final score rows processed: {totals['score_rows']}")
+        log(f"Final score field updates made: {totals['score_updates']}")
+        log(f'Sportsbook rows with no prediction match: {len(sportsbook_no_prediction_match)}')
+        log(f'Prediction rows with no sportsbook match: {len(prediction_no_sportsbook_match)}')
+        log(f'Duplicate key rows: {len(duplicate_key_rows)}')
+        log('--- SMALL MISMATCH REPORT ---')
 
-        log("--- SUMMARY ---")
-        log(f"Daily games files found: {total_daily_files_found}")
-        log(f"Daily games rows loaded: {total_daily_rows_loaded}")
-        log(f"Prediction files processed: {total_prediction_files_processed}")
-        log(f"Prediction rows processed: {total_prediction_rows_processed}")
-        log(f"Prediction field updates made: {total_prediction_updates}")
-        log(f"Final score files processed: {total_final_score_files_processed}")
-        log(f"Final score rows processed: {total_final_score_rows_processed}")
-        log(f"Final score field updates made: {total_final_score_updates}")
-        log(f"Sportsbook rows with no prediction match: {len(sportsbook_no_prediction_match)}")
-        log(f"Prediction rows with no sportsbook match: {len(prediction_no_sportsbook_match)}")
-        log(f"Duplicate key rows: {len(duplicate_key_rows)}")
+        log('Sportsbook rows with no prediction match:')
+        for row in sportsbook_no_prediction_match[:25]:
+            log(f"  {row['league']} | {row['game_date']} | {row['home_team']} | "
+                f"{row['away_team']} | game_id={row['game_id']} | source={row['source_file']}")
+        if not sportsbook_no_prediction_match:
+            log('  none')
+        elif len(sportsbook_no_prediction_match) > 25:
+            log(f'  ... and {len(sportsbook_no_prediction_match) - 25} more')
 
-        log("--- SMALL MISMATCH REPORT ---")
+        log('Prediction rows with no sportsbook match:')
+        for row in prediction_no_sportsbook_match[:25]:
+            log(f"  {row['league']} | {row['game_date']} | {row['home_team']} | "
+                f"{row['away_team']} | reason={row['reason']} | file={row['file']}")
+        if not prediction_no_sportsbook_match:
+            log('  none')
+        elif len(prediction_no_sportsbook_match) > 25:
+            log(f'  ... and {len(prediction_no_sportsbook_match) - 25} more')
 
-        log("Sportsbook rows with no prediction match:")
-        if sportsbook_no_prediction_match:
-            for row in sportsbook_no_prediction_match[:25]:
-                log(
-                    f"  {row['league']} | {row['game_date']} | "
-                    f"{row['home_team']} | {row['away_team']} | game_id={row['game_id']} | "
-                    f"source={row['source_file']}"
-                )
-            if len(sportsbook_no_prediction_match) > 25:
-                log(f"  ... and {len(sportsbook_no_prediction_match) - 25} more")
-        else:
-            log("  none")
+        log('Duplicate key rows:')
+        for row in duplicate_key_rows[:25]:
+            log(f"  {row['league']} | {row['game_date']} | {row['home_team']} | "
+                f"{row['away_team']} | reason={row['reason']} | source={row['source_file']}")
+        if not duplicate_key_rows:
+            log('  none')
+        elif len(duplicate_key_rows) > 25:
+            log(f'  ... and {len(duplicate_key_rows) - 25} more')
 
-        log("Prediction rows with no sportsbook match:")
-        if prediction_no_sportsbook_match:
-            for row in prediction_no_sportsbook_match[:25]:
-                log(
-                    f"  {row['league']} | {row['game_date']} | "
-                    f"{row['home_team']} | {row['away_team']} | file={row['file']}"
-                )
-            if len(prediction_no_sportsbook_match) > 25:
-                log(f"  ... and {len(prediction_no_sportsbook_match) - 25} more")
-        else:
-            log("  none")
-
-        log("Duplicate key rows:")
-        if duplicate_key_rows:
-            for row in duplicate_key_rows[:25]:
-                if "source_file" in row:
-                    log(
-                        f"  {row['league']} | {row['game_date']} | "
-                        f"{row['home_team']} | {row['away_team']} | source={row['source_file']}"
-                    )
-                else:
-                    log(
-                        f"  {row['league']} | {row['game_date']} | "
-                        f"{row['home_team']} | {row['away_team']} | file={row['file']}"
-                    )
-            if len(duplicate_key_rows) > 25:
-                log(f"  ... and {len(duplicate_key_rows) - 25} more")
-        else:
-            log("  none")
-
-        log("STATUS: SUCCESS")
-        print("Basketball game_id injection complete.")
-
-    except Exception as e:
-        log(f"FATAL ERROR: {e}\n{traceback.format_exc()}")
-        log("STATUS: FAILED")
+        if ERRORS:
+            raise RuntimeError(f'{len(ERRORS)} file processing error(s); see {LOG_FILE}')
+        log('STATUS: SUCCESS')
+        print('Basketball game_id injection complete.')
+    except Exception as exc:
+        log(f'FATAL ERROR: {exc}\n{traceback.format_exc()}')
+        log('STATUS: FAILED')
         raise
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
