@@ -342,7 +342,7 @@ def load_scores_for_league(league: str) -> pd.DataFrame:
         return pd.DataFrame()
 
     out = pd.concat(dfs, ignore_index=True)
-    keep = [c for c in ["game_id", "home_score", "away_score"] if c in out.columns]
+    keep = [c for c in ["game_id", "home_team", "away_team", "home_score", "away_score"] if c in out.columns]
     if "game_id" not in keep:
         _log(f"[{league}] scores have no game_id column", "ERROR")
         return pd.DataFrame()
@@ -463,6 +463,47 @@ def grade_league(league: str, summary: dict, *, locked: bool = False) -> None:
             merged[col] = merged[side].combine_first(merged.get(col))
             merged = merged.drop(columns=[side])
 
+    # NCAAM_SCORE_ORIENTATION_FIX_V1: game_id alone does not establish team order.
+    # Preserve the official score names and align scores with selected team's side.
+    if league == "ncaam" and not scores.empty:
+        needed = {"home_team", "away_team", "home_team_score", "away_team_score"}
+        if not needed.issubset(merged.columns):
+            raise RuntimeError("NCAAM scorer cannot verify team orientation: missing names")
+
+        def _normalize_team(value):
+            if pd.isna(value):
+                return ""
+            return "".join(ch for ch in str(value).casefold() if ch.isalnum())
+
+        def _score_orientation(row):
+            if pd.isna(row.get("home_score")) or pd.isna(row.get("away_score")):
+                return "no_final"
+            selected_home = _normalize_team(row.get("home_team"))
+            selected_away = _normalize_team(row.get("away_team"))
+            final_home = _normalize_team(row.get("home_team_score"))
+            final_away = _normalize_team(row.get("away_team_score"))
+            if not all((selected_home, selected_away, final_home, final_away)):
+                return "unverified"
+            direct = selected_home == final_home and selected_away == final_away
+            reversed_order = selected_home == final_away and selected_away == final_home
+            if reversed_order and not direct:
+                return "reversed"
+            if direct:
+                return "matched"
+            return "unverified"
+
+        merged["score_orientation"] = merged.apply(_score_orientation, axis=1)
+        reversed_rows = merged["score_orientation"].eq("reversed")
+        if reversed_rows.any():
+            merged.loc[reversed_rows, ["home_score", "away_score"]] = (
+                merged.loc[reversed_rows, ["away_score", "home_score"]].to_numpy()
+            )
+        unverified = int(merged["score_orientation"].eq("unverified").sum())
+        _log(
+            f"[{league} {label}] score orientation: "
+            f"reversed_rows={int(reversed_rows.sum())}, "
+            f"unverified_team_names={unverified}"
+        )
     matched_mask = merged["home_score"].notna() & merged["away_score"].notna()
     unmatched = merged.loc[~matched_mask].copy()
     matched   = merged.loc[ matched_mask].copy()
