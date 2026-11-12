@@ -1,73 +1,143 @@
-#!/usr/bin/env python3
-"""Incremental/full-rebuild launcher for basketball_select_bets_core.py.
 
-Incremental mode rebuilds only today's candidate selection and preserves historical
-`daily_picks`. Full rebuild mode retains the original behavior and is intended for
-selection/model experiments across stored history.
+#!/usr/bin/env python3
+"""Rebuild historical and current basketball selections using today's filters.
+
+Every run reads all stored stage-3 EV/Kelly files, applies the current
+markets.yaml and model_config.yaml rules through basketball_select_bets_core.py,
+and replaces only the rebuildable 04_select/{league}/daily_picks files.
+
+Immutable 04_select/{league}/locked_picks are never modified. Replacements are
+staged and published only after the core reports a successful selection.
+BASKETBALL_FULL_REBUILD continues to control other pipeline stages, but the
+selection stage always re-filters all available historical dates.
 """
 from __future__ import annotations
-import importlib.util, os, shutil, sys, tempfile
-from datetime import datetime
+
+import csv
+import importlib.util
+import re
+import shutil
+import sys
+import tempfile
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
-CORE_PATH=Path(__file__).with_name("basketball_select_bets_core.py")
-REAL_INPUT=Path("docs/win/basketball/03_edges/ev_kelly")
-REAL_SELECT=Path("docs/win/basketball/04_select")
-NY=ZoneInfo("America/New_York")
-LEAGUES=["nba","ncaam","wnba"]; MARKETS=["moneyline","spread","total"]
-def truthy(v): return str(v or "").strip().lower() in {"1","true","yes","on"}
+CORE_PATH = Path(__file__).with_name("basketball_select_bets_core.py")
+REAL_INPUT = Path("docs/win/basketball/03_edges/ev_kelly")
+REAL_SELECT = Path("docs/win/basketball/04_select")
+LEAGUES = ("nba", "ncaam", "wnba")
+MARKETS = ("moneyline", "spread", "total")
+DATE_PATTERN = re.compile(r"^\d{4}_\d{2}_\d{2}$")
+
+
 def load_core():
-    spec=importlib.util.spec_from_file_location("basketball_select_bets_core",CORE_PATH)
-    if spec is None or spec.loader is None: raise RuntimeError(f"Unable to load {CORE_PATH}")
-    m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
+    spec = importlib.util.spec_from_file_location(
+        "basketball_select_bets_core", CORE_PATH
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load {CORE_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
-def incremental_sources(date: str):
-    pattern = f"*/*/{date}_*.csv"
 
-    for src in sorted(
-        REAL_INPUT.glob(pattern)
-    ):
-        market = src.parent.name
-        league = src.parent.parent.name
+def verify_historical_sources() -> None:
+    """Do not discard an old selection if its original market input vanished."""
+    available = set()
+    for league in LEAGUES:
+        for market in MARKETS:
+            folder = REAL_INPUT / league / market
+            for source in folder.glob("*.csv"):
+                prefix = source.name[:10]
+                if DATE_PATTERN.fullmatch(prefix) and source.name == (
+                    f"{prefix}_{league.upper()}_{market}.csv"
+                ):
+                    available.add((league, prefix, market))
 
-        if (
-            league not in LEAGUES
-            or market not in MARKETS
-        ):
-            continue
+    if not available:
+        raise RuntimeError(f"No historical or current EV/Kelly files in {REAL_INPUT}")
 
-        expected_name = (
-            f"{date}_{league.upper()}_"
-            f"{market}.csv"
-        )
+    for league in LEAGUES:
+        folder = REAL_SELECT / league / "daily_picks"
+        for selected in folder.glob("*_selected.csv"):
+            with selected.open(newline="", encoding="utf-8-sig") as handle:
+                for row_number, row in enumerate(csv.DictReader(handle), start=2):
+                    game_date = str(row.get("game_date") or "").strip().replace("-", "_")
+                    market = str(row.get("market_type") or "").strip().lower()
+                    if (league, game_date, market) not in available:
+                        raise RuntimeError(
+                            "Cannot re-filter historical selection: missing "
+                            f"EV/Kelly input for {league}/{game_date}/{market}; "
+                            f"file={selected}:{row_number}"
+                        )
 
-        if src.name == expected_name:
-            yield (
-                league,
-                market,
-                src,
+
+def publish_rebuilt_daily_picks(staged: Path, backups: Path) -> None:
+    """Swap only daily_picks, restoring old directories if publication fails."""
+    swaps = []
+    try:
+        for league in LEAGUES:
+            destination = REAL_SELECT / league / "daily_picks"
+            source = staged / league / "daily_picks"
+            backup = backups / league / "daily_picks"
+            source.mkdir(parents=True, exist_ok=True)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            backup.parent.mkdir(parents=True, exist_ok=True)
+
+            had_original = destination.exists()
+            if had_original:
+                destination.rename(backup)
+            try:
+                source.rename(destination)
+            except Exception:
+                if had_original:
+                    backup.rename(destination)
+                raise
+            swaps.append((destination, backup, had_original))
+    except Exception:
+        for destination, backup, had_original in reversed(swaps):
+            if destination.exists():
+                shutil.rmtree(destination)
+            if had_original:
+                backup.rename(destination)
+        raise
+
+
+def main() -> None:
+    verify_historical_sources()
+    core = load_core()
+    REAL_SELECT.mkdir(parents=True, exist_ok=True)
+
+    # Keeping this temporary directory under REAL_SELECT permits directory
+    # renames on the same filesystem, including Windows drive-backed repos.
+    with tempfile.TemporaryDirectory(prefix=".selection_rebuild_", dir=REAL_SELECT) as work:
+        root = Path(work)
+        stage = root / "new"
+        core.INPUT_DIR = REAL_INPUT
+        core.SELECT_DIR = stage
+        core.main()
+
+        if not core.LOG_FILE.is_file():
+            raise RuntimeError(f"Selection log missing: {core.LOG_FILE}")
+        statuses = [
+            line for line in core.LOG_FILE.read_text(
+                encoding="utf-8", errors="replace"
+            ).splitlines()
+            if "STATUS:" in line
+        ]
+        if not statuses or "STATUS: SUCCESS" not in statuses[-1]:
+            raise RuntimeError(
+                f"Selection failed; historical files preserved. Log: {core.LOG_FILE}"
             )
 
-def main():
-    core=load_core()
-    if truthy(os.getenv("BASKETBALL_FULL_REBUILD")):
-        core.main()
-    else:
-        date=datetime.now(NY).strftime("%Y_%m_%d")
-        with tempfile.TemporaryDirectory(prefix="basketball_select_") as td:
-            root=Path(td); inp=root/"input"; out=root/"select"
-            for lg, market, src in incremental_sources(date):
-                dst=inp/lg/market/src.name
-                dst.parent.mkdir(parents=True,exist_ok=True)
-                shutil.copy2(src,dst)
-            core.INPUT_DIR=inp; core.SELECT_DIR=out; core.main()
-            for lg in LEAGUES:
-                dest=REAL_SELECT/lg/"daily_picks"/f"{date}_{lg}_selected.csv"
-                src=out/lg/"daily_picks"/dest.name
-                dest.parent.mkdir(parents=True,exist_ok=True)
-                if src.exists(): shutil.copy2(src,dest)
-                else: dest.unlink(missing_ok=True)
-    text=core.LOG_FILE.read_text(encoding="utf-8",errors="replace")
-    if "STATUS: FAILED" in text or "STATUS: COMPLETED WITH ERRORS" in text: sys.exit(1)
-if __name__=="__main__": main()
+        publish_rebuilt_daily_picks(stage, root / "backup")
+
+    print("Historical and current daily selections rebuilt using the current filters.")
+    print("Original locked_picks were not changed.")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:
+        print(f"STATUS: FAILED | {exc}", file=sys.stderr)
+        sys.exit(1)
