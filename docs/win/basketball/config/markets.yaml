@@ -92,9 +92,6 @@ markets:
 #########################################################################################################################################################
 
   ncaam:
-    # Full valid EV range: EV = probability * decimal_odds - 1 > -1.
-    # No negative-EV cutoff was supplied; qualification remains subject to
-    # other enabled side filters.
     moneyline:
       enabled: true
       selection_mode: pick_one
@@ -105,7 +102,7 @@ markets:
         odds_bands:           [[-100000, 10000]]
         ev_bands:             [[0.01, 0.075]]
         kelly_bands:          [[0.00, 1000.0]]
-        model_prob_bands:     [[0.50, 1.0]]
+        model_prob_bands:     [[0.60, 0.80]]
 
       away:
         enabled: true
@@ -127,7 +124,7 @@ markets:
         odds_bands:           [[-100000, 10000]]
         ev_bands:             [[0.00, 1000.0]]
         kelly_bands:          [[0.00, 1000.0]]
-        model_prob_bands:     [[0.50, 1.0]]
+        model_prob_bands:     [[0.70, 1.0]]
 
       away:
         enabled: true
@@ -154,7 +151,7 @@ markets:
 
       under:
         enabled: true
-        line_bands:           [[0.0, 139.99], [150.0, 159.99], [165.0, 1000.00]]
+        line_bands:           [[0.0, 139.99], [155.0, 159.99]]
         odds_bands:           [[-100000, 10000]]
         ev_bands:             [[0.00, 1000.0]]
         kelly_bands:          [[0.00, 1000.0]]
