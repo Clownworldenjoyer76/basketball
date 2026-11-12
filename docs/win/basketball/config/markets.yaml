@@ -92,9 +92,6 @@ markets:
 #########################################################################################################################################################
 
   ncaam:
-    # Full valid EV range: EV = probability * decimal_odds - 1 > -1.
-    # No negative-EV cutoff was supplied; qualification remains subject to
-    # other enabled side filters.
     moneyline:
       enabled: true
       selection_mode: pick_one
@@ -103,16 +100,16 @@ markets:
       home:
         enabled: true
         odds_bands:           [[-100000, 10000]]
-        ev_bands:             [[0.00, 1000.0]]
+        ev_bands:             [[0.01, 0.075]]
         kelly_bands:          [[0.00, 1000.0]]
-        model_prob_bands:     [[0.00, 1.0]]
+        model_prob_bands:     [[0.70, 0.80]]
 
       away:
         enabled: true
         odds_bands:           [[-100000, 10000]]
         ev_bands:             [[0.00, 1000.0]]
         kelly_bands:          [[0.00, 1000.0]]
-        model_prob_bands:     [[0.00, 1.0]]
+        model_prob_bands:     [[0.50, 1.0]]
 
 ###  NCAAM SPREAD  #####################################################################################################################################
 
@@ -124,18 +121,18 @@ markets:
       home:
         enabled: true
         line_bands:           [[-100.0, 100.0]]
-        odds_bands:           [[-100000, 10000]]
+        odds_bands:           [[-109, 10000]]
         ev_bands:             [[0.00, 1000.0]]
         kelly_bands:          [[0.00, 1000.0]]
-        model_prob_bands:     [[0.00, 1.0]]
+        model_prob_bands:     [[0.70, 0.80]]
 
       away:
         enabled: true
         line_bands:           [[-100.0, 100.0]]
         odds_bands:           [[-100000, 10000]]
-        ev_bands:             [[0.00, 1000.0]]
+        ev_bands:             [[0.01, 0.0299]]
         kelly_bands:          [[0.00, 1000.0]]
-        model_prob_bands:     [[0.00, 1.0]]
+        model_prob_bands:     [[0.50, 0.70]]
 
 ###  NCAAM TOTAL  ######################################################################################################################################
 
@@ -146,19 +143,19 @@ markets:
 
       over:
         enabled: true
-        line_bands:           [[0.0, 1000.0]]
-        odds_bands:           [[-100000, 10000]]
-        ev_bands:             [[0.00, 1000.0]]
+        line_bands:           [[130.0, 1000.0]]
+        odds_bands:           [[-100000, -110.0]]
+        ev_bands:             [[0.075, 1000.0]]
         kelly_bands:          [[0.00, 1000.0]]
-        model_prob_bands:     [[0.00, 1.0]]
+        model_prob_bands:     [[0.50, 1.0]]
 
       under:
         enabled: true
-        line_bands:           [[0.0, 1000.0]]
+        line_bands:           [[0.0, 139.99], [155.0, 159.99]]
         odds_bands:           [[-100000, 10000]]
-        ev_bands:             [[0.00, 1000.0]]
+        ev_bands:             [[0.01, 0.0399], [0.05, 0.10]]
         kelly_bands:          [[0.00, 1000.0]]
-        model_prob_bands:     [[0.00, 1.0]]
+        model_prob_bands:     [[0.50, 1.0]]
 
 #########################################################################################################################################################
 #########################################################################################################################################################

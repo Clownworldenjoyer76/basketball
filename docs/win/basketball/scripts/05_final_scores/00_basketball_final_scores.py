@@ -177,9 +177,6 @@ def load_nba_team_map() -> dict[str, str]:
             f"{NBA_TEAM_MAP}"
         )
 
-    # Resolve explicit mappings first.
-    # An alias can legitimately appear as another row's
-    # canonical target, as with TBC and TBD.
     resolved: dict[str, str] = {}
 
     def resolve(name: str, visiting: set[str]) -> str:
@@ -210,15 +207,10 @@ def load_nba_team_map() -> dict[str, str]:
     for alias in explicit:
         resolve(alias, set())
 
-    # Canonical names without their own explicit alias
-    # map to themselves.
     for canonical in canonical_names:
         if canonical not in resolved:
             resolved[canonical] = canonical
 
-    # Ensure the same canonical identity is never
-    # ambiguously represented by a contradictory explicit
-    # mapping. Self mappings and alias chains are valid.
     for alias, target in explicit.items():
         if resolved[alias] != resolved[target]:
             raise ValueError(
@@ -477,8 +469,6 @@ def composite(row: dict) -> tuple[str, str, str]:
     )
 
 
-
-
 def score_signature(row: dict) -> tuple[str, str]:
     return (
         str(row.get("home_score") or "").strip(),
@@ -582,11 +572,12 @@ def merge_rows(
     existing: list[dict], fetched: list[dict], label: str,
     output_path: Path | None = None,
 ) -> list[dict]:
-    """Preserve finals, merge equivalent NBA aliases, and promote blank IDs.
+    """Preserve stored finals and team names when ESPN revises a display name.
 
-    A matching (date, canonical home, canonical away) with the same
-    result is one game, even if an older stored row has no game_id.
-    Conflicting results, matchups or nonblank game IDs remain fatal.
+    Matching game IDs may have one renamed team only when the date, all
+    result numbers, and the other team's identity agree. Changes to scores,
+    dates, both teams, or home/away orientation are fatal. Matching team
+    identities can also promote a previously blank game ID.
     """
     merged: list[dict] = []
     by_id: dict[str, dict] = {}
@@ -608,9 +599,30 @@ def merge_rows(
             raise RuntimeError(f"{label}: incoming game_id is blank;{source} {row}")
 
         same_id = by_id.get(gid) if gid else None
-        if same_id is not None and (
-            composite(same_id) != key or signature(same_id) != scores
-        ):
+        if same_id is not None:
+            original_key = composite(same_id)
+            if original_key == key and signature(same_id) == scores:
+                return
+
+            one_team_unchanged = (
+                (original_key[1] == key[1] and original_key[2] != key[2])
+                or (original_key[2] == key[2] and original_key[1] != key[1])
+            )
+            if (
+                fetched_row
+                and original_key[0] == key[0]
+                and signature(same_id) == scores
+                and one_team_unchanged
+            ):
+                log(
+                    f"{label}: ESPN team name changed for game_id {gid}; "
+                    f"preserved stored teams; stored="
+                    f"{same_id.get('home_team')!r}/{same_id.get('away_team')!r}; "
+                    f"incoming={row.get('home_team')!r}/{row.get('away_team')!r}",
+                    "WARN",
+                )
+                return
+
             raise RuntimeError(
                 f"{label}: conflicting final for game_id {gid};{source} "
                 f"stored={same_id} incoming={row}"
@@ -647,8 +659,6 @@ def merge_rows(
     return merged
 
 
-
-
 def write_rows(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(
         parents=True,
@@ -680,7 +690,6 @@ def write_rows(path: Path, rows: list[dict]) -> None:
     finally:
         if temp.exists():
             temp.unlink()
-
 
 
 def _locked_final_ids(league_key: str, game_date: date) -> set[str]:
