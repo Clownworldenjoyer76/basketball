@@ -7,7 +7,9 @@ Behavior
 - DRatings prediction files remain untouched.
 - SDV prediction files remain untouched.
 - The script scans prediction folders for matching DRatings + SDV files.
-- Games are matched strictly by canonical game_id.
+- Games are matched by canonical game_id and verified against daily_games.
+- Reversed DRatings or SDV home/away projections are automatically aligned.
+- Unverifiable team identities fail the affected file rather than being ignored.
 - Only game_ids present in both component files are combined.
 - Unmatched files are skipped.
 - Unmatched games are skipped.
@@ -21,6 +23,9 @@ Behavior
 
 Inputs
 ------
+Authoritative daily game identities:
+    docs/win/basketball/daily_games/{league}/{date}_{LEAGUE}.csv
+
 DRatings:
     docs/win/basketball/00_intake/predictions/{league}/
         *_predictions.csv
@@ -48,7 +53,9 @@ import csv
 import hashlib
 import json
 import math
+import re
 import traceback
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -59,6 +66,11 @@ BASE = Path("docs/win/basketball")
 DRATINGS_ROOT = (
     BASE
     / "00_intake/predictions"
+)
+
+DAILY_GAMES_ROOT = (
+    BASE
+    / "daily_games"
 )
 
 SDV_PREDICTIONS_ROOT = (
@@ -850,6 +862,165 @@ def unique_rows_by_id(
     return result
 
 
+def normalized_team_identity(value: Any) -> str:
+    """Match harmless spelling/punctuation variations, not different teams."""
+    text = unicodedata.normalize("NFKD", clean(value)).casefold()
+    return re.sub(r"[^a-z0-9]", "", text)
+
+
+def load_authoritative_games(
+    league: str,
+    filename: str,
+) -> dict[str, dict[str, Any]]:
+    """Read the same daily_games source declared authoritative by sdv_predict."""
+    label = LEAGUE_LABELS[league]
+    match = re.fullmatch(
+        rf"(\d{{4}}_\d{{2}}_\d{{2}})_{re.escape(label)}_predictions\.csv",
+        filename,
+    )
+    if match is None:
+        raise RuntimeError(
+            f"Unrecognized prediction filename for {label}: {filename}"
+        )
+
+    game_date = normalize_date(match.group(1))
+    if not game_date:
+        raise RuntimeError(f"Invalid prediction filename date: {filename}")
+
+    schedule_path = (
+        DAILY_GAMES_ROOT
+        / league
+        / f"{match.group(1)}_{label}.csv"
+    )
+    rows = read_csv_rows(schedule_path)
+    if not rows:
+        raise RuntimeError(f"Missing games in authoritative slate: {schedule_path}")
+
+    result: dict[str, dict[str, Any]] = {}
+    for row_number, row in enumerate(rows, start=2):
+        game_id = clean_id(row.get("game_id"))
+        home = normalized_team_identity(row.get("home_team"))
+        away = normalized_team_identity(row.get("away_team"))
+        if not game_id or not home or not away or home == away:
+            raise RuntimeError(
+                f"Invalid authoritative teams/ID: {schedule_path} row={row_number}"
+            )
+        if normalize_date(row.get("game_date")) != game_date:
+            raise RuntimeError(
+                f"Authoritative game date mismatch: {schedule_path} "
+                f"row={row_number} game_id={game_id}"
+            )
+        if game_id in result:
+            raise RuntimeError(
+                f"Duplicate authoritative game_id={game_id}: {schedule_path}"
+            )
+        result[game_id] = dict(row)
+
+    return result
+
+
+def reverse_probability_fields(
+    aligned: dict[str, Any],
+    original: dict[str, Any],
+    home_field: str,
+    away_field: str,
+    *,
+    context: str,
+) -> None:
+    """Swap both sides, supplying an exact complement only if one is absent."""
+    original_home = to_float(original.get(home_field))
+    original_away = to_float(original.get(away_field))
+    if original_home is None and original_away is None:
+        return
+    if original_home is None:
+        original_home = 1.0 - original_away
+    if original_away is None:
+        original_away = 1.0 - original_home
+    if not (
+        0.0 <= original_home <= 1.0
+        and 0.0 <= original_away <= 1.0
+        and abs(original_home + original_away - 1.0) <= 1e-5
+    ):
+        raise RuntimeError(
+            f"Non-complementary {home_field}/{away_field}: {context}"
+        )
+    aligned[home_field] = original_away
+    aligned[away_field] = original_home
+
+
+def align_prediction_to_schedule(
+    row: dict[str, Any],
+    canonical: dict[str, Any],
+    *,
+    source: str,
+    game_id: str,
+    filename: str,
+) -> tuple[dict[str, Any], bool]:
+    """Correct a proven home/away reversal without altering the input file."""
+    context = f"file={filename} game_id={game_id} source={source}"
+    actual_date = normalize_date(row.get("game_date"))
+    canonical_date = normalize_date(canonical.get("game_date"))
+    if not actual_date or actual_date != canonical_date:
+        raise RuntimeError(
+            f"Prediction date does not match daily_games: {context} "
+            f"prediction={row.get('game_date')!r} "
+            f"schedule={canonical.get('game_date')!r}"
+        )
+
+    home = normalized_team_identity(row.get("home_team"))
+    away = normalized_team_identity(row.get("away_team"))
+    expected_home = normalized_team_identity(canonical.get("home_team"))
+    expected_away = normalized_team_identity(canonical.get("away_team"))
+
+    aligned = dict(row)
+    if home == expected_home and away == expected_away:
+        reversed_sides = False
+    elif home == expected_away and away == expected_home:
+        reversed_sides = True
+    else:
+        raise RuntimeError(
+            f"Unverified team identities: {context} "
+            f"prediction=({row.get('home_team')!r}, {row.get('away_team')!r}) "
+            f"schedule=({canonical.get('home_team')!r}, "
+            f"{canonical.get('away_team')!r})"
+        )
+
+    if reversed_sides:
+        original_home_points = to_float(row.get("home_projected_points"))
+        original_away_points = to_float(row.get("away_projected_points"))
+        if (original_home_points is None) != (original_away_points is None):
+            raise RuntimeError(f"Only one projected team score exists: {context}")
+        if original_home_points is not None:
+            aligned["home_projected_points"] = original_away_points
+            aligned["away_projected_points"] = original_home_points
+
+        if clean(row.get("expected_margin")):
+            margin = to_float(row.get("expected_margin"))
+            if margin is None:
+                raise RuntimeError(f"Invalid expected_margin: {context}")
+            aligned["expected_margin"] = -margin
+
+        reverse_probability_fields(
+            aligned, row, "home_prob", "away_prob", context=context
+        )
+        reverse_probability_fields(
+            aligned, row, "raw_home_ml_prob", "raw_away_ml_prob",
+            context=context,
+        )
+        log(
+            "TEAM ORDER CORRECTED | "
+            f"{context} | original_home={row.get('home_team')!r} | "
+            f"original_away={row.get('away_team')!r} | "
+            f"verified_home={canonical.get('home_team')!r} | "
+            f"verified_away={canonical.get('away_team')!r}"
+        )
+
+    # Preserve canonical spelling and correct output positions for both sources.
+    aligned["home_team"] = canonical["home_team"]
+    aligned["away_team"] = canonical["away_team"]
+    return aligned, reversed_sides
+
+
 def dratings_projection_values(
     row: dict[str, Any],
 ) -> tuple[
@@ -1541,6 +1712,25 @@ def process_prediction_file(
             ),
         )
 
+    # Check both input sources independently against the authoritative slate.
+    # This also detects games where BOTH model files share the same reversal.
+    canonical_games = load_authoritative_games(league, filename)
+    for game_id in matched_ids:
+        canonical = canonical_games.get(game_id)
+        if canonical is None:
+            raise RuntimeError(
+                "Matching prediction has no authoritative daily_games record: "
+                f"file={filename} game_id={game_id}"
+            )
+        dratings_rows[game_id], _ = align_prediction_to_schedule(
+            dratings_rows[game_id], canonical,
+            source="DRatings", game_id=game_id, filename=filename,
+        )
+        sdv_rows[game_id], _ = align_prediction_to_schedule(
+            sdv_rows[game_id], canonical,
+            source="SDV", game_id=game_id, filename=filename,
+        )
+
     prediction_time = utc_now()
 
     output_rows: list[
@@ -1955,6 +2145,12 @@ def main() -> int:
             for row
             in results.values()
         )
+
+        if total_file_errors:
+            raise RuntimeError(
+                f"Ensemble prediction failed for {total_file_errors} "
+                "file(s); see basketball_model_ensemble.txt"
+            )
 
         log(
             "STATUS: SUCCESS | "
