@@ -1,9 +1,7 @@
 {
-  "fatal_errors": [
-    "stage failure: docs/win/basketball/errors/00_intake/basketball_drat_scraper.txt -> 2026-11-16T12:42:33.517469-05:00 | STATUS: FAILED"
-  ],
+  "fatal_errors": [],
   "game_date_new_york": "2026_11_16",
-  "generated_at_utc": "2026-11-16T17:42:33.657198+00:00",
+  "generated_at_utc": "2026-11-16T20:50:12.954677+00:00",
   "leagues": {
     "nba": {
       "counts": {
@@ -50,48 +48,29 @@
     },
     "ncaam": {
       "counts": {
-        "dratings_games": 0,
-        "locked_bets": 0,
-        "merged_games": 0,
-        "prediction_games": 0,
+        "dratings_games": 19,
+        "locked_bets": 1,
+        "merged_games": 19,
+        "prediction_games": 19,
         "scheduled_games": 33,
-        "selected_bets": 0,
+        "selected_bets": 1,
         "sportsbook_games": 32
       },
       "coverage": {
         "dratings_missing_cleaned": [],
         "predictions_not_merged": [],
         "scheduled_missing_predictions": [
-          "401906783",
-          "401909798",
           "401911211",
-          "401911240",
-          "401916298",
-          "401916307",
-          "401916317",
-          "401917532",
-          "401917917",
-          "401917964",
           "401917981",
-          "401918075",
-          "401919807",
-          "401920373",
-          "401920735",
-          "401920808",
           "401920962",
-          "401921087",
           "401921182",
           "401921804",
           "401922240",
           "401924265",
-          "401925864",
           "401926153",
           "401926228",
           "401927352",
-          "401927364",
-          "401928841",
           "401928997",
-          "401929192",
           "401929371",
           "401929411",
           "401929419"
@@ -100,7 +79,7 @@
       },
       "identity": {
         "blank_daily_game_ids": 0,
-        "blank_dratings_game_ids": 0,
+        "blank_dratings_game_ids": 2,
         "blank_prediction_game_ids": 0,
         "daily_conflicting_game_ids": [],
         "daily_duplicate_composites": [],
@@ -124,7 +103,8 @@
         "start_month": 11
       },
       "warnings": [
-        "NCAAM: 33 ESPN games omitted (no DRatings prediction)"
+        "NCAAM: 14 ESPN games omitted (no DRatings prediction)",
+        "NCAAM: 2 DRatings prediction rows have no canonical game ID; preserved in raw source but cannot be merged or bet on until mapped"
       ]
     },
     "wnba": {
@@ -249,13 +229,33 @@
       },
       "ncaam": {
         "configured_production_source": "ensemble",
-        "eligible_dratings_game_count": 0,
+        "eligible_dratings_game_count": 19,
         "ensemble_enabled": true,
         "ensemble_predictions": {
-          "exists": false,
-          "game_ids": [],
+          "exists": true,
+          "game_ids": [
+            "401906783",
+            "401909798",
+            "401911240",
+            "401916298",
+            "401916307",
+            "401916317",
+            "401917532",
+            "401917917",
+            "401917964",
+            "401918075",
+            "401919807",
+            "401920373",
+            "401920735",
+            "401920808",
+            "401921087",
+            "401925864",
+            "401927364",
+            "401928841",
+            "401929192"
+          ],
           "missing_scheduled_game_ids": [],
-          "row_count": 0
+          "row_count": 19
         },
         "feature": {
           "exists": true,
@@ -264,9 +264,9 @@
         "in_season": true,
         "production_source": {
           "cleaned_missing_dratings_game_ids": [],
-          "cleaned_row_count": 0,
-          "merged_row_count": 0,
-          "source_confirmed_downstream": false
+          "cleaned_row_count": 19,
+          "merged_row_count": 19,
+          "source_confirmed_downstream": true
         },
         "scheduled_game_count": 33,
         "sdv_predictions": {
@@ -346,7 +346,7 @@
     },
     "validation_scope": "current_dratings_slate",
     "warnings": [
-      "NCAAM: 33 scheduled games have no DRatings prediction; ignored"
+      "NCAAM: 14 scheduled games have no DRatings prediction; ignored"
     ]
   },
   "season_config_path": "docs/win/basketball/config/season_dates.yaml",
@@ -354,62 +354,62 @@
     {
       "exists": true,
       "path": "docs/win/basketball/errors/00_intake/basketball_odds.txt",
-      "status": "2026-11-16T17:40:23.670655 | STATUS: SUCCESS"
+      "status": "2026-11-16T20:48:50.879050 | STATUS: SUCCESS"
     },
     {
       "exists": true,
       "path": "docs/win/basketball/errors/00_intake/basketball_drat_scraper.txt",
-      "status": "2026-11-16T12:42:33.517469-05:00 | STATUS: FAILED"
+      "status": "2026-11-16T15:49:01.152691-05:00 | STATUS: SUCCESS"
     },
     {
       "exists": true,
       "path": "docs/win/basketball/errors/00_intake/transform_basketball_nba.txt",
-      "status": "2026-11-16T08:06:41.746511 | STATUS: SUCCESS"
+      "status": "2026-11-16T20:49:01.960350 | STATUS: SUCCESS"
     },
     {
       "exists": true,
       "path": "docs/win/basketball/errors/00_intake/transform_basketball_ncaam.txt",
-      "status": "2026-11-16T08:06:41.868835 | STATUS: SUCCESS"
+      "status": "2026-11-16T20:49:02.161615 | STATUS: SUCCESS"
     },
     {
       "exists": true,
       "path": "docs/win/basketball/errors/00_intake/transform_basketball_wnba.txt",
-      "status": "2026-11-16T08:06:41.869115 | STATUS: SUCCESS (offseason skipped)"
+      "status": "2026-11-16T20:49:02.162302 | STATUS: SUCCESS (offseason skipped)"
     },
     {
       "exists": true,
       "path": "docs/win/basketball/errors/00_intake/basketball_daily_games.txt",
-      "status": "2026-11-16T08:06:59.565535 | STATUS: SUCCESS"
+      "status": "2026-11-16T20:49:32.772556 | STATUS: SUCCESS"
     },
     {
       "exists": true,
       "path": "docs/win/basketball/errors/00_intake/basketball_game_id.txt",
-      "status": "2026-11-16T08:07:00.044234 | STATUS: SUCCESS"
+      "status": "2026-11-16T20:49:33.500129 | STATUS: SUCCESS"
     },
     {
       "exists": true,
       "path": "docs/win/basketball/errors/00_intake/sdv_predict.txt",
-      "status": "2026-11-16T08:07:13.858801+00:00 | STATUS: SUCCESS | league=NCAAM dates_found=1 dates_written=1 rows_written=33 dates_skipped=0 date_errors=0"
+      "status": "2026-11-16T20:49:54.154809+00:00 | STATUS: SUCCESS | league=NCAAM dates_found=1 dates_written=1 rows_written=33 dates_skipped=0 date_errors=0"
     },
     {
       "exists": true,
       "path": "docs/win/basketball/errors/00_intake/basketball_model_ensemble.txt",
-      "status": "2026-11-16T08:07:14.229254+00:00 | STATUS: SUCCESS | mode=predict | matching_files=165 | files_written=165 | rows_written=1071 | file_errors=0"
+      "status": "2026-11-16T20:49:54.770586+00:00 | STATUS: SUCCESS | mode=predict | matching_files=166 | files_written=166 | rows_written=1090 | file_errors=0"
     },
     {
       "exists": true,
       "path": "docs/win/basketball/errors/00_intake/clean_basketball_inputs.txt",
-      "status": "2026-11-16T08:07:15.529073 | STATUS: SUCCESS"
+      "status": "2026-11-16T20:49:57.114290 | STATUS: SUCCESS"
     },
     {
       "exists": true,
       "path": "docs/win/basketball/errors/01_merge/merge_intake.txt",
-      "status": "2026-11-16T08:07:15.617601 | STATUS: SUCCESS"
+      "status": "2026-11-16T20:49:57.243889 | STATUS: SUCCESS"
     },
     {
       "exists": true,
       "path": "docs/win/basketball/errors/01_merge/build_juice_files.txt",
-      "status": "2026-11-16T08:07:16.190064 | STATUS: SUCCESS"
+      "status": "2026-11-16T20:49:58.148633 | STATUS: SUCCESS"
     },
     {
       "exists": true,
@@ -424,20 +424,20 @@
     {
       "exists": true,
       "path": "docs/win/basketball/errors/04_select/daily_slate.txt",
-      "status": "2026-11-16T08:07:18.249389+00:00 | INFO  | STATUS: SUCCESS"
+      "status": "2026-11-16T20:50:01.342754+00:00 | INFO  | STATUS: SUCCESS"
     },
     {
       "exists": true,
       "path": "docs/win/basketball/errors/05_final_scores/00_basketball_final_scores.txt",
-      "status": "2026-11-16T08:07:19.776051+00:00 | INFO  | STATUS: SUCCESS"
+      "status": "2026-11-16T20:50:10.723840+00:00 | INFO  | STATUS: SUCCESS"
     },
     {
       "exists": true,
       "path": "docs/win/basketball/errors/05_final_scores/01_basketball_results_grade.txt",
-      "status": "2026-11-16T08:07:21.120138+00:00 | INFO  | STATUS: SUCCESS"
+      "status": "2026-11-16T20:50:12.777042+00:00 | INFO  | STATUS: SUCCESS"
     }
   ],
-  "status": "failed",
+  "status": "healthy",
   "wnba_bias_drift": {
     "report_path": "docs/win/basketball/errors/99_validation/wnba_bias_drift.csv",
     "warnings": [],
