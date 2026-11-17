@@ -2,8 +2,9 @@
 """Assign schedule game IDs to basketball predictions and final scores.
 
 NCAAM teams are matched through the repository's validated alias map. Matches
-must have the same normalized date, the same home/away orientation, and one
-unambiguous schedule game ID. No game ID is invented from a team name.
+require the same normalized date and one unambiguous schedule game ID. A
+verified NCAAM home/away reversal is aligned to the authoritative schedule,
+including its side-specific values. No game ID is invented from a team name.
 """
 
 import csv
@@ -265,6 +266,11 @@ def track_duplicate_row(row, seen_keys, duplicate_rows, league_label, csv_path):
 
 
 def _match_reason(row, daily_map, league_label):
+    """Return (authoritative schedule key, reason), including verified NCAAM reversals.
+
+    A reversed match is eligible only if the schedule key survived the existing
+    unique-game-ID validation. Other leagues retain their original behavior.
+    """
     key = make_key(
         row.get('game_date'), row.get('home_team'),
         row.get('away_team'), league_label,
@@ -275,10 +281,55 @@ def _match_reason(row, daily_map, league_label):
         return key, None
     reverse_key = key[0], key[2], key[1]
     if reverse_key in daily_map:
-        # Assigning an ID without swapping side-specific probabilities/points
-        # would link the wrong team to the model's home/away predictions.
+        if league_label == 'NCAAM':
+            return reverse_key, 'verified_reversed_home_away'
         return None, 'reversed_home_away_not_auto_assigned'
     return None, 'no_validated_matchup_alias_or_schedule_game'
+
+
+def _canonical_targets(rows, daily_map, league_label):
+    """Count source rows targeting the same canonical game, in either direction."""
+    matches = [_match_reason(row, daily_map, league_label) for row in rows]
+    counts = Counter(key for key, _ in matches if key is not None)
+    return matches, counts
+
+
+def _aligned_reversed_row(row, source):
+    """Return an aligned COPY, never mutating the original on validation failure.
+
+    All paired home_/away_ values are swapped together, including probabilities,
+    scores and spreads. Unpaired nonempty side-specific data fails closed.
+    """
+    aligned = dict(row)
+    for field in row:
+        if not field.startswith('home_'):
+            continue
+        other = 'away_' + field[len('home_'):]
+        if other not in row:
+            if clean_value(row.get(field)):
+                raise ValueError(f'Cannot align unpaired field {field!r}')
+            continue
+        aligned[field], aligned[other] = row.get(other), row.get(field)
+
+    for field in row:
+        if field.startswith('away_'):
+            other = 'home_' + field[len('away_'):]
+            if other not in row and clean_value(row.get(field)):
+                raise ValueError(f'Cannot align unpaired field {field!r}')
+
+    # Signed home-margin fields, if present, change sign with the orientation.
+    for field in ('expected_margin', 'projected_margin'):
+        value = clean_value(row.get(field))
+        if value:
+            try:
+                aligned[field] = str(-float(value))
+            except ValueError as exc:
+                raise ValueError(f'Cannot align nonnumeric {field!r}: {value!r}') from exc
+
+    # Canonical spelling makes the stored team order agree with daily_games.
+    aligned['home_team'] = source['home_team']
+    aligned['away_team'] = source['away_team']
+    return aligned
 
 
 def update_predictions(predictions_dir: Path, daily_map: dict, league_label: str):
@@ -300,10 +351,11 @@ def update_predictions(predictions_dir: Path, daily_map: dict, league_label: str
             keys = [make_key(row.get('game_date'), row.get('home_team'),
                              row.get('away_team'), league_label) for row in rows]
             counts = Counter(k for k in keys if k is not None)
+            matches, target_counts = _canonical_targets(rows, daily_map, league_label)
             seen_keys = set()
             modified = False
 
-            for row, candidate_key in zip(rows, keys):
+            for row, candidate_key, (key, reason) in zip(rows, keys, matches):
                 rows_processed += 1
                 track_duplicate_row(row, seen_keys, duplicate_prediction_rows,
                                     league_label, csv_path)
@@ -311,15 +363,42 @@ def update_predictions(predictions_dir: Path, daily_map: dict, league_label: str
                     prediction_no_match.append(_issue_row(
                         league_label, csv_path, row, 'ambiguous_duplicate_prediction_matchup'))
                     continue
-                key, reason = _match_reason(row, daily_map, league_label)
                 if key is None:
                     prediction_no_match.append(_issue_row(league_label, csv_path, row, reason))
                     continue
+                if target_counts[key] > 1:
+                    duplicate_prediction_rows.append(_issue_row(
+                        league_label, csv_path, row, 'duplicate_canonical_matchup_after_orientation'))
+                    prediction_no_match.append(_issue_row(
+                        league_label, csv_path, row, 'ambiguous_duplicate_prediction_matchup'))
+                    continue
 
                 source = daily_map[key]
-                matched_keys.add(key)
                 source_gid = source['game_id']
                 source_time = source['game_time']
+                if reason == 'verified_reversed_home_away':
+                    previous_gid = clean_value(row.get('game_id'))
+                    if previous_gid and previous_gid != source_gid:
+                        prediction_no_match.append(_issue_row(
+                            league_label, csv_path, row, 'reversed_existing_game_id_conflict'))
+                        continue
+                    try:
+                        aligned = _aligned_reversed_row(row, source)
+                    except ValueError as exc:
+                        log(f'REVERSED PREDICTION ALIGNMENT REJECTED: {csv_path} {key}: {exc}')
+                        prediction_no_match.append(_issue_row(
+                            league_label, csv_path, row, 'reversed_unpaired_or_invalid_fields'))
+                        continue
+                    log(f'REVERSED PREDICTION ALIGNED: {csv_path} | '
+                        f"game_id={source_gid} | original_home={row.get('home_team')!r} | "
+                        f"original_away={row.get('away_team')!r} | "
+                        f"canonical_home={source['home_team']!r} | "
+                        f"canonical_away={source['away_team']!r}")
+                    row.update(aligned)
+                    rows_updated += 1
+                    modified = True
+
+                matched_keys.add(key)
                 if clean_value(row.get('game_id')) != source_gid:
                     previous = clean_value(row.get('game_id'))
                     if previous:
@@ -361,21 +440,45 @@ def update_final_scores(final_scores_dir: Path, daily_map: dict, league_label: s
             keys = [make_key(row.get('game_date'), row.get('home_team'),
                              row.get('away_team'), league_label) for row in rows]
             counts = Counter(k for k in keys if k is not None)
+            matches, target_counts = _canonical_targets(rows, daily_map, league_label)
             seen_keys = set()
             modified = False
-            for row, candidate_key in zip(rows, keys):
+            for row, candidate_key, (key, reason) in zip(rows, keys, matches):
                 rows_processed += 1
                 track_duplicate_row(row, seen_keys, duplicate_final_score_rows,
                                     league_label, csv_path)
                 if candidate_key is not None and counts[candidate_key] > 1:
                     continue
-                key, reason = _match_reason(row, daily_map, league_label)
                 if key is None:
                     if reason == 'reversed_home_away_not_auto_assigned':
                         log(f'REVERSED FINAL SCORE MATCHUP SKIPPED: {csv_path}: '
                             f'{row.get("home_team")} vs {row.get("away_team")}')
                     continue
-                source_gid = daily_map[key]['game_id']
+                if target_counts[key] > 1:
+                    duplicate_final_score_rows.append(_issue_row(
+                        league_label, csv_path, row, 'duplicate_canonical_matchup_after_orientation'))
+                    continue
+                source = daily_map[key]
+                source_gid = source['game_id']
+                if reason == 'verified_reversed_home_away':
+                    previous_gid = clean_value(row.get('game_id'))
+                    if previous_gid and previous_gid != source_gid:
+                        log(f'REVERSED FINAL SCORE ALIGNMENT REJECTED: {csv_path} '
+                            f'conflicting game_id={previous_gid} canonical={source_gid}')
+                        continue
+                    try:
+                        aligned = _aligned_reversed_row(row, source)
+                    except ValueError as exc:
+                        log(f'REVERSED FINAL SCORE ALIGNMENT REJECTED: {csv_path} {key}: {exc}')
+                        continue
+                    log(f'REVERSED FINAL SCORE ALIGNED: {csv_path} | '
+                        f"game_id={source_gid} | original_home={row.get('home_team')!r} | "
+                        f"original_away={row.get('away_team')!r} | "
+                        f"canonical_home={source['home_team']!r} | "
+                        f"canonical_away={source['away_team']!r}")
+                    row.update(aligned)
+                    rows_updated += 1
+                    modified = True
                 if clean_value(row.get('game_id')) != source_gid:
                     previous = clean_value(row.get('game_id'))
                     if previous:

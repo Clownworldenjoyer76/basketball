@@ -4,7 +4,8 @@
 The core scans and repairs full history. After successful completion, this
 launcher replaces the historical mismatch listing in the operational log with
 current New York date results based on the core's canonical team/date keys and
-unambiguous schedule game-ID rules.
+unambiguous schedule game-ID rules. Verified NCAAM reversals are reported as
+matched only after the core has aligned and saved their team-specific values.
 """
 from __future__ import annotations
 
@@ -127,21 +128,40 @@ def current_mismatches(core, game_date: str | None = None):
         duplicates.extend(pred_issues)
         prediction_missing.extend({**row, "source_file": str(pred_path)} for row in pred_invalid)
 
-        for k in sorted(set(daily_map) - set(pred_map)):
-            daily_missing.append({"league": label, **daily_map[k], "source_file": str(daily_path)})
+        # Use the same orientation decision as the core. A reversed source row
+        # is not considered matched until its team-specific values and labels
+        # have actually been realigned and written to the prediction CSV.
+        decisions = {k: core._match_reason(row, daily_map, label)
+                     for k, row in pred_map.items()}
+        target_counts = Counter(match_key for match_key, _ in decisions.values()
+                                if match_key is not None)
+        valid_prediction_keys = set()
+        for k, row in pred_map.items():
+            match_key, reason = decisions[k]
+            if match_key is not None and target_counts[match_key] > 1:
+                duplicates.append(_issue(
+                    row, label, "predictions", "duplicate_canonical_matchup_after_orientation"
+                ))
+                reason = "ambiguous_duplicate_prediction_matchup"
+            elif match_key is not None and match_key != k:
+                # A verified reversal left in the CSV means core did not align it.
+                reason = "reversed_home_away_not_aligned"
+            elif match_key is not None:
+                source_id = core.clean_value(daily_map[match_key].get("game_id"))
+                if core.clean_value(row.get("game_id")) == source_id:
+                    valid_prediction_keys.add(match_key)
+                    continue
+                reason = "game_id_missing_or_different_from_schedule"
 
-        for k in sorted(set(pred_map) - set(daily_map)):
-            reason = (
-                "reversed_home_away_not_auto_assigned"
-                if (k[0], k[2], k[1]) in daily_map
-                else "no_validated_matchup_alias_or_schedule_game"
-            )
             prediction_missing.append({
                 "league": label,
-                **pred_map[k],
+                **row,
                 "source_file": str(pred_path),
                 "reason": reason,
             })
+
+        for k in sorted(set(daily_map) - valid_prediction_keys):
+            daily_missing.append({"league": label, **daily_map[k], "source_file": str(daily_path)})
 
     return game_date, daily_missing, prediction_missing, duplicates
 
@@ -210,10 +230,16 @@ def rewrite_operational_log(log_path: Path, original_text: str, core) -> None:
     marker_index, status_index = _find_mismatch_status(lines)
     prefix_lines = lines[:marker_index]
     status_line = lines[status_index]
+    corrected_current = [
+        line for line in prefix_lines
+        if "REVERSED PREDICTION ALIGNED:" in line
+        and f"{game_date}_NCAAM_predictions.csv" in line
+    ]
     report = [
         f"{datetime.now().isoformat()} | --- CURRENT-DATE MISMATCH REPORT ---",
         f"{datetime.now().isoformat()} | Operational mismatch date: {game_date} (America/New_York)",
-        f"{datetime.now().isoformat()} | Matching: canonical date/team aliases; unique game ID; home/away orientation retained",
+        f"{datetime.now().isoformat()} | Matching: canonical date/team aliases; unique game ID; verified NCAAM reversal aligned with all side-specific values",
+        f"{datetime.now().isoformat()} | Current-date reversed NCAAM predictions aligned: {len(corrected_current)}",
     ]
 
     _append_mismatch_section(
