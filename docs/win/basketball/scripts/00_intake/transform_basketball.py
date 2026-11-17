@@ -39,6 +39,7 @@ from __future__ import annotations
 import csv
 import importlib.util
 import re
+import unicodedata
 from functools import lru_cache
 import os
 from datetime import datetime
@@ -283,9 +284,46 @@ def _nba_final_aliases() -> dict[str, str]:
     return result
 
 
+def _normalized_ncaam_final_name(value: str) -> str:
+    text = unicodedata.normalize("NFKD", clean(value)).casefold()
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    return " ".join(re.findall(r"[a-z0-9]+", text))
+
+
+@lru_cache(maxsize=1)
+def _ncaam_final_aliases() -> dict[str, str]:
+    """Use the validated NCAAM team identities when merging final scores."""
+    path = BASE / "maps/team_map_ncaam.csv"
+    result: dict[str, str] = {}
+    with path.open(newline="", encoding="utf-8-sig") as handle:
+        reader = csv.DictReader(handle)
+        required = {"league", "alias", "canonical_team"}
+        if not required.issubset(set(reader.fieldnames or [])):
+            raise ValueError(f"NCAAM team map has invalid columns: {path}")
+        for lineno, entry in enumerate(reader, start=2):
+            if clean(entry.get("league")).casefold() != "ncaam":
+                continue
+            alias = _normalized_ncaam_final_name(entry.get("alias"))
+            canonical = _normalized_ncaam_final_name(entry.get("canonical_team"))
+            if not alias or not canonical:
+                raise ValueError(f"Missing team identity in NCAAM map: {path}:{lineno}")
+            for key in (alias, canonical):
+                prior = result.get(key)
+                if prior is not None and prior != canonical:
+                    raise ValueError(f"Conflicting NCAAM alias {key!r} in {path}:{lineno}")
+                result[key] = canonical
+    if not result:
+        raise ValueError(f"NCAAM team map contains no identities: {path}")
+    return result
+
+
 def _team_key_for_final(row: dict, field: str) -> str:
     name = clean(row.get(field)).casefold()
-    if clean(row.get("league")).casefold() != "nba":
+    league = clean(row.get("league")).casefold()
+    if league == "ncaam":
+        canonical_key = _normalized_ncaam_final_name(name)
+        return _ncaam_final_aliases().get(canonical_key, canonical_key)
+    if league != "nba":
         return name
     compact = re.sub(r"[^a-z0-9]", "", name)
     return _nba_final_aliases().get(compact, compact)
@@ -323,6 +361,19 @@ def collapse_rows(rows: list[dict]) -> list[dict]:
 
         key = composite_key(row)
 
+        # NCAAM historical DRatings rows can reverse the ESPN home/away
+        # orientation. Align all paired score/spread fields before merging.
+        if clean(row.get("league")).casefold() == "ncaam" and key not in by_comp:
+            reversed_key = (key[0], key[2], key[1])
+            if reversed_key in by_comp:
+                for left, right in (
+                    ("home_team", "away_team"),
+                    ("home_score", "away_score"),
+                    ("home_spread", "away_spread"),
+                ):
+                    row[left], row[right] = row[right], row[left]
+                key = reversed_key
+
         if key not in by_comp:
             by_comp[key] = row
             continue
@@ -347,6 +398,26 @@ def collapse_rows(rows: list[dict]) -> list[dict]:
                 f"{key}: {old_gid} vs {new_gid}"
             )
 
+        if clean(old.get("league")).casefold() == "ncaam":
+            for field in ("home_score", "away_score"):
+                previous = clean(old.get(field))
+                incoming = clean(row.get(field))
+                if previous and incoming:
+                    try:
+                        same = float(previous) == float(incoming)
+                    except ValueError:
+                        same = previous == incoming
+                    if not same:
+                        raise ValueError(
+                            "NCAAM matchup-matched final has conflicting scores: "
+                            f"key={key}, field={field}, "
+                            f"stored={previous}, incoming={incoming}"
+                        )
+            # ESPN's identified final is authoritative. A DRatings row with
+            # no game ID must never overwrite it or create an alias duplicate.
+            if old_gid.isdigit() and not new_gid:
+                continue
+
         # New score values are authoritative; preserve/prefer canonical ID.
         chosen_gid = (
             new_gid
@@ -357,7 +428,7 @@ def collapse_rows(rows: list[dict]) -> list[dict]:
         # Alias-based duplicates must not create a second game or silently
         # replace an official score with an inconsistent provider score.
         name_alias_duplicate = (
-            clean(old.get("league")).casefold() == "nba"
+            clean(old.get("league")).casefold() in ("nba", "ncaam")
             and (
                 clean(old.get("home_team")).casefold()
                 != clean(row.get("home_team")).casefold()
