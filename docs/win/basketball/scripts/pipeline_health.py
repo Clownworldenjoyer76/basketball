@@ -173,6 +173,11 @@ def current_league_health(league: str, now: datetime, config: dict):
     merged = read_rows(merge_path)
     picks = read_rows(picks_path)
     locked = read_rows(locked_path)
+    # LOCKED_PICK_ADDENDA_HEALTH_V1: count separately captured late selections
+    # without modifying the original immutable daily locked-picks file.
+    late_lock_paths = sorted(locked_path.parent.glob(f"{date}_{league}_addendum_*.csv"))
+    for late_lock_path in late_lock_paths:
+        locked.extend(read_rows(late_lock_path))
     daily_ids, daily_blank, daily_dup = row_ids(daily)
     dratings_ids, dratings_blank, dratings_dup = row_ids(dratings)
     pred_ids, pred_blank, pred_dup = row_ids(preds)

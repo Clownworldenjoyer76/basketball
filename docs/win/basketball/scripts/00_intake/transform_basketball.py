@@ -36,7 +36,10 @@ with an idempotent upsert so late finals and corrected scores can be incorporate
 """
 from __future__ import annotations
 
+import csv
 import importlib.util
+import re
+from functools import lru_cache
 import os
 from datetime import datetime
 from pathlib import Path
@@ -253,11 +256,46 @@ def clean(v) -> str:
     return str(v).strip()
 
 
+# NBA_ALIAS_FINAL_SCORE_UPSERT_V1: match the same team across provider spellings.
+@lru_cache(maxsize=1)
+def _nba_final_aliases() -> dict[str, str]:
+    path = BASE / "maps/team_map_nba.csv"
+    result: dict[str, str] = {}
+    with path.open(newline="", encoding="utf-8-sig") as handle:
+        reader = csv.DictReader(handle)
+        required = {"league", "alias", "canonical_team"}
+        if not required.issubset(set(reader.fieldnames or [])):
+            raise ValueError(f"NBA team map has invalid columns: {path}")
+        for lineno, entry in enumerate(reader, start=2):
+            if clean(entry.get("league")).casefold() != "nba":
+                continue
+            alias = re.sub(r"[^a-z0-9]", "", clean(entry.get("alias")).casefold())
+            canonical = re.sub(r"[^a-z0-9]", "", clean(entry.get("canonical_team")).casefold())
+            if not alias or not canonical:
+                raise ValueError(f"Missing team identity in NBA team map: {path}:{lineno}")
+            for key in (alias, canonical):
+                prior = result.get(key)
+                if prior is not None and prior != canonical:
+                    raise ValueError(f"Conflicting NBA alias {key!r} in {path}:{lineno}")
+                result[key] = canonical
+    if not result:
+        raise ValueError(f"NBA team map contains no identities: {path}")
+    return result
+
+
+def _team_key_for_final(row: dict, field: str) -> str:
+    name = clean(row.get(field)).casefold()
+    if clean(row.get("league")).casefold() != "nba":
+        return name
+    compact = re.sub(r"[^a-z0-9]", "", name)
+    return _nba_final_aliases().get(compact, compact)
+
+
 def composite_key(row: dict) -> tuple[str, str, str]:
     return (
         clean(row.get("game_date")),
-        clean(row.get("home_team")).casefold(),
-        clean(row.get("away_team")).casefold(),
+        _team_key_for_final(row, "home_team"),
+        _team_key_for_final(row, "away_team"),
     )
 
 
@@ -316,11 +354,41 @@ def collapse_rows(rows: list[dict]) -> list[dict]:
             else old_gid
         )
 
+        # Alias-based duplicates must not create a second game or silently
+        # replace an official score with an inconsistent provider score.
+        name_alias_duplicate = (
+            clean(old.get("league")).casefold() == "nba"
+            and (
+                clean(old.get("home_team")).casefold()
+                != clean(row.get("home_team")).casefold()
+                or clean(old.get("away_team")).casefold()
+                != clean(row.get("away_team")).casefold()
+            )
+        )
+        if name_alias_duplicate:
+            for score_field in ("home_score", "away_score"):
+                old_score = clean(old.get(score_field))
+                new_score = clean(row.get(score_field))
+                if old_score and new_score:
+                    try:
+                        same_score = float(old_score) == float(new_score)
+                    except ValueError:
+                        same_score = old_score == new_score
+                    if not same_score:
+                        raise ValueError(
+                            "NBA alias-matched final has conflicting scores: "
+                            f"key={key}, field={score_field}, "
+                            f"stored={old_score}, incoming={new_score}"
+                        )
+
         merged = dict(old)
 
         for col in FINAL_COLUMNS:
             value = row.get(col, "")
-
+            # Preserve the original, canonical result-file team labels on an
+            # alias match; DRatings may use a different spelling for one team.
+            if name_alias_duplicate and col in ("home_team", "away_team") and clean(old.get(col)):
+                continue
             if clean(value) != "":
                 merged[col] = value
 
