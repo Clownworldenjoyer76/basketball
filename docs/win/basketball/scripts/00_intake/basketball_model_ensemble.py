@@ -57,6 +57,7 @@ import re
 import traceback
 import unicodedata
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -862,10 +863,43 @@ def unique_rows_by_id(
     return result
 
 
-def normalized_team_identity(value: Any) -> str:
-    """Match harmless spelling/punctuation variations, not different teams."""
+def normalized_team_identity(value: Any, league: str = "") -> str:
+    """Compare team identities, using verified NCAAM aliases where applicable."""
     text = unicodedata.normalize("NFKD", clean(value)).casefold()
-    return re.sub(r"[^a-z0-9]", "", text)
+    identity = re.sub(r"[^a-z0-9]", "", text)
+    if league == "ncaam" and identity:
+        return _ncaam_identity_aliases().get(identity, identity)
+    return identity
+
+
+@lru_cache(maxsize=1)
+def _ncaam_identity_aliases() -> dict[str, str]:
+    """Resolve known spellings to canonical team keys; reject conflicting aliases."""
+    path = BASE / "maps/team_map_ncaam.csv"
+    result: dict[str, str] = {}
+    with path.open(newline="", encoding="utf-8-sig") as handle:
+        reader = csv.DictReader(handle)
+        required = {"league", "alias", "canonical_team"}
+        if not required.issubset(set(reader.fieldnames or [])):
+            raise RuntimeError(f"Invalid NCAAM team-map columns: {path}")
+        for number, row in enumerate(reader, start=2):
+            if clean(row.get("league")).upper() != "NCAAM":
+                continue
+            alias = normalized_team_identity(row.get("alias"))
+            canonical = normalized_team_identity(row.get("canonical_team"))
+            if not alias or not canonical:
+                raise RuntimeError(f"Blank NCAAM alias or canonical name: {path}:{number}")
+            for key in (alias, canonical):
+                previous = result.get(key)
+                if previous is not None and previous != canonical:
+                    raise RuntimeError(
+                        f"Conflicting NCAAM team identity for {key!r}: "
+                        f"{previous!r} versus {canonical!r} at {path}:{number}"
+                    )
+                result[key] = canonical
+    if not result:
+        raise RuntimeError(f"NCAAM team-map contains no aliases: {path}")
+    return result
 
 
 def load_authoritative_games(
@@ -899,8 +933,8 @@ def load_authoritative_games(
     result: dict[str, dict[str, Any]] = {}
     for row_number, row in enumerate(rows, start=2):
         game_id = clean_id(row.get("game_id"))
-        home = normalized_team_identity(row.get("home_team"))
-        away = normalized_team_identity(row.get("away_team"))
+        home = normalized_team_identity(row.get("home_team"), league)
+        away = normalized_team_identity(row.get("away_team"), league)
         if not game_id or not home or not away or home == away:
             raise RuntimeError(
                 f"Invalid authoritative teams/ID: {schedule_path} row={row_number}"
@@ -952,6 +986,7 @@ def align_prediction_to_schedule(
     row: dict[str, Any],
     canonical: dict[str, Any],
     *,
+    league: str,
     source: str,
     game_id: str,
     filename: str,
@@ -967,10 +1002,10 @@ def align_prediction_to_schedule(
             f"schedule={canonical.get('game_date')!r}"
         )
 
-    home = normalized_team_identity(row.get("home_team"))
-    away = normalized_team_identity(row.get("away_team"))
-    expected_home = normalized_team_identity(canonical.get("home_team"))
-    expected_away = normalized_team_identity(canonical.get("away_team"))
+    home = normalized_team_identity(row.get("home_team"), league)
+    away = normalized_team_identity(row.get("away_team"), league)
+    expected_home = normalized_team_identity(canonical.get("home_team"), league)
+    expected_away = normalized_team_identity(canonical.get("away_team"), league)
 
     aligned = dict(row)
     if home == expected_home and away == expected_away:
@@ -1724,11 +1759,11 @@ def process_prediction_file(
             )
         dratings_rows[game_id], _ = align_prediction_to_schedule(
             dratings_rows[game_id], canonical,
-            source="DRatings", game_id=game_id, filename=filename,
+            league=league, source="DRatings", game_id=game_id, filename=filename,
         )
         sdv_rows[game_id], _ = align_prediction_to_schedule(
             sdv_rows[game_id], canonical,
-            source="SDV", game_id=game_id, filename=filename,
+            league=league, source="SDV", game_id=game_id, filename=filename,
         )
 
     prediction_time = utc_now()
