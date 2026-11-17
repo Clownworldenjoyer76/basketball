@@ -1,0 +1,84 @@
+name: Basketball Manual Intake
+
+on:
+  workflow_dispatch:
+    inputs:
+      league:
+        description: League
+        required: true
+        type: choice
+        options: [nba, ncaam, wnba]
+      source:
+        description: DRatings table type
+        required: true
+        type: choice
+        options: [Predictions, Final Scores]
+      time_basis:
+        description: "Pasted times: already Eastern (ET) or displayed in UTC"
+        required: true
+        type: choice
+        default: et
+        options: [et, utc]
+      raw_text:
+        description: Paste the copied DRatings table
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: basketball-pipeline-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  intake:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout basketball
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Parse and merge manually pasted DRatings table
+        shell: bash
+        env:
+          LEAGUE: ${{ inputs.league }}
+          SOURCE: ${{ inputs.source }}
+          TIME_BASIS: ${{ inputs.time_basis }}
+          RAW_TEXT: ${{ inputs.raw_text }}
+        run: |
+          set -euo pipefail
+          RAW_FILE="$RUNNER_TEMP/basketball_manual_dratings.txt"
+          printf '%s' "$RAW_TEXT" > "$RAW_FILE"
+          if [[ "$SOURCE" == "Predictions" ]]; then
+            SCRIPT="docs/win/basketball/scripts/00_intake/basketball_manual_input.py"
+          elif [[ "$SOURCE" == "Final Scores" ]]; then
+            SCRIPT="docs/win/basketball/scripts/00_intake/basketball_manual_final_scores.py"
+          else
+            echo "::error::Unsupported input source: $SOURCE"
+            exit 1
+          fi
+          python "$SCRIPT" --league "$LEAGUE" --time-basis "$TIME_BASIS" --raw-file "$RAW_FILE"
+
+      - name: Commit only generated DRatings JSON
+        shell: bash
+        env:
+          LEAGUE: ${{ inputs.league }}
+          SOURCE: ${{ inputs.source }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A -- "docs/win/basketball/00_intake/drat_raw/$LEAGUE/"
+          if git diff --cached --quiet; then
+            echo 'No raw JSON changes to commit.'
+            exit 0
+          fi
+          git commit -m "manual basketball $LEAGUE DRatings $SOURCE"
+          git push origin HEAD:main
