@@ -1,0 +1,313 @@
+name: Basketball 01 Pipeline - Manual DRatings
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_all_leagues:
+        description: "Run NBA/NCAAM/WNBA even when operationally offseason"
+        required: false
+        default: false
+        type: boolean
+      full_rebuild:
+        description: "Rebuild all historical merge/juice/EV/selection outputs"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: basketball-pipeline-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BASKETBALL_FORCE_ALL_LEAGUES: ${{ inputs.force_all_leagues }}
+  BASKETBALL_FULL_REBUILD: ${{ inputs.full_rebuild }}
+
+jobs:
+  basketball:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Snapshot basketball error logs
+        shell: bash
+        run: |
+          mkdir -p docs/win/basketball/errors
+          date -u +'%Y-%m-%dT%H:%M:%SZ' > /tmp/basketball_run_start_utc
+          touch /tmp/basketball_run_marker
+
+      - name: Set date
+        run: echo "DATE=$(TZ='America/New_York' date +%Y_%m_%d)" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r docs/win/basketball/requirements.txt
+          python -m pip install PyYAML
+          playwright install-deps chromium
+          playwright install chromium
+
+      - name: Ensure output directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/win/basketball/config
+          mkdir -p docs/win/basketball/errors/{00_intake,01_merge,03_edges,04_select,05_final_scores}
+          for league in nba ncaam wnba; do
+            mkdir -p "docs/win/basketball/00_intake/drat_raw/$league"
+            mkdir -p "docs/win/basketball/00_intake/predictions/$league"
+            mkdir -p "docs/win/basketball/00_intake/predictions_sdv/$league"
+            mkdir -p "docs/win/basketball/00_intake/predictions_ensemble/$league"
+            mkdir -p "docs/win/basketball/00_intake/sdv/features/current/$league"
+            mkdir -p "docs/win/basketball/00_intake/predictions/predictions_cleaned/$league"
+            mkdir -p "docs/win/basketball/00_intake/sportsbook/$league"
+            mkdir -p "docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/$league"
+            mkdir -p "docs/win/basketball/daily_games/$league"
+            mkdir -p "docs/win/basketball/01_merge/$league"/{moneyline,spread,total}
+            mkdir -p "docs/win/basketball/01_merge/01_merguiced/$league"/{moneyline,spread,total}
+            mkdir -p "docs/win/basketball/03_edges/ev_kelly/$league"/{moneyline,spread,total}
+            mkdir -p "docs/win/basketball/04_select/$league"/{daily_picks,locked_picks}
+            mkdir -p "docs/win/basketball/05_final_scores/results/$league/graded"
+            mkdir -p "docs/win/basketball/05_final_scores/locked_picks/$league"
+            mkdir -p "docs/win/basketball/05_final_scores/reports/$league"/{moneyline,spread,total,overview}
+          done
+          mkdir -p docs/win/basketball/04_select/daily_slate docs/win/basketball/maps/no_map frontend/data/pipeline_health
+
+      - name: Run basketball odds
+        run: python docs/win/basketball/scripts/00_intake/basketball_odds.py
+
+      - name: Consolidate sportsbook aliases
+        run: python docs/win/basketball/scripts/00_intake/consolidate_sportsbook_aliases.py
+
+      - name: Basketball Transform
+        run: python docs/win/basketball/scripts/00_intake/transform_basketball.py
+
+      - name: Basketball Name Normalization
+        run: python docs/win/basketball/scripts/00_intake/name_normalization.py
+
+      - name: Basketball Daily Games
+        run: python docs/win/basketball/scripts/00_intake/basketball_daily_games.py
+
+      - name: Basketball Game ID
+        run: python docs/win/basketball/scripts/00_intake/basketball_game_id.py
+
+      - name: SDV Predictions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for league in nba ncaam wnba; do
+            args=(--league "$league")
+            if [[ "${BASKETBALL_FULL_REBUILD:-false}" != "true" ]]; then
+              slate="docs/win/basketball/daily_games/$league/${DATE}_${league^^}.csv"
+              raw_dratings="docs/win/basketball/00_intake/predictions/$league/${DATE}_${league^^}_predictions.csv"
+              if [[ ! -f "$slate" ]]; then
+                if [[ -f "$raw_dratings" ]] && python -c 'import csv,sys; sys.exit(0 if next(csv.DictReader(open(sys.argv[1],newline="",encoding="utf-8-sig")),None) is not None else 1)' "$raw_dratings"; then
+                  echo "::error::Missing canonical $league schedule despite existing DRatings predictions: $slate"
+                  exit 1
+                fi
+                echo "SKIP SDV $league: no current-day schedule ($slate)"
+                continue
+              fi
+              if ! python -c 'import csv,sys; sys.exit(0 if next(csv.DictReader(open(sys.argv[1],newline="",encoding="utf-8-sig")),None) is not None else 1)' "$slate"; then
+                echo "SKIP SDV $league: current-day schedule is empty ($slate)"
+                continue
+              fi
+              args+=(--game-date "$DATE")
+            fi
+            output="$(python docs/win/basketball/scripts/00_intake/sdv_predict.py "${args[@]}")"
+            printf '%s\n' "$output"
+            if [[ "$output" != *"date_errors=0"* ]]; then
+              echo "::error::SDV predictor reported date errors for $league"
+              exit 1
+            fi
+          done
+
+      - name: DRatings + SDV Ensemble
+        run: python docs/win/basketball/scripts/00_intake/basketball_model_ensemble.py --mode predict
+
+      - name: Seed NBA opening backfill historical cleaned ensemble
+        if: ${{ inputs.full_rebuild }}
+        run: python docs/win/basketball/scripts/00_intake/seed_nba_backfill_cleaned.py
+
+      - name: Capture basketball point-in-time source evidence
+        run: python docs/win/basketball/scripts/pit_provenance.py --phase capture --date "$DATE"
+
+      - name: Sanitize historical basketball inputs
+        run: python docs/win/basketball/scripts/00_intake/sanitize_historical_inputs.py
+
+      - name: Calculate Rolling Bias
+        run: python docs/win/basketball/scripts/00_intake/calculate_rolling_bias.py
+
+      - name: Basketball Clean Inputs
+        run: python docs/win/basketball/scripts/00_intake/clean_basketball_inputs.py
+
+      - name: Remove unpriced orphan sportsbook placeholders
+        run: python docs/win/basketball/scripts/00_intake/cleanup_orphan_sportsbook.py --date "$DATE"
+
+      - name: Run merge intake
+        run: python docs/win/basketball/scripts/01_merge/merge_intake.py
+
+      - name: Run build juice files
+        run: python docs/win/basketball/scripts/01_merge/build_juice_files.py
+
+      - name: Run EV and Kelly
+        run: python docs/win/basketball/scripts/03_edges/compute_ev_kelly.py
+
+      - name: Run basketball bet selection
+        run: python docs/win/basketball/scripts/04_select/basketball_select_bets.py
+
+      - name: Audit basketball point-in-time selection evidence
+        run: python docs/win/basketball/scripts/pit_provenance.py --phase selection --date "$DATE"
+
+      - name: Run daily slate
+        run: python docs/win/basketball/scripts/04_select/daily_slate.py
+
+      - name: Fetch basketball final scores
+        run: python docs/win/basketball/scripts/05_final_scores/00_basketball_final_scores.py
+
+      - name: Grade basketball results
+        run: python docs/win/basketball/scripts/05_final_scores/01_basketball_results_grade.py
+
+      - name: Validate pipeline health
+        if: always()
+        run: python docs/win/basketball/scripts/pipeline_health.py
+
+      - name: Write WNBA bias drift warning
+        if: always()
+        run: python docs/win/basketball/scripts/write_wnba_bias_drift_warning.py
+
+      - name: Publish basketball pipeline health data
+        if: always()
+        run: |
+          mkdir -p frontend/data/pipeline_health
+          if [ -f docs/win/basketball/pipeline_health.json ]; then
+            cp docs/win/basketball/pipeline_health.json frontend/data/pipeline_health/basketball.json
+          fi
+
+      - name: Analyze basketball results
+        run: python docs/win/basketball/scripts/05_final_scores/02_basketball_results_analyze.py
+
+      - name: Build basketball reports
+        run: python docs/win/basketball/scripts/05_final_scores/03_basketball_results_reports.py
+
+      - name: Build basketball dashboard
+        run: python docs/win/basketball/scripts/05_final_scores/04_basketball_results_dashboard.py
+
+      - name: Write daily basketball status
+        if: always()
+        shell: bash
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          STATUS="docs/win/basketball/errors/daily_status.txt"
+          mkdir -p "$(dirname "$STATUS")"
+          {
+            echo "BASKETBALL DAILY STATUS"
+            echo "======================="
+            echo "generated_at_utc: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "game_date_new_york: ${DATE:-unknown}"
+            echo "github_run_id: ${GITHUB_RUN_ID:-unknown}"
+            echo "workflow_status: ${JOB_STATUS:-unknown}"
+            echo ""
+            echo "PIPELINE HEALTH"
+            if [ -f docs/win/basketball/errors/pipeline_health.txt ]; then
+              cat docs/win/basketball/errors/pipeline_health.txt
+            else
+              echo "Pipeline health log unavailable"
+            fi
+          } > "$STATUS"
+          cat "$STATUS"
+
+      - name: Show logs
+        if: always()
+        shell: bash
+        run: |
+          echo "=== Daily Status ==="
+          cat docs/win/basketball/errors/daily_status.txt || true
+          echo "=== Pipeline Health ==="
+          cat docs/win/basketball/errors/pipeline_health.txt || true
+          echo "=== Intake / Merge / Edges / Select / Results ==="
+          find docs/win/basketball/errors -type f -name '*.txt' -print -exec tail -n 50 {} \; || true
+
+      - name: Upload basketball point-in-time provenance
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: basketball-pit-provenance
+          path: docs/win/basketball/pit_audit/runs/
+          if-no-files-found: ignore
+
+      - name: Upload basketball logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: basketball-pipeline-logs
+          path: docs/win/basketball/errors/
+
+      - name: Commit basketball results
+        if: success() || failure()
+        shell: bash
+        env:
+          PIPELINE_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "$PIPELINE_STATUS" = "success" ]; then
+            git add -A docs/win/basketball
+            for path in frontend/data/dashboards/{basketball,nba,ncaam,wnba}.json frontend/data/pipeline_health/basketball.json; do
+              [ ! -f "$path" ] || git add -A -- "$path"
+            done
+            MESSAGE="chore: basketball full pipeline $(date -u +'%Y-%m-%d %H:%M UTC')"
+          else
+            git add -A docs/win/basketball/errors/daily_status.txt
+            [ ! -f docs/win/basketball/pipeline_health.json ] || git add -A docs/win/basketball/pipeline_health.json
+            [ ! -f frontend/data/pipeline_health/basketball.json ] || git add -A frontend/data/pipeline_health/basketball.json
+            MESSAGE="chore: basketball status failed run $(date -u +'%Y-%m-%d %H:%M UTC')"
+          fi
+          if git diff --cached --quiet; then
+            echo "No basketball changes to commit"
+            exit 0
+          fi
+          BASE_HEAD="$(git rev-parse HEAD)"
+          SNAPSHOT_TREE="$(git write-tree)"
+          CHANGED_FILES="$(mktemp)"
+          REMOTE_FILES="$(mktemp)"
+          trap 'rm -f "$CHANGED_FILES" "$REMOTE_FILES"' EXIT
+          git diff --cached --name-only -z > "$CHANGED_FILES"
+          git reset --hard HEAD
+          git clean -fd -- docs/win/basketball
+          for attempt in 1 2 3; do
+            git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+            git diff --name-only -z "$BASE_HEAD" origin/main > "$REMOTE_FILES"
+            declare -A REMOTE_CHANGED=()
+            while IFS= read -r -d '' path; do
+              REMOTE_CHANGED["$path"]=1
+            done < "$REMOTE_FILES"
+            while IFS= read -r -d '' path; do
+              if [[ -v REMOTE_CHANGED["$path"] ]]; then
+                echo "::error::File changed on main during this run: $path"
+                exit 1
+              fi
+            done < "$CHANGED_FILES"
+            git reset --hard origin/main
+            git restore --source="$SNAPSHOT_TREE" --staged --worktree --pathspec-from-file="$CHANGED_FILES" --pathspec-file-nul
+            if git diff --cached --quiet; then
+              exit 0
+            fi
+            git commit -m "$MESSAGE"
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+          done
+          exit 1
