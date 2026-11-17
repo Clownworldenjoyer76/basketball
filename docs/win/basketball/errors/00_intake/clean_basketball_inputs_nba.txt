@@ -1,281 +1,267 @@
-=== clean_basketball_inputs RUN 2026-11-16T20:49:56.802359 ===
+=== clean_basketball_inputs RUN 2026-11-17T14:35:49.949572 ===
 === LEAGUE LOG: NBA ===
-2026-11-16T20:49:56.803535 | INFO | Starting league cleanup
-2026-11-16T20:49:56.803554 | INFO | Odds cleanup active: blanks only the affected market; does not drop entire games
-2026-11-16T20:49:56.803572 | INFO | Missing market odds are treated as unavailable market, not bad game
-2026-11-16T20:49:56.803589 | INFO | Hold-based odds filtering removed
-2026-11-16T20:49:56.803606 | INFO | Spread outlier fix active: compare model home-away margin to -book_home_spread
-2026-11-16T20:49:56.803623 | INFO | Outlier cleanup active: blanks only affected sportsbook market fields; prediction rows are retained
-2026-11-16T20:49:56.833487 | BIAS CONFIG | margin_method=rolling margin_value=-4.458 total_method=rolling total_value=7.124
-2026-11-16T20:49:56.839471 | LOADED | folder=docs/win/basketball/00_intake/predictions_ensemble/nba files=25
-2026-11-16T20:49:56.872950 | LOADED | folder=docs/win/basketball/00_intake/sportsbook/nba files=29
-2026-11-16T20:49:56.898588 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909861 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898620 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909861 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898645 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909861 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898668 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909862 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898690 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909862 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898712 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909862 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898734 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909863 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898755 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909863 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898776 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909863 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898797 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909864 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898818 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909864 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898838 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909864 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898860 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909865 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898880 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909865 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898901 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909865 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898923 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909866 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898944 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909866 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898978 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909866 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.898999 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909867 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899019 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909867 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899039 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909867 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899064 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | bad_market_odds_blank_events=21
-2026-11-16T20:49:56.899221 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909893 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899266 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909893 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899303 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909893 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899340 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909894 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899375 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909894 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899442 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909894 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899482 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909895 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899517 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909895 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899551 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909895 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899584 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | bad_market_odds_blank_events=9
-2026-11-16T20:49:56.899627 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909277 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899662 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909277 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899694 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909277 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899729 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909278 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899765 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909278 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899796 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909278 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899831 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909279 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899861 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909279 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899900 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909279 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899936 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909280 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899967 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909280 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.899999 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909280 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900029 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909281 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900058 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909281 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900089 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909281 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900121 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909282 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900152 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909282 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900190 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909282 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900227 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909283 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900266 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909283 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900306 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909283 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900343 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909284 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900366 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909284 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900424 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909284 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900455 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909285 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900478 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909285 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900499 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909285 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900519 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909286 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900543 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909286 | reason=BOTH_BLANK a='' b='' blanked_cols=['total']
-2026-11-16T20:49:56.900563 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909286 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900587 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | bad_market_odds_blank_events=30
-2026-11-16T20:49:56.900617 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909896 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900640 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909896 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900661 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909896 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900682 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909897 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900702 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909897 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900721 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909897 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900741 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909898 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900761 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909898 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900780 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909898 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900800 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909899 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900820 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909899 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900839 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909899 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900859 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909900 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900879 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909900 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900898 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909900 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900918 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909901 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900937 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909901 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900956 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909901 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900976 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909902 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.900995 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909902 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901014 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909902 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901031 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | bad_market_odds_blank_events=21
-2026-11-16T20:49:56.901063 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909903 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901085 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909903 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901105 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909903 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901126 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909904 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901145 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909904 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901164 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909904 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901184 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909905 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901204 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909905 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901223 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909905 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901243 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909906 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901261 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909906 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901281 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909906 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901297 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | bad_market_odds_blank_events=12
-2026-11-16T20:49:56.901551 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_11_NBA_odds.csv | 401909970 | reason=MISSING_PAIRED_ODDS a='1.94' b='' blanked_cols=['home_spread', 'away_spread', 'home_dk_spread_american', 'home_dk_spread_decimal']
-2026-11-16T20:49:56.901591 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_11_NBA_odds.csv | bad_market_odds_blank_events=1
-2026-11-16T20:49:56.901626 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_12_NBA_odds.csv | 401909978 | reason=MISSING_PAIRED_ODDS a='1.9' b='' blanked_cols=['total', 'dk_total_over_american', 'dk_total_over_decimal']
-2026-11-16T20:49:56.901651 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_12_NBA_odds.csv | bad_market_odds_blank_events=1
-2026-11-16T20:49:56.901700 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_13_NBA_odds.csv | 401909304 | reason=MISSING_PAIRED_ODDS a='1.89' b='' blanked_cols=['total', 'dk_total_over_american', 'dk_total_over_decimal']
-2026-11-16T20:49:56.901721 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_13_NBA_odds.csv | bad_market_odds_blank_events=1
-2026-11-16T20:49:56.901753 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_14_NBA_odds.csv | 401909981 | reason=MISSING_PAIRED_ODDS a='' b='1.95' blanked_cols=['home_spread', 'away_spread', 'away_dk_spread_american', 'away_dk_spread_decimal']
-2026-11-16T20:49:56.901780 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_14_NBA_odds.csv | bad_market_odds_blank_events=1
-2026-11-16T20:49:56.901824 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_15_NBA_odds.csv | 401909988 | reason=MISSING_PAIRED_ODDS a='' b='1.88' blanked_cols=['home_spread', 'away_spread', 'away_dk_spread_american', 'away_dk_spread_decimal']
-2026-11-16T20:49:56.901857 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_15_NBA_odds.csv | bad_market_odds_blank_events=1
-2026-11-16T20:49:56.901904 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | 401910002 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901931 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | 401910002 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901953 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | 401910002 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901973 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | 401910003 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.901992 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | 401910003 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902012 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | 401910003 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902032 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | 401910004 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902051 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | 401910004 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902070 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | 401910004 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902090 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | 401910006 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902109 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | 401910006 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902128 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | 401910006 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902148 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | 401910005 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902166 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | 401910005 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902185 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | 401910005 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902202 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_17_NBA_odds.csv | bad_market_odds_blank_events=15
-2026-11-16T20:49:56.902227 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910007 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902248 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910007 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902267 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910007 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902287 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910008 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902306 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910008 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902332 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910008 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902352 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910009 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902372 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910009 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902411 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910009 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902437 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910010 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902458 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910010 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902478 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910010 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902498 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910011 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902517 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910011 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902536 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910011 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902555 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910012 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902574 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910012 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902593 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910012 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902613 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910013 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902631 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910013 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902651 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910013 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902670 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910014 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902689 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910014 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902708 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910014 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902728 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910015 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902747 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910015 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902766 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910015 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902795 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910016 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902817 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910016 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902855 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910016 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902883 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910017 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902903 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910017 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902924 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910017 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902944 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910018 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902963 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910018 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902982 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910018 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
-2026-11-16T20:49:56.902998 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | bad_market_odds_blank_events=36
-2026-11-16T20:49:56.940029 | OUTLIER SUMMARY | spread_outliers=0 total_outliers=0
-2026-11-16T20:49:56.940617 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_20_NBA_predictions.csv
-2026-11-16T20:49:56.940937 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_21_NBA_predictions.csv
-2026-11-16T20:49:56.941140 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_22_NBA_predictions.csv
-2026-11-16T20:49:56.941469 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_23_NBA_predictions.csv
-2026-11-16T20:49:56.941725 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_24_NBA_predictions.csv
-2026-11-16T20:49:56.941996 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_26_NBA_predictions.csv
-2026-11-16T20:49:56.942222 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_27_NBA_predictions.csv
-2026-11-16T20:49:56.942554 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_28_NBA_predictions.csv
-2026-11-16T20:49:56.942764 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_29_NBA_predictions.csv
-2026-11-16T20:49:56.943049 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_30_NBA_predictions.csv
-2026-11-16T20:49:56.943288 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_31_NBA_predictions.csv
-2026-11-16T20:49:56.943673 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_02_NBA_predictions.csv
-2026-11-16T20:49:56.943995 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_04_NBA_predictions.csv
-2026-11-16T20:49:56.944193 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_05_NBA_predictions.csv
-2026-11-16T20:49:56.944489 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_06_NBA_predictions.csv
-2026-11-16T20:49:56.944741 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_07_NBA_predictions.csv
-2026-11-16T20:49:56.944984 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_08_NBA_predictions.csv
-2026-11-16T20:49:56.945232 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_09_NBA_predictions.csv
-2026-11-16T20:49:56.945490 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_10_NBA_predictions.csv
-2026-11-16T20:49:56.945764 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_11_NBA_predictions.csv
-2026-11-16T20:49:56.945974 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_12_NBA_predictions.csv
-2026-11-16T20:49:56.946247 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_13_NBA_predictions.csv
-2026-11-16T20:49:56.946491 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_14_NBA_predictions.csv
-2026-11-16T20:49:56.946758 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_15_NBA_predictions.csv
-2026-11-16T20:49:56.977087 | BIASED | docs/win/basketball/00_intake/predictions_ensemble/nba/2026_11_16_NBA_predictions.csv | league=NBA margin_method=rolling margin_bias=-4.458 total_method=rolling total_bias=7.124 adjusted=8 skipped_already_flagged=0
-2026-11-16T20:49:56.978237 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_20_NBA_predictions.csv | rows=3
-2026-11-16T20:49:56.978838 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_21_NBA_predictions.csv | rows=11
-2026-11-16T20:49:56.979226 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_22_NBA_predictions.csv | rows=2
-2026-11-16T20:49:56.979778 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_23_NBA_predictions.csv | rows=12
-2026-11-16T20:49:56.980247 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_24_NBA_predictions.csv | rows=8
-2026-11-16T20:49:56.980770 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_26_NBA_predictions.csv | rows=9
-2026-11-16T20:49:56.981172 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_27_NBA_predictions.csv | rows=4
-2026-11-16T20:49:56.981700 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_28_NBA_predictions.csv | rows=12
-2026-11-16T20:49:56.982080 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_29_NBA_predictions.csv | rows=3
-2026-11-16T20:49:56.982601 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_30_NBA_predictions.csv | rows=10
-2026-11-16T20:49:56.983030 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_31_NBA_predictions.csv | rows=7
-2026-11-16T20:49:56.983611 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_02_NBA_predictions.csv | rows=15
-2026-11-16T20:49:56.984140 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_04_NBA_predictions.csv | rows=14
-2026-11-16T20:49:56.984541 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_05_NBA_predictions.csv | rows=2
-2026-11-16T20:49:56.985011 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_06_NBA_predictions.csv | rows=9
-2026-11-16T20:49:56.985465 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_07_NBA_predictions.csv | rows=7
-2026-11-16T20:49:56.985891 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_08_NBA_predictions.csv | rows=7
-2026-11-16T20:49:56.986355 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_09_NBA_predictions.csv | rows=8
-2026-11-16T20:49:56.986783 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_10_NBA_predictions.csv | rows=6
-2026-11-16T20:49:56.987263 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_11_NBA_predictions.csv | rows=10
-2026-11-16T20:49:56.987691 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_12_NBA_predictions.csv | rows=4
-2026-11-16T20:49:56.988157 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_13_NBA_predictions.csv | rows=9
-2026-11-16T20:49:56.988579 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_14_NBA_predictions.csv | rows=5
-2026-11-16T20:49:56.989047 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_15_NBA_predictions.csv | rows=9
-2026-11-16T20:49:56.989534 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_16_NBA_predictions.csv | rows=8
-2026-11-16T20:49:57.044820 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_20_NBA_odds.csv | rows=3
-2026-11-16T20:49:57.045213 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_21_NBA_odds.csv | rows=11
-2026-11-16T20:49:57.045550 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_22_NBA_odds.csv | rows=2
-2026-11-16T20:49:57.045937 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_23_NBA_odds.csv | rows=12
-2026-11-16T20:49:57.046298 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_24_NBA_odds.csv | rows=8
-2026-11-16T20:49:57.046681 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_25_NBA_odds.csv | rows=7
-2026-11-16T20:49:57.047054 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_26_NBA_odds.csv | rows=9
-2026-11-16T20:49:57.047432 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_27_NBA_odds.csv | rows=4
-2026-11-16T20:49:57.047835 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_28_NBA_odds.csv | rows=12
-2026-11-16T20:49:57.048181 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_29_NBA_odds.csv | rows=3
-2026-11-16T20:49:57.048554 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_30_NBA_odds.csv | rows=10
-2026-11-16T20:49:57.048918 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_31_NBA_odds.csv | rows=7
-2026-11-16T20:49:57.049255 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_01_NBA_odds.csv | rows=4
-2026-11-16T20:49:57.049693 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_02_NBA_odds.csv | rows=15
-2026-11-16T20:49:57.050100 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_04_NBA_odds.csv | rows=14
-2026-11-16T20:49:57.050462 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_05_NBA_odds.csv | rows=2
-2026-11-16T20:49:57.050835 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_06_NBA_odds.csv | rows=9
-2026-11-16T20:49:57.051219 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_07_NBA_odds.csv | rows=7
-2026-11-16T20:49:57.051618 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_08_NBA_odds.csv | rows=7
-2026-11-16T20:49:57.052031 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_09_NBA_odds.csv | rows=8
-2026-11-16T20:49:57.052424 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_10_NBA_odds.csv | rows=6
-2026-11-16T20:49:57.052805 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_11_NBA_odds.csv | rows=10
-2026-11-16T20:49:57.053161 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_12_NBA_odds.csv | rows=4
-2026-11-16T20:49:57.053545 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_13_NBA_odds.csv | rows=9
-2026-11-16T20:49:57.053919 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_14_NBA_odds.csv | rows=5
-2026-11-16T20:49:57.054331 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_15_NBA_odds.csv | rows=9
-2026-11-16T20:49:57.054762 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_16_NBA_odds.csv | rows=8
-2026-11-16T20:49:57.055120 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_17_NBA_odds.csv | rows=5
-2026-11-16T20:49:57.055531 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_18_NBA_odds.csv | rows=12
-2026-11-16T20:49:57.111477 | 
-2026-11-16T20:49:57.111505 | ============================================================
-2026-11-16T20:49:57.111524 | SUMMARY
-2026-11-16T20:49:57.111540 | ============================================================
-2026-11-16T20:49:57.111559 | prediction_files_loaded              : 25
-2026-11-16T20:49:57.111576 | sportsbook_files_loaded              : 29
-2026-11-16T20:49:57.111593 | bad_ml_market_rows_blanked           : 48
-2026-11-16T20:49:57.111609 | bad_total_market_rows_blanked        : 50
-2026-11-16T20:49:57.111625 | bad_spread_market_rows_blanked       : 51
-2026-11-16T20:49:57.111641 | bad_odds_market_rows_blanked_total   : 149
-2026-11-16T20:49:57.111656 | bad_total_line_rows_blanked          : 0
-2026-11-16T20:49:57.111672 | bad_spread_line_rows_blanked         : 0
-2026-11-16T20:49:57.111688 | bad_line_rows_blanked_total          : 0
-2026-11-16T20:49:57.111703 | spread_outlier_events_found          : 0
-2026-11-16T20:49:57.111719 | total_outlier_events_found           : 0
-2026-11-16T20:49:57.111736 | sportsbook_outlier_market_rows_blanked: 0
-2026-11-16T20:49:57.111752 | historical_cleaned_files_preserved   : 24
-2026-11-16T20:49:57.111768 | historical_raw_missing_cleaned_skipped: 0
-2026-11-16T20:49:57.111783 | prediction_rows_removed              : 0
-2026-11-16T20:49:57.111799 | sportsbook_rows_removed              : 0
-2026-11-16T20:49:57.111816 | bias_files_with_adjusted_rows        : 1
-2026-11-16T20:49:57.111833 | bias_rows_adjusted                   : 8
-2026-11-16T20:49:57.111849 | bias_rows_skipped_already_flagged    : 186
-2026-11-16T20:49:57.111865 | prediction_files_written             : 25
-2026-11-16T20:49:57.111881 | prediction_rows_written              : 194
-2026-11-16T20:49:57.111897 | sportsbook_files_written             : 29
-2026-11-16T20:49:57.111913 | sportsbook_rows_written              : 222
-2026-11-16T20:49:57.111929 | STATUS: SUCCESS
-2026-11-16T20:49:57.111945 | ============================================================
+2026-11-17T14:35:49.950512 | INFO | Starting league cleanup
+2026-11-17T14:35:49.950531 | INFO | Odds cleanup active: blanks only the affected market; does not drop entire games
+2026-11-17T14:35:49.950549 | INFO | Missing market odds are treated as unavailable market, not bad game
+2026-11-17T14:35:49.950566 | INFO | Hold-based odds filtering removed
+2026-11-17T14:35:49.950582 | INFO | Spread outlier fix active: compare model home-away margin to -book_home_spread
+2026-11-17T14:35:49.950599 | INFO | Outlier cleanup active: blanks only affected sportsbook market fields; prediction rows are retained
+2026-11-17T14:35:49.980106 | BIAS CONFIG | margin_method=rolling margin_value=-4.208 total_method=rolling total_value=6.892
+2026-11-17T14:35:49.986230 | LOADED | folder=docs/win/basketball/00_intake/predictions_ensemble/nba files=26
+2026-11-17T14:35:50.025953 | LOADED | folder=docs/win/basketball/00_intake/sportsbook/nba files=29
+2026-11-17T14:35:50.051752 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909861 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.051805 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909861 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.051831 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909861 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.051854 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909862 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.051876 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909862 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.051898 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909862 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.051919 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909863 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.051940 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909863 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.051962 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909863 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.051983 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909864 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052004 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909864 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052025 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909864 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052047 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909865 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052068 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909865 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052089 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909865 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052110 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909866 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052131 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909866 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052161 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909866 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052183 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909867 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052203 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909867 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052223 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | 401909867 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052241 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_25_NBA_odds.csv | bad_market_odds_blank_events=21
+2026-11-17T14:35:50.052328 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909893 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052352 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909893 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052373 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909893 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052395 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909894 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052415 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909894 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052435 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909894 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052457 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909895 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052477 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909895 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052496 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | 401909895 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052514 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_29_NBA_odds.csv | bad_market_odds_blank_events=9
+2026-11-17T14:35:50.052539 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909277 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052560 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909277 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052581 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909277 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052601 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909278 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052622 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909278 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052641 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909278 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052662 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909279 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052682 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909279 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052708 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909279 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052729 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909280 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052749 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909280 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052792 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909280 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052815 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909281 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052835 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909281 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052855 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909281 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052875 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909282 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052894 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909282 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052914 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909282 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052934 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909283 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052953 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909283 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052972 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909283 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.052992 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909284 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053011 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909284 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053030 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909284 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053050 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909285 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053070 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909285 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053089 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909285 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053109 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909286 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053131 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909286 | reason=BOTH_BLANK a='' b='' blanked_cols=['total']
+2026-11-17T14:35:50.053151 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | 401909286 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053175 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_30_NBA_odds.csv | bad_market_odds_blank_events=30
+2026-11-17T14:35:50.053201 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909896 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053223 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909896 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053244 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909896 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053265 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909897 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053284 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909897 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053304 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909897 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053324 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909898 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053343 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909898 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053362 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909898 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053382 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909899 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053401 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909899 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053421 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909899 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053441 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909900 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053461 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909900 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053481 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909900 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053500 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909901 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053520 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909901 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053539 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909901 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053559 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909902 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053578 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909902 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053598 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | 401909902 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053614 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_10_31_NBA_odds.csv | bad_market_odds_blank_events=21
+2026-11-17T14:35:50.053644 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909903 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053667 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909903 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053688 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909903 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053708 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909904 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053728 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909904 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053748 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909904 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053789 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909905 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053812 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909905 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053832 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909905 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053852 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909906 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053872 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909906 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053893 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | 401909906 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.053910 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_01_NBA_odds.csv | bad_market_odds_blank_events=12
+2026-11-17T14:35:50.054105 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_11_NBA_odds.csv | 401909970 | reason=MISSING_PAIRED_ODDS a='1.94' b='' blanked_cols=['home_spread', 'away_spread', 'home_dk_spread_american', 'home_dk_spread_decimal']
+2026-11-17T14:35:50.054138 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_11_NBA_odds.csv | bad_market_odds_blank_events=1
+2026-11-17T14:35:50.054172 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_12_NBA_odds.csv | 401909978 | reason=MISSING_PAIRED_ODDS a='1.9' b='' blanked_cols=['total', 'dk_total_over_american', 'dk_total_over_decimal']
+2026-11-17T14:35:50.054196 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_12_NBA_odds.csv | bad_market_odds_blank_events=1
+2026-11-17T14:35:50.054241 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_13_NBA_odds.csv | 401909304 | reason=MISSING_PAIRED_ODDS a='1.89' b='' blanked_cols=['total', 'dk_total_over_american', 'dk_total_over_decimal']
+2026-11-17T14:35:50.054262 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_13_NBA_odds.csv | bad_market_odds_blank_events=1
+2026-11-17T14:35:50.054293 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_14_NBA_odds.csv | 401909981 | reason=MISSING_PAIRED_ODDS a='' b='1.95' blanked_cols=['home_spread', 'away_spread', 'away_dk_spread_american', 'away_dk_spread_decimal']
+2026-11-17T14:35:50.054322 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_14_NBA_odds.csv | bad_market_odds_blank_events=1
+2026-11-17T14:35:50.054364 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_15_NBA_odds.csv | 401909988 | reason=MISSING_PAIRED_ODDS a='' b='1.88' blanked_cols=['home_spread', 'away_spread', 'away_dk_spread_american', 'away_dk_spread_decimal']
+2026-11-17T14:35:50.054397 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_15_NBA_odds.csv | bad_market_odds_blank_events=1
+2026-11-17T14:35:50.054509 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910007 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.054558 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910007 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.054596 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910007 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.054631 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910008 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.054667 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910008 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.054700 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910008 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.054730 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910009 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.054786 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910009 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.054830 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910009 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.054877 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910010 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.054912 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910010 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.054946 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910010 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.054984 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910011 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055014 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910011 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055042 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910011 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055074 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910012 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055095 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910012 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055115 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910012 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055136 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910013 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055155 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910013 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055174 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910013 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055201 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910014 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055221 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910014 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055240 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910014 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055259 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910015 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055278 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910015 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055297 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910015 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055317 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910016 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055336 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910016 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055355 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910016 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055374 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910017 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055393 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910017 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055412 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910017 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055431 | BLANK_BAD_ML_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910018 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055450 | BLANK_BAD_TOTAL_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910018 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055470 | BLANK_BAD_SPREAD_MALFORMED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | 401910018 | reason=BOTH_BLANK a='' b='' blanked_cols=[]
+2026-11-17T14:35:50.055487 | MARKET_BLANKED | docs/win/basketball/00_intake/sportsbook/nba/2026_11_18_NBA_odds.csv | bad_market_odds_blank_events=36
+2026-11-17T14:35:50.088503 | OUTLIER SUMMARY | spread_outliers=0 total_outliers=0
+2026-11-17T14:35:50.089098 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_20_NBA_predictions.csv
+2026-11-17T14:35:50.089407 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_21_NBA_predictions.csv
+2026-11-17T14:35:50.089608 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_22_NBA_predictions.csv
+2026-11-17T14:35:50.089949 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_23_NBA_predictions.csv
+2026-11-17T14:35:50.090231 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_24_NBA_predictions.csv
+2026-11-17T14:35:50.090519 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_26_NBA_predictions.csv
+2026-11-17T14:35:50.090752 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_27_NBA_predictions.csv
+2026-11-17T14:35:50.091102 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_28_NBA_predictions.csv
+2026-11-17T14:35:50.091306 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_29_NBA_predictions.csv
+2026-11-17T14:35:50.091603 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_30_NBA_predictions.csv
+2026-11-17T14:35:50.091879 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_31_NBA_predictions.csv
+2026-11-17T14:35:50.092233 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_02_NBA_predictions.csv
+2026-11-17T14:35:50.092561 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_04_NBA_predictions.csv
+2026-11-17T14:35:50.092778 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_05_NBA_predictions.csv
+2026-11-17T14:35:50.093063 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_06_NBA_predictions.csv
+2026-11-17T14:35:50.093312 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_07_NBA_predictions.csv
+2026-11-17T14:35:50.093557 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_08_NBA_predictions.csv
+2026-11-17T14:35:50.093839 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_09_NBA_predictions.csv
+2026-11-17T14:35:50.094074 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_10_NBA_predictions.csv
+2026-11-17T14:35:50.094359 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_11_NBA_predictions.csv
+2026-11-17T14:35:50.094580 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_12_NBA_predictions.csv
+2026-11-17T14:35:50.094870 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_13_NBA_predictions.csv
+2026-11-17T14:35:50.095116 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_14_NBA_predictions.csv
+2026-11-17T14:35:50.095394 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_15_NBA_predictions.csv
+2026-11-17T14:35:50.095661 | PRESERVED HISTORICAL CLEANED PREDICTION | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_16_NBA_predictions.csv
+2026-11-17T14:35:50.125928 | BIASED | docs/win/basketball/00_intake/predictions_ensemble/nba/2026_11_17_NBA_predictions.csv | league=NBA margin_method=rolling margin_bias=-4.208 total_method=rolling total_bias=6.892 adjusted=5 skipped_already_flagged=0
+2026-11-17T14:35:50.127069 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_20_NBA_predictions.csv | rows=3
+2026-11-17T14:35:50.127532 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_21_NBA_predictions.csv | rows=11
+2026-11-17T14:35:50.127968 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_22_NBA_predictions.csv | rows=2
+2026-11-17T14:35:50.128420 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_23_NBA_predictions.csv | rows=12
+2026-11-17T14:35:50.128877 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_24_NBA_predictions.csv | rows=8
+2026-11-17T14:35:50.129304 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_26_NBA_predictions.csv | rows=9
+2026-11-17T14:35:50.129668 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_27_NBA_predictions.csv | rows=4
+2026-11-17T14:35:50.130139 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_28_NBA_predictions.csv | rows=12
+2026-11-17T14:35:50.130472 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_29_NBA_predictions.csv | rows=3
+2026-11-17T14:35:50.130913 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_30_NBA_predictions.csv | rows=10
+2026-11-17T14:35:50.131292 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_10_31_NBA_predictions.csv | rows=7
+2026-11-17T14:35:50.131784 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_02_NBA_predictions.csv | rows=15
+2026-11-17T14:35:50.132241 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_04_NBA_predictions.csv | rows=14
+2026-11-17T14:35:50.132569 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_05_NBA_predictions.csv | rows=2
+2026-11-17T14:35:50.132990 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_06_NBA_predictions.csv | rows=9
+2026-11-17T14:35:50.133371 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_07_NBA_predictions.csv | rows=7
+2026-11-17T14:35:50.133747 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_08_NBA_predictions.csv | rows=7
+2026-11-17T14:35:50.134159 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_09_NBA_predictions.csv | rows=8
+2026-11-17T14:35:50.134518 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_10_NBA_predictions.csv | rows=6
+2026-11-17T14:35:50.135011 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_11_NBA_predictions.csv | rows=10
+2026-11-17T14:35:50.135571 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_12_NBA_predictions.csv | rows=4
+2026-11-17T14:35:50.136310 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_13_NBA_predictions.csv | rows=9
+2026-11-17T14:35:50.136916 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_14_NBA_predictions.csv | rows=5
+2026-11-17T14:35:50.137608 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_15_NBA_predictions.csv | rows=9
+2026-11-17T14:35:50.138287 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_16_NBA_predictions.csv | rows=8
+2026-11-17T14:35:50.138817 | WROTE | PREDICTIONS | docs/win/basketball/00_intake/predictions/predictions_cleaned/nba/2026_11_17_NBA_predictions.csv | rows=5
+2026-11-17T14:35:50.190076 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_20_NBA_odds.csv | rows=3
+2026-11-17T14:35:50.190438 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_21_NBA_odds.csv | rows=11
+2026-11-17T14:35:50.190738 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_22_NBA_odds.csv | rows=2
+2026-11-17T14:35:50.191129 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_23_NBA_odds.csv | rows=12
+2026-11-17T14:35:50.191538 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_24_NBA_odds.csv | rows=8
+2026-11-17T14:35:50.191903 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_25_NBA_odds.csv | rows=7
+2026-11-17T14:35:50.192239 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_26_NBA_odds.csv | rows=9
+2026-11-17T14:35:50.192593 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_27_NBA_odds.csv | rows=4
+2026-11-17T14:35:50.192946 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_28_NBA_odds.csv | rows=12
+2026-11-17T14:35:50.193257 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_29_NBA_odds.csv | rows=3
+2026-11-17T14:35:50.193578 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_30_NBA_odds.csv | rows=10
+2026-11-17T14:35:50.193911 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_10_31_NBA_odds.csv | rows=7
+2026-11-17T14:35:50.194216 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_01_NBA_odds.csv | rows=4
+2026-11-17T14:35:50.194578 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_02_NBA_odds.csv | rows=15
+2026-11-17T14:35:50.194983 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_04_NBA_odds.csv | rows=14
+2026-11-17T14:35:50.195299 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_05_NBA_odds.csv | rows=2
+2026-11-17T14:35:50.195654 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_06_NBA_odds.csv | rows=9
+2026-11-17T14:35:50.196056 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_07_NBA_odds.csv | rows=7
+2026-11-17T14:35:50.196395 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_08_NBA_odds.csv | rows=7
+2026-11-17T14:35:50.196735 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_09_NBA_odds.csv | rows=8
+2026-11-17T14:35:50.197081 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_10_NBA_odds.csv | rows=6
+2026-11-17T14:35:50.197417 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_11_NBA_odds.csv | rows=10
+2026-11-17T14:35:50.197726 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_12_NBA_odds.csv | rows=4
+2026-11-17T14:35:50.198086 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_13_NBA_odds.csv | rows=9
+2026-11-17T14:35:50.198397 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_14_NBA_odds.csv | rows=5
+2026-11-17T14:35:50.198730 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_15_NBA_odds.csv | rows=9
+2026-11-17T14:35:50.199092 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_16_NBA_odds.csv | rows=8
+2026-11-17T14:35:50.199403 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_17_NBA_odds.csv | rows=5
+2026-11-17T14:35:50.199735 | WROTE | SPORTSBOOK | docs/win/basketball/00_intake/sportsbook/sportsbook_cleaned/nba/2026_11_18_NBA_odds.csv | rows=12
+2026-11-17T14:35:50.249319 | 
+2026-11-17T14:35:50.249338 | ============================================================
+2026-11-17T14:35:50.249355 | SUMMARY
+2026-11-17T14:35:50.249371 | ============================================================
+2026-11-17T14:35:50.249389 | prediction_files_loaded              : 26
+2026-11-17T14:35:50.249405 | sportsbook_files_loaded              : 29
+2026-11-17T14:35:50.249421 | bad_ml_market_rows_blanked           : 43
+2026-11-17T14:35:50.249443 | bad_total_market_rows_blanked        : 45
+2026-11-17T14:35:50.249460 | bad_spread_market_rows_blanked       : 46
+2026-11-17T14:35:50.249476 | bad_odds_market_rows_blanked_total   : 134
+2026-11-17T14:35:50.249492 | bad_total_line_rows_blanked          : 0
+2026-11-17T14:35:50.249508 | bad_spread_line_rows_blanked         : 0
+2026-11-17T14:35:50.249524 | bad_line_rows_blanked_total          : 0
+2026-11-17T14:35:50.249539 | spread_outlier_events_found          : 0
+2026-11-17T14:35:50.249555 | total_outlier_events_found           : 0
+2026-11-17T14:35:50.249570 | sportsbook_outlier_market_rows_blanked: 0
+2026-11-17T14:35:50.249586 | historical_cleaned_files_preserved   : 25
+2026-11-17T14:35:50.249602 | historical_raw_missing_cleaned_skipped: 0
+2026-11-17T14:35:50.249617 | prediction_rows_removed              : 0
+2026-11-17T14:35:50.249632 | sportsbook_rows_removed              : 0
+2026-11-17T14:35:50.249649 | bias_files_with_adjusted_rows        : 1
+2026-11-17T14:35:50.249666 | bias_rows_adjusted                   : 5
+2026-11-17T14:35:50.249682 | bias_rows_skipped_already_flagged    : 194
+2026-11-17T14:35:50.249698 | prediction_files_written             : 26
+2026-11-17T14:35:50.249713 | prediction_rows_written              : 199
+2026-11-17T14:35:50.249730 | sportsbook_files_written             : 29
+2026-11-17T14:35:50.249746 | sportsbook_rows_written              : 222
+2026-11-17T14:35:50.249784 | STATUS: SUCCESS
+2026-11-17T14:35:50.249805 | ============================================================
