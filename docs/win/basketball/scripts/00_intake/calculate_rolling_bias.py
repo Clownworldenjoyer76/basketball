@@ -124,7 +124,16 @@ NBA_TEAM_MAP_PATH = (
     / "docs/win/basketball/maps/team_map_nba.csv"
 )
 
+NCAAM_TEAM_MAP_PATH = (
+    REPO_ROOT
+    / "docs/win/basketball/maps/team_map_ncaam.csv"
+)
+
 _NBA_IDENTITY_ALIASES_CACHE: dict[str, dict[str, str] | None] = {
+    "value": None,
+}
+
+_NCAAM_IDENTITY_ALIASES_CACHE: dict[str, dict[str, str] | None] = {
     "value": None,
 }
 
@@ -2830,21 +2839,32 @@ def normalize_identity_team(
     league: str,
     value: Any,
 ) -> str:
+    """Use each league's validated aliases when matching predictions to finals."""
     name = normalize_text(value)
-    if league.strip().lower() != "nba" or not name:
+    if not name:
         return name
 
-    aliases = _NBA_IDENTITY_ALIASES_CACHE["value"]
+    league_key = league.strip().lower()
+    if league_key == "nba":
+        map_path = NBA_TEAM_MAP_PATH
+        cache = _NBA_IDENTITY_ALIASES_CACHE
+    elif league_key == "ncaam":
+        map_path = NCAAM_TEAM_MAP_PATH
+        cache = _NCAAM_IDENTITY_ALIASES_CACHE
+    else:
+        return name
+
+    aliases = cache["value"]
     if aliases is None:
-        fieldnames, rows = read_csv_rows(NBA_TEAM_MAP_PATH)
+        fieldnames, rows = read_csv_rows(map_path)
         require_columns(
-            NBA_TEAM_MAP_PATH,
+            map_path,
             fieldnames,
             {"league", "alias", "canonical_team"},
         )
         aliases = {}
         for row in rows:
-            if normalize_text(row.get("league")) != "nba":
+            if normalize_text(row.get("league")) != league_key:
                 continue
             alias = normalize_text(row.get("alias"))
             canonical = normalize_text(row.get("canonical_team"))
@@ -2853,15 +2873,19 @@ def normalize_identity_team(
             existing = aliases.get(alias)
             if existing is not None and existing != canonical:
                 raise ValueError(
-                    f"Conflicting NBA team aliases for {alias!r} "
-                    f"in {repo_relative(NBA_TEAM_MAP_PATH)}"
+                    f"Conflicting {league_key.upper()} team aliases for {alias!r} "
+                    f"in {repo_relative(map_path)}"
                 )
             aliases[alias] = canonical
             aliases.setdefault(canonical, canonical)
-        _NBA_IDENTITY_ALIASES_CACHE["value"] = aliases
+        if not aliases:
+            raise ValueError(
+                f"No {league_key.upper()} team aliases found in "
+                f"{repo_relative(map_path)}"
+            )
+        cache["value"] = aliases
 
     return aliases.get(name, name)
-
 
 def identities_agree(
     prediction: dict[str, str],
