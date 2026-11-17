@@ -412,6 +412,15 @@ def parse_completed_games(
         if home_score is None or away_score is None:
             continue
 
+        # Postponed/invalid 0-0 scoreboard placeholders are not final games.
+        if home_score == 0 and away_score == 0:
+            log(
+                f"[{league_label}] {game_date}: 0-0 scoreboard entry skipped "
+                f"game_id={event.get('id')}",
+                "WARN",
+            )
+            continue
+
         home_team = (
             (home.get("team") or {}).get("displayName")
             or (home.get("team") or {}).get(
