@@ -2957,6 +2957,52 @@ def identities_agree(
     )
 
 
+# NCAAM_EXPECTED_UNMATCHED_ALLOWLIST_V1
+# These identifiers were individually audited; never infer that a missing
+# forecast is an expected exclusion simply because it lacks an ensemble row.
+_EXPECTED_NCAAM_UNMATCHED_PATH = (
+    REPO_ROOT / "docs/win/basketball/config/ncaam_expected_unmatched_games.csv"
+)
+_EXPECTED_NCAAM_UNMATCHED_CACHE = None
+
+
+def expected_ncaam_unmatched(final: dict[str, str], gid: str) -> bool:
+    global _EXPECTED_NCAAM_UNMATCHED_CACHE
+    if not gid:
+        return False
+    if _EXPECTED_NCAAM_UNMATCHED_CACHE is None:
+        approved = {}
+        if _EXPECTED_NCAAM_UNMATCHED_PATH.is_file():
+            headers, rows = read_csv_rows(_EXPECTED_NCAAM_UNMATCHED_PATH)
+            require_columns(
+                _EXPECTED_NCAAM_UNMATCHED_PATH,
+                headers,
+                {"game_id", "game_date", "home_team", "away_team"},
+            )
+            for row in rows:
+                row_gid = canonical_game_id(row.get("game_id"))
+                identity = (
+                    normalize_date(row.get("game_date")),
+                    normalize_identity_team("ncaam", row.get("home_team")),
+                    normalize_identity_team("ncaam", row.get("away_team")),
+                )
+                if not row_gid or not all(identity):
+                    raise ValueError("Invalid NCAAM expected-unmatched manifest row")
+                if row_gid in approved:
+                    raise ValueError("Duplicate NCAAM expected-unmatched ID: " + row_gid)
+                approved[row_gid] = identity
+        _EXPECTED_NCAAM_UNMATCHED_CACHE = approved
+    expected = _EXPECTED_NCAAM_UNMATCHED_CACHE.get(gid)
+    if expected is None:
+        return False
+    actual = (
+        normalize_date(final.get("game_date")),
+        normalize_identity_team("ncaam", final.get("home_team")),
+        normalize_identity_team("ncaam", final.get("away_team")),
+    )
+    return actual == expected
+
+
 def load_current_completed_games(
     league: str,
     current_season: int | None,
@@ -3027,6 +3073,7 @@ def load_current_completed_games(
         "game_id_identity_mismatches": 0,
         "ambiguous_prediction_matches": 0,
         "true_unmatched_current_finals": 0,
+        "expected_unmatched_current_finals": 0,
         "invalid_current_matches": 0,
         "current_matched_games": 0,
     }
@@ -3228,6 +3275,8 @@ def load_current_completed_games(
                 stats[
                     "true_unmatched_current_finals"
                 ] += 1
+                if league.lower() == "ncaam" and expected_ncaam_unmatched(final, gid):
+                    stats["expected_unmatched_current_finals"] += 1
 
             continue
 
@@ -4137,17 +4186,15 @@ def calculate_component_safely(
 def warning_count_from_history(
     meta: dict[str, Any],
 ) -> int:
-    return sum(
-        int(
-            meta.get(
-                field,
-                0,
-            )
-            or 0
-        )
-        for field
-        in WARNING_HISTORY_FIELDS
+    raw_warnings = sum(
+        int(meta.get(field, 0) or 0)
+        for field in WARNING_HISTORY_FIELDS
     )
+    expected = int(meta.get("expected_unmatched_current_finals", 0) or 0)
+    unmatched = int(meta.get("true_unmatched_current_finals", 0) or 0)
+    if expected < 0 or expected > unmatched:
+        raise ValueError("Invalid expected-unmatched suppression count")
+    return raw_warnings - expected
 
 
 def skipped_league_state(
