@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # docs/win/basketball/scripts/00_intake/basketball_model_ensemble.py
-"""Create fixed 50/50 DRatings + SDV basketball ensemble predictions.
+"""Create league-specific fixed-weight DRatings + SDV basketball ensemble predictions.
 
 Behavior
 --------
@@ -16,9 +16,9 @@ Behavior
 - No game date is required on the command line.
 - Margin uses 50% DRatings + 50% SDV.
 - Total uses 50% DRatings + 50% SDV.
-- Moneyline probability uses 50% DRatings + 50% SDV.
+- NCAAM moneyline uses 80% DRatings + 20% SDV; other moneylines remain 50/50.
 - Ensemble outputs are written under predictions_ensemble/{league}/.
-- --mode train writes the fixed 50/50 weights.json artifacts.
+- --mode train writes each league's configured weights.json artifact.
 - --mode train does not fit anything from historical results.
 
 Inputs
@@ -132,6 +132,35 @@ DRATINGS_MODEL_VERSION = (
 
 FIXED_DRATINGS_WEIGHT = 0.50
 FIXED_SDV_WEIGHT = 0.50
+
+NCAAM_MONEYLINE_ENSEMBLE_VERSION = 'dratings_sdv_ensemble_v2_ncaam_ml_80_20'
+
+
+def desired_weights(league: str, target: str) -> tuple[float, float]:
+    return {('ncaam', 'moneyline'): (0.80, 0.20)}.get(
+        (league, target), (FIXED_DRATINGS_WEIGHT, FIXED_SDV_WEIGHT)
+    )
+
+
+def desired_status(league: str) -> str:
+    return {'ncaam': 'fixed_ncaam_moneyline_80_20'}.get(league, 'fixed_50_50')
+
+
+def desired_ensemble_version(league: str) -> str:
+    return {'ncaam': NCAAM_MONEYLINE_ENSEMBLE_VERSION}.get(league, ENSEMBLE_VERSION)
+
+
+def apply_ensemble_profile(payload: dict, league: str) -> dict:
+    dratings, sdv = desired_weights(league, 'moneyline')
+    payload['moneyline']['dratings_weight'] = dratings
+    payload['moneyline']['sdv_weight'] = sdv
+    payload['moneyline']['method'] = {'ncaam': 'fixed_weighted'}.get(league, 'fixed_equal_weight')
+    payload['status'] = desired_status(league)
+    payload['ensemble_version'] = desired_ensemble_version(league)
+    payload['weight_source'] = {'ncaam': 'validated_20261120_ncaam_moneyline_80_20'}.get(
+        league, 'fixed_50_50'
+    )
+    return payload
 
 OUTPUT_FIELDS = [
     "sport",
@@ -610,7 +639,7 @@ def build_fixed_weights(
         )
     )
 
-    return {
+    payload = {
         "schema_version": 1,
         "status": "fixed_50_50",
         "ensemble_version": (
@@ -690,6 +719,8 @@ def build_fixed_weights(
         },
     }
 
+    return apply_ensemble_profile(payload, league)
+
 
 def initialize_selected(
     leagues: list[str],
@@ -712,8 +743,8 @@ def initialize_selected(
             "WEIGHTS WRITTEN | "
             f"league="
             f"{LEAGUE_LABELS[league]} | "
-            "dratings=0.50 | "
-            "sdv=0.50 | "
+            f"moneyline_dratings={payload['moneyline']['dratings_weight']:.2f} | "
+            f"moneyline_sdv={payload['moneyline']['sdv_weight']:.2f} | "
             f"path={path}"
         )
 
@@ -733,17 +764,16 @@ def load_weights(
         payload.get(
             "status"
         )
-    ) != "fixed_50_50":
+    ) != desired_status(league):
         raise RuntimeError(
-            f"{league}: weights.json "
-            "is not fixed_50_50"
+            f"{league}: weights.json has an unexpected status"
         )
 
     if clean(
         payload.get(
             "ensemble_version"
         )
-    ) != ENSEMBLE_VERSION:
+    ) != desired_ensemble_version(league):
         raise RuntimeError(
             f"{league}: ensemble "
             "version mismatch"
@@ -791,21 +821,13 @@ def load_weights(
             )
         )
 
+        expected_dratings, expected_sdv = desired_weights(league, target)
         if (
-            abs(
-                dratings_weight
-                - 0.50
-            )
-            > 1e-12
-            or abs(
-                sdv_weight
-                - 0.50
-            )
-            > 1e-12
+            abs(dratings_weight - expected_dratings) > 1e-12
+            or abs(sdv_weight - expected_sdv) > 1e-12
         ):
             raise RuntimeError(
-                f"{league}: {target} "
-                "weights are not 50/50"
+                f"{league}: {target} weights differ from configured values"
             )
 
     return payload
@@ -1503,7 +1525,7 @@ def combine_game(
         ),
 
         "model_version": (
-            ENSEMBLE_VERSION
+            weights["ensemble_version"]
         ),
 
         "feature_version": (
@@ -1511,7 +1533,7 @@ def combine_game(
         ),
 
         "ensemble_version": (
-            ENSEMBLE_VERSION
+            weights["ensemble_version"]
         ),
 
         "dratings_model_version": (
@@ -2061,8 +2083,8 @@ def predict_selected(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Create/apply the fixed "
-            "50/50 DRatings + SDV "
+            "Create/apply configured "
+            "DRatings + SDV "
             "basketball ensemble."
         )
     )
@@ -2075,7 +2097,7 @@ def build_parser() -> argparse.ArgumentParser:
             "predict",
         ),
         help=(
-            "train writes fixed 50/50 "
+            "train writes configured "
             "weights; predict scans all "
             "matching DRatings and SDV "
             "prediction files"
@@ -2138,7 +2160,7 @@ def main() -> int:
             )
 
             print(
-                "Basketball ensemble 50/50 "
+                "Basketball ensemble configured "
                 "weights complete: SUCCESS. "
                 f"leagues={len(leagues)}"
             )

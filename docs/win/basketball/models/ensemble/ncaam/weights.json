@@ -15,7 +15,7 @@
     }
   },
   "created_at_utc": "2026-08-28T11:05:37.031396+00:00",
-  "ensemble_version": "dratings_sdv_ensemble_v1_50_50",
+  "ensemble_version": "dratings_sdv_ensemble_v2_ncaam_ml_80_20",
   "league": "NCAAM",
   "margin": {
     "dratings_weight": 0.5,
@@ -23,13 +23,13 @@
     "sdv_weight": 0.5
   },
   "moneyline": {
-    "dratings_weight": 0.5,
-    "method": "fixed_equal_weight",
-    "sdv_weight": 0.5
+    "dratings_weight": 0.8,
+    "method": "fixed_weighted",
+    "sdv_weight": 0.2
   },
-  "reason": "Historical DRatings predictions required to learn reliable historical ensemble weights are unavailable. Production starts with equal weights.",
+  "reason": "NCAAM moneyline 80/20 chosen using earlier games and evaluated on later games; margin and totals remain 50/50.",
   "schema_version": 1,
-  "status": "fixed_50_50",
+  "status": "fixed_ncaam_moneyline_80_20",
   "total": {
     "dratings_weight": 0.5,
     "method": "fixed_equal_weight",
@@ -43,5 +43,5 @@
     "performed": false,
     "training_rows": 0
   },
-  "weight_source": "manual_fixed_50_50"
+  "weight_source": "validated_20261120_ncaam_moneyline_80_20"
 }
