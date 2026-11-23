@@ -33,6 +33,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytz
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 
@@ -61,6 +62,16 @@ ERROR_DIR = BASE / "errors/00_intake"
 ERROR_DIR.mkdir(parents=True, exist_ok=True)
 
 LOG_FILE = ERROR_DIR / "basketball_drat_scraper.txt"
+
+# Navigation failures should be observable and bounded.
+NAVIGATION_TIMEOUT_MS = 60000
+TABLE_TIMEOUT_MS = 20000
+PREDICTION_TIMEOUT_MS = 20000
+MAX_SCRAPE_ATTEMPTS = 3
+RETRY_DELAYS_SECONDS = (3, 8)
+RETRYABLE_HTTP_STATUSES = {408, 425, 429, 500, 502, 503, 504}
+BLOCKED_HTTP_STATUSES = {401, 403, 407}
+RUN_DIAGNOSTIC_PATHS = []
 
 with LOG_FILE.open("w", encoding="utf-8") as handle:
     handle.write(
@@ -590,6 +601,157 @@ def normalize_section_heading(text: str) -> str:
     return ""
 
 
+class DRatingsNavigationError(RuntimeError):
+    """Navigation failure with an explicit retry decision."""
+
+    def __init__(self, message: str, retryable: bool = False):
+        super().__init__(message)
+        self.retryable = retryable
+
+
+def capture_page_failure(page, sport, attempt, stage, status):
+    """Persist browser evidence in the existing uploaded-errors directory."""
+    label = re.sub(r"[^a-z0-9_-]", "_", str(sport or "unknown").lower())
+    stamp = datetime.now(ET).strftime("%Y_%m_%d_%H%M%S")
+    stem = f"dratings_{stamp}_{label}_attempt{attempt}"
+    info_path = ERROR_DIR / f"{stem}.json"
+    html_path = ERROR_DIR / f"{stem}.html"
+    png_path = ERROR_DIR / f"{stem}.png"
+    RUN_DIAGNOSTIC_PATHS.extend((info_path, html_path, png_path))
+
+    info = {
+        "sport": sport,
+        "attempt": attempt,
+        "stage": stage,
+        "http_status": status,
+        "url": None,
+        "title": None,
+        "table_count": None,
+        "visible_table_count": None,
+    }
+    try:
+        info["url"] = page.url
+        info["title"] = page.title()
+        info["table_count"] = page.locator("table").count()
+        info["visible_table_count"] = page.locator("table:visible").count()
+    except Exception as exc:
+        info["inspection_error"] = str(exc)
+
+    try:
+        info_path.write_text(
+            json.dumps(info, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        log(f"DRATINGS DIAGNOSTICS | metadata={info_path} | {info}")
+    except Exception as exc:
+        log(f"DRATINGS DIAGNOSTICS ERROR | metadata={exc}")
+
+    try:
+        html_path.write_text(page.content(), encoding="utf-8")
+        log(f"DRATINGS DIAGNOSTICS | html={html_path}")
+    except Exception as exc:
+        log(f"DRATINGS DIAGNOSTICS ERROR | html={exc}")
+
+    try:
+        page.screenshot(path=str(png_path), full_page=False, timeout=10000)
+        log(f"DRATINGS DIAGNOSTICS | screenshot={png_path}")
+    except Exception as exc:
+        log(f"DRATINGS DIAGNOSTICS ERROR | screenshot={exc}")
+
+
+def wait_for_dratings_table(page, url, sport):
+    """Retry transient page failures; never treat a blocked page as data."""
+    for attempt in range(1, MAX_SCRAPE_ATTEMPTS + 1):
+        stage = "navigate"
+        status = None
+        try:
+            response = page.goto(
+                url,
+                wait_until="domcontentloaded",
+                timeout=NAVIGATION_TIMEOUT_MS,
+            )
+            status = response.status if response is not None else None
+            log(
+                "DRATINGS RESPONSE | "
+                f"sport={sport} | attempt={attempt} | "
+                f"status={status} | url={page.url}"
+            )
+
+            if status in BLOCKED_HTTP_STATUSES:
+                raise DRatingsNavigationError(
+                    f"DRatings denied access (HTTP {status}) to {page.url}; "
+                    "verify access from the GitHub Actions runner",
+                    retryable=False,
+                )
+            if status is not None and status >= 400:
+                raise DRatingsNavigationError(
+                    f"DRatings returned HTTP {status} for {page.url}",
+                    retryable=status in RETRYABLE_HTTP_STATUSES,
+                )
+            if response is None:
+                raise DRatingsNavigationError(
+                    f"DRatings navigation had no HTTP response for {url}",
+                    retryable=True,
+                )
+
+            stage = "visible_table"
+            page.wait_for_selector(
+                "table",
+                state="visible",
+                timeout=TABLE_TIMEOUT_MS,
+            )
+
+            # Keep the existing NBA/NCAA safeguard: completed
+            # game tables are not pregame prediction tables.
+            if sport in ("nba", "ncaa"):
+                stage = "pregame_prediction_row"
+                page.wait_for_function(
+                    r"""() => Array.from(
+                        document.querySelectorAll('table tbody tr')
+                    ).some(row => {
+                        const cells = Array.from(row.querySelectorAll('td'));
+                        return cells.length >= 10
+                            && /\d+(?:\.\d+)?%/.test(cells[2]?.innerText || '')
+                            && /\d+\.\d+/.test(cells[5]?.innerText || '');
+                    })""",
+                    timeout=PREDICTION_TIMEOUT_MS,
+                )
+            log(
+                "DRATINGS TABLE READY | "
+                f"sport={sport} | attempt={attempt} | status={status}"
+            )
+            return
+
+        except (DRatingsNavigationError, PlaywrightTimeoutError) as exc:
+            retryable = (
+                exc.retryable if isinstance(exc, DRatingsNavigationError)
+                else True
+            )
+            log(
+                "DRATINGS PAGE FAILURE | "
+                f"sport={sport} | attempt={attempt}/{MAX_SCRAPE_ATTEMPTS} | "
+                f"stage={stage} | status={status} | error={exc}"
+            )
+            capture_page_failure(page, sport, attempt, stage, status)
+
+            if not retryable or attempt == MAX_SCRAPE_ATTEMPTS:
+                raise RuntimeError(
+                    f"DRatings {sport} failed at {stage} "
+                    f"(HTTP {status}, attempt {attempt}): {exc}"
+                ) from exc
+
+            pause = RETRY_DELAYS_SECONDS[attempt - 1]
+            log(
+                f"DRATINGS RETRY | sport={sport} | "
+                f"next_attempt={attempt + 1} | sleep_seconds={pause}"
+            )
+            time.sleep(pause)
+
+        except Exception:
+            capture_page_failure(page, sport, attempt, stage, status)
+            raise
+
+
 def scrape_page(page, url, sport=None):
     """
     Read game rows together with their table section.
@@ -599,32 +761,7 @@ def scrape_page(page, url, sport=None):
 
     Unknown table sections are fail-closed.
     """
-    page.goto(
-        url,
-        wait_until="domcontentloaded",
-        timeout=60000,
-    )
-
-    page.wait_for_selector(
-        "table",
-        timeout=60000,
-    )
-
-    # NBA/NCAAM: a completed table is not an upcoming prediction table.
-    # Require an actual first-page pregame prediction row before extraction.
-    # Leave WNBA's existing behavior untouched.
-    if sport in ("nba", "ncaa"):
-        page.wait_for_function(
-            r"""() => Array.from(
-                document.querySelectorAll('table tbody tr')
-            ).some(row => {
-                const cells = Array.from(row.querySelectorAll('td'));
-                return cells.length >= 10
-                    && /\d+(?:\.\d+)?%/.test(cells[2]?.innerText || '')
-                    && /\d+\.\d+/.test(cells[5]?.innerText || '');
-            })""",
-            timeout=60000,
-        )
+    wait_for_dratings_table(page, url, sport)
 
     extracted = page.evaluate(
         """() => {
@@ -1129,17 +1266,9 @@ def main():
                 headless=True
             )
 
+            # Use the actual installed Chromium identity rather than
+            # a stale Chrome 122 user-agent on the Linux runner.
             page = browser.new_page()
-
-            page.set_extra_http_headers({
-                "User-Agent": (
-                    "Mozilla/5.0 "
-                    "(Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) "
-                    "Chrome/122.0.0.0 Safari/537.36"
-                )
-            })
 
             try:
                 for sport, url in URLS.items():
@@ -1287,6 +1416,18 @@ def main():
                 "DRatings scrape failed for: "
                 + "; ".join(errors)
             )
+
+        # A recovered transient error must not commit HTML or screenshots
+        # through the workflow's successful git add -A. Failure artifacts
+        # remain available for the workflow's always() upload step.
+        for diagnostic_path in RUN_DIAGNOSTIC_PATHS:
+            try:
+                diagnostic_path.unlink(missing_ok=True)
+            except OSError as cleanup_error:
+                log(
+                    f"DRATINGS DIAGNOSTICS CLEANUP WARNING | "
+                    f"path={diagnostic_path} | error={cleanup_error}"
+                )
 
         log("STATUS: SUCCESS")
 
