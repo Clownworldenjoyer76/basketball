@@ -13,6 +13,10 @@ Behavior
 - Only game_ids present in both component files are combined.
 - Unmatched files are skipped.
 - Unmatched games are skipped.
+- A matched game that cannot be combined is skipped and counted as an error.
+  The remaining games in that file are still written, and the run ends
+  STATUS: FAILED.
+- Every output row records the margin, total, and moneyline weights used.
 - No game date is required on the command line.
 - Margin uses 50% DRatings + 50% SDV.
 - Total uses 50% DRatings + 50% SDV.
@@ -205,6 +209,9 @@ OUTPUT_FIELDS = [
     "sdv_home_prob",
 
     "prediction_generated_at_utc",
+
+    "moneyline_weight_dratings",
+    "moneyline_weight_sdv",
 ]
 
 
@@ -488,7 +495,9 @@ def sha256_file(
     path: Path,
 ) -> str:
     if not path.exists():
-        return ""
+        raise FileNotFoundError(
+            f"Required file not found for hashing: {path}"
+        )
 
     digest = hashlib.sha256()
 
@@ -749,6 +758,16 @@ def initialize_selected(
         )
 
 
+def train_hint(
+    league: str,
+) -> str:
+    return (
+        "run: python docs/win/basketball/scripts/"
+        "00_intake/basketball_model_ensemble.py "
+        f"--mode train --league {league}"
+    )
+
+
 def load_weights(
     league: str,
 ) -> dict[str, Any]:
@@ -766,7 +785,9 @@ def load_weights(
         )
     ) != desired_status(league):
         raise RuntimeError(
-            f"{league}: weights.json has an unexpected status"
+            f"{league}: weights.json status is "
+            f"{clean(payload.get('status'))!r}; expected "
+            f"{desired_status(league)!r}; {train_hint(league)}"
         )
 
     if clean(
@@ -775,8 +796,9 @@ def load_weights(
         )
     ) != desired_ensemble_version(league):
         raise RuntimeError(
-            f"{league}: ensemble "
-            "version mismatch"
+            f"{league}: weights.json ensemble_version is "
+            f"{clean(payload.get('ensemble_version'))!r}; expected "
+            f"{desired_ensemble_version(league)!r}; {train_hint(league)}"
         )
 
     for target in (
@@ -827,7 +849,8 @@ def load_weights(
             or abs(sdv_weight - expected_sdv) > 1e-12
         ):
             raise RuntimeError(
-                f"{league}: {target} weights differ from configured values"
+                f"{league}: {target} weights differ from configured values; "
+                f"{train_hint(league)}"
             )
 
     return payload
@@ -1647,6 +1670,14 @@ def combine_game(
         "prediction_generated_at_utc": (
             prediction_time
         ),
+
+        "moneyline_weight_dratings": (
+            moneyline_dratings_weight
+        ),
+
+        "moneyline_weight_sdv": (
+            moneyline_sdv_weight
+        ),
     }
 
 
@@ -1681,6 +1712,7 @@ def process_prediction_file(
     sdv_path: Path,
     weights: dict[str, Any],
 ) -> tuple[
+    int,
     int,
     int,
     int,
@@ -1767,6 +1799,7 @@ def process_prediction_file(
             len(
                 sdv_only
             ),
+            0,
         )
 
     # Check both input sources independently against the authoritative slate.
@@ -1794,6 +1827,8 @@ def process_prediction_file(
         dict[str, Any]
     ] = []
 
+    game_errors = 0
+
     for game_id in matched_ids:
         try:
             row = combine_game(
@@ -1820,6 +1855,8 @@ def process_prediction_file(
             )
 
         except Exception as exc:
+            game_errors += 1
+
             log(
                 "GAME SKIPPED | "
                 f"league="
@@ -1845,6 +1882,7 @@ def process_prediction_file(
             len(
                 sdv_only
             ),
+            game_errors,
         )
 
     output_path = (
@@ -1864,6 +1902,7 @@ def process_prediction_file(
         f"{LEAGUE_LABELS[league]} | "
         f"file={filename} | "
         f"rows={len(output_rows)} | "
+        f"game_errors={game_errors} | "
         f"path={output_path}"
     )
 
@@ -1877,6 +1916,7 @@ def process_prediction_file(
         len(
             sdv_only
         ),
+        game_errors,
     )
 
 
@@ -1947,6 +1987,7 @@ def predict_league(
     sdv_only_games = 0
 
     file_errors = 0
+    game_errors = 0
 
     for filename in matching_files:
         try:
@@ -1954,6 +1995,7 @@ def predict_league(
                 written,
                 dratings_only,
                 sdv_only,
+                file_game_errors,
             ) = process_prediction_file(
                 league=league,
                 filename=filename,
@@ -1983,6 +2025,10 @@ def predict_league(
 
             sdv_only_games += (
                 sdv_only
+            )
+
+            game_errors += (
+                file_game_errors
             )
 
         except Exception as exc:
@@ -2034,6 +2080,10 @@ def predict_league(
         "file_errors": (
             file_errors
         ),
+
+        "game_errors": (
+            game_errors
+        ),
     }
 
 
@@ -2074,7 +2124,9 @@ def predict_selected(
             f"sdv_only_files="
             f"{summary['sdv_only_files']} | "
             f"file_errors="
-            f"{summary['file_errors']}"
+            f"{summary['file_errors']} | "
+            f"game_errors="
+            f"{summary['game_errors']}"
         )
 
     return results
@@ -2203,10 +2255,20 @@ def main() -> int:
             in results.values()
         )
 
-        if total_file_errors:
+        total_game_errors = sum(
+            row[
+                "game_errors"
+            ]
+            for row
+            in results.values()
+        )
+
+        if total_file_errors or total_game_errors:
             raise RuntimeError(
-                f"Ensemble prediction failed for {total_file_errors} "
-                "file(s); see basketball_model_ensemble.txt"
+                "Ensemble prediction failed: "
+                f"file_errors={total_file_errors} "
+                f"game_errors={total_game_errors}; "
+                "see basketball_model_ensemble.txt"
             )
 
         log(
@@ -2219,7 +2281,9 @@ def main() -> int:
             f"rows_written="
             f"{total_rows_written} | "
             f"file_errors="
-            f"{total_file_errors}"
+            f"{total_file_errors} | "
+            f"game_errors="
+            f"{total_game_errors}"
         )
 
         print(
@@ -2232,7 +2296,9 @@ def main() -> int:
             f"rows_written="
             f"{total_rows_written} "
             f"file_errors="
-            f"{total_file_errors}"
+            f"{total_file_errors} "
+            f"game_errors="
+            f"{total_game_errors}"
         )
 
         return 0

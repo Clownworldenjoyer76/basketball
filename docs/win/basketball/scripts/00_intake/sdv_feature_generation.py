@@ -129,6 +129,29 @@ def log(message: str) -> None:
         )
 
 
+_PLAYER_COLUMN_WARNED: set[str] = set()
+
+
+def warn_missing_player_columns(
+    row: dict[str, Any],
+    stat: str,
+    columns: tuple[str, ...],
+) -> None:
+    if any(column in row for column in columns):
+        return
+
+    if stat in _PLAYER_COLUMN_WARNED:
+        return
+
+    _PLAYER_COLUMN_WARNED.add(stat)
+
+    log(
+        "WARNING | player stat column missing "
+        f"from data: stat={stat} "
+        f"columns={list(columns)}; counted as 0"
+    )
+
+
 def read_yaml(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(path)
@@ -1471,6 +1494,10 @@ def prepare_team_game_rows(
             if opponent_row is None:
                 continue
 
+            opponent_id = row_team_id(
+                opponent_row
+            )
+
             (
                 possessions,
                 possession_method,
@@ -2385,6 +2412,12 @@ def player_contribution(
             stat
         ]
 
+        warn_missing_player_columns(
+            row,
+            stat,
+            columns,
+        )
+
         value = (
             to_float(
                 first_value(
@@ -2517,6 +2550,14 @@ def player_features(
         ] = []
 
         for row in rows:
+            warn_missing_player_columns(
+                row,
+                "minutes",
+                PLAYER_STAT_COLUMNS[
+                    "minutes"
+                ],
+            )
+
             value = to_float(
                 first_value(
                     row,
@@ -3142,10 +3183,10 @@ def build_possession_index(rows: list[dict[str, Any]]) -> dict[str, list[dict[st
             "_date": context["_date"],
             "_dt": context["_dt"],
             "possession_transition_share": (sum(1 for x in transitions if x) / len(transitions)) if transitions else None,
-            "possession_transition_ppp": (sum(transition_points) / sum(1 for x in transitions if x)) if transitions and any(transitions) and transition_points else None,
+            "possession_transition_ppp": (sum(transition_points) / len(transition_points)) if transition_points else None,
             "possession_avg_duration_seconds": mean(durations),
             "possession_early_offense_share": (sum(1 for x in durations if x <= 7.0) / len(durations)) if durations else None,
-            "possession_ppp": (sum(points) / len(valid)) if points else None,
+            "possession_ppp": (sum(points) / len(points)) if points else None,
         })
     return index_game_summaries(summaries)
 
@@ -3381,6 +3422,35 @@ def feature_row(
             "has blank home/away team id"
         )
 
+    internal_season_text = clean_id(
+        target.get(
+            "internal_season"
+        )
+    )
+
+    if not internal_season_text:
+        raise ValueError(
+            "Target game_id="
+            f"{target_game_id} "
+            "has blank internal_season"
+        )
+
+    sdv_season_text = clean_id(
+        target.get(
+            "sdv_season"
+        )
+        or target.get(
+            "season"
+        )
+    )
+
+    if not sdv_season_text:
+        raise ValueError(
+            "Target game_id="
+            f"{target_game_id} "
+            "has blank sdv_season"
+        )
+
     is_neutral = normalize_neutral(
         target.get(
             "neutral_site"
@@ -3436,23 +3506,10 @@ def feature_row(
             league
         ],
         "internal_season": int(
-            clean_id(
-                target.get(
-                    "internal_season"
-                )
-            )
-            or 0
+            internal_season_text
         ),
         "sdv_season": int(
-            clean_id(
-                target.get(
-                    "sdv_season"
-                )
-                or target.get(
-                    "season"
-                )
-            )
-            or 0
+            sdv_season_text
         ),
         "game_id": target_game_id,
         "game_date": (
@@ -4517,7 +4574,7 @@ def main() -> int:
             "STATUS: SUCCESS | "
             f"files={len(outputs)} "
             "feature_version="
-            f"{cfg['feature_version']}"
+            f"{active_feature_version(cfg)}"
         )
 
         print(

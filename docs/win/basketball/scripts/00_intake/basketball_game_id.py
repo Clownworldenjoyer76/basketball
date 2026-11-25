@@ -12,6 +12,7 @@ from __future__ import annotations
 import csv
 import importlib.util
 import sys
+import traceback
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -55,10 +56,10 @@ def key(row: dict, league_label: str, core):
 
 def _issue(row: dict, league_label: str, source: str, reason: str) -> dict:
     return {
+        **row,
         "league": league_label,
         "source": source,
         "reason": reason,
-        **row,
     }
 
 
@@ -275,6 +276,23 @@ def rewrite_operational_log(log_path: Path, original_text: str, core) -> None:
     log_path.write_text("\n".join(prefix_lines + report + [status_line]) + "\n", encoding="utf-8")
 
 
+def mark_log_failed(log_path: Path, original_text: str, exc: Exception) -> None:
+    """Replace the core's SUCCESS status when the report rewrite fails."""
+    lines = original_text.splitlines()
+    status_index = next(
+        (index for index in range(len(lines) - 1, -1, -1)
+         if "STATUS:" in lines[index]),
+        None,
+    )
+    if status_index is not None:
+        del lines[status_index]
+    stamp = datetime.now().isoformat()
+    lines.append(f"{stamp} | FATAL ERROR: current-date mismatch report failed: {exc}")
+    lines.extend(traceback.format_exc().splitlines())
+    lines.append(f"{stamp} | STATUS: FAILED")
+    log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def main() -> None:
     core = load_core()
     core.main()
@@ -282,7 +300,11 @@ def main() -> None:
     fatal_markers = ("ERROR loading", "ERROR updating", "FATAL ERROR", "STATUS: FAILED")
     if any(marker in original_text for marker in fatal_markers):
         sys.exit(1)
-    rewrite_operational_log(core.LOG_FILE, original_text, core)
+    try:
+        rewrite_operational_log(core.LOG_FILE, original_text, core)
+    except Exception as exc:
+        mark_log_failed(core.LOG_FILE, original_text, exc)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

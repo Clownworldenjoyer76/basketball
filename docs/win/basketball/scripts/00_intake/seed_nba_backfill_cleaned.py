@@ -11,10 +11,22 @@ from __future__ import annotations
 
 import csv
 import os
+import re
+import traceback
+from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 BASE = Path('docs/win/basketball')
 ROOT = BASE / '00_intake'
+ERROR_DIR = BASE / 'errors/00_intake'
+LOG_FILE = ERROR_DIR / 'seed_nba_backfill_cleaned.txt'
+NBA_TEAM_MAP = BASE / 'maps/team_map_nba.csv'
+VALUE_FIELDS = (
+    'home_prob', 'away_prob', 'home_projected_points',
+    'away_projected_points', 'total_projected_points',
+)
+VALUE_TOLERANCE = 1e-9
 OCT20 = '2026_10_20'
 EXPECTED = {
     '2026_10_20': {'401909088', '401909089', '401909090'},
@@ -25,6 +37,17 @@ EXPECTED = {
     },
     '2026_10_22': {'401909093', '401909094'},
 }
+
+
+def log(message: str) -> None:
+    ERROR_DIR.mkdir(parents=True, exist_ok=True)
+    with LOG_FILE.open('a', encoding='utf-8') as handle:
+        handle.write(f'{datetime.now(timezone.utc).isoformat()} | {message}\n')
+
+
+def say(message: str) -> None:
+    print(message)
+    log(message)
 
 
 def read(path: Path) -> tuple[list[str], list[dict[str, str]]]:
@@ -43,8 +66,38 @@ def clean(value: object) -> str:
     return ' '.join(str(value or '').strip().split()).casefold()
 
 
+@lru_cache(maxsize=1)
+def nba_aliases() -> dict[str, str]:
+    result: dict[str, str] = {}
+    with NBA_TEAM_MAP.open(newline='', encoding='utf-8-sig') as handle:
+        reader = csv.DictReader(handle)
+        required = {'league', 'alias', 'canonical_team'}
+        if not required.issubset(set(reader.fieldnames or [])):
+            raise RuntimeError(f'NBA BACKFILL team map has invalid columns: {NBA_TEAM_MAP}')
+        for lineno, entry in enumerate(reader, start=2):
+            if clean(entry.get('league')) != 'nba':
+                continue
+            alias = re.sub(r'[^a-z0-9]', '', clean(entry.get('alias')))
+            canonical = re.sub(r'[^a-z0-9]', '', clean(entry.get('canonical_team')))
+            if not alias or not canonical:
+                raise RuntimeError(f'NBA BACKFILL missing team identity in {NBA_TEAM_MAP}:{lineno}')
+            for key in (alias, canonical):
+                prior = result.get(key)
+                if prior is not None and prior != canonical:
+                    raise RuntimeError(f'NBA BACKFILL conflicting alias {key!r} in {NBA_TEAM_MAP}:{lineno}')
+                result[key] = canonical
+    if not result:
+        raise RuntimeError(f'NBA BACKFILL team map contains no NBA identities: {NBA_TEAM_MAP}')
+    return result
+
+
+def team_key(name: object) -> str:
+    compact = re.sub(r'[^a-z0-9]', '', clean(name))
+    return nba_aliases().get(compact, compact)
+
+
 def matchup(row: dict[str, str]) -> tuple[str, str, str]:
-    return (clean(row.get('game_date')), clean(row.get('home_team')), clean(row.get('away_team')))
+    return (clean(row.get('game_date')), team_key(row.get('home_team')), team_key(row.get('away_team')))
 
 
 def validate_ids(rows: list[dict[str, str]], expected: set[str], path: Path) -> None:
@@ -54,6 +107,33 @@ def validate_ids(rows: list[dict[str, str]], expected: set[str], path: Path) -> 
             f'NBA BACKFILL incomplete game IDs: {path}; '
             f'expected={sorted(expected)}, found={sorted(ids)}'
         )
+
+
+def compare_existing_to_source(
+    existing: list[dict[str, str]],
+    source_rows: list[dict[str, str]],
+    dst: Path,
+    src: Path,
+) -> None:
+    by_id = {str(r.get('game_id') or '').strip(): r for r in source_rows}
+    for row in existing:
+        gid = str(row.get('game_id') or '').strip()
+        source = by_id[gid]
+        for field in VALUE_FIELDS:
+            try:
+                existing_value = float(row[field])
+                source_value = float(source[field])
+            except (KeyError, TypeError, ValueError):
+                raise RuntimeError(
+                    f'NBA BACKFILL existing cleaned {field} missing or invalid: '
+                    f'{dst} game_id={gid}'
+                )
+            if abs(existing_value - source_value) > VALUE_TOLERANCE:
+                raise RuntimeError(
+                    f'NBA BACKFILL existing cleaned {field} differs from ensemble source: '
+                    f'{dst} vs {src} game_id={gid} '
+                    f'existing={existing_value} source={source_value}'
+                )
 
 
 def oct20_reconciliation() -> tuple[Path, list[str], list[dict[str, str]], bool]:
@@ -134,7 +214,8 @@ def remaining_ensemble_seeds() -> list[tuple[Path, list[str], list[dict[str, str
         if dst.is_file():
             _, existing = read(dst)
             validate_ids(existing, EXPECTED[day], dst)
-            print(f'NBA BACKFILL existing cleaned preserved: {dst}')
+            compare_existing_to_source(existing, rows, dst, src)
+            say(f'NBA BACKFILL existing cleaned preserved: {dst}')
             continue
         for field in ('bias_applied', 'margin_bias', 'total_bias'):
             if field not in headers:
@@ -161,22 +242,39 @@ def write_atomic(path: Path, headers: list[str], rows: list[dict[str, str]]) -> 
             tmp.unlink()
 
 
-def main() -> None:
+def run() -> None:
     if os.getenv('BASKETBALL_FULL_REBUILD', '').strip().casefold() not in ('1', 'true', 'yes', 'on'):
-        print('NBA BACKFILL: skipped (not full rebuild)')
+        say('NBA BACKFILL: skipped (not full rebuild)')
+        log('STATUS: SUCCESS | skipped (not full rebuild)')
         return
     # Fail closed: validate every date before writing any output.
     legacy_dst, legacy_headers, legacy_rows, legacy_changed = oct20_reconciliation()
     ready = remaining_ensemble_seeds()
     if legacy_changed:
         write_atomic(legacy_dst, legacy_headers, legacy_rows)
-        print(f'NBA BACKFILL Oct 20 original cleaned preserved; game IDs restored: {legacy_dst}')
+        say(f'NBA BACKFILL Oct 20 original cleaned preserved; game IDs restored: {legacy_dst}')
     else:
-        print(f'NBA BACKFILL Oct 20 original cleaned and game IDs already preserved: {legacy_dst}')
+        say(f'NBA BACKFILL Oct 20 original cleaned and game IDs already preserved: {legacy_dst}')
     for dst, headers, rows in ready:
         write_atomic(dst, headers, rows)
-        print(f'NBA BACKFILL historical cleaned ensemble seeded: {dst} ({len(rows)})')
-    print('NBA BACKFILL HISTORICAL CLEANED INPUTS: PASS')
+        say(f'NBA BACKFILL historical cleaned ensemble seeded: {dst} ({len(rows)})')
+    say('NBA BACKFILL HISTORICAL CLEANED INPUTS: PASS')
+    log(f'STATUS: SUCCESS | seeded={len(ready)} oct20_updated={legacy_changed}')
+
+
+def main() -> None:
+    ERROR_DIR.mkdir(parents=True, exist_ok=True)
+    LOG_FILE.write_text(
+        f'=== SEED NBA BACKFILL CLEANED {datetime.now(timezone.utc).isoformat()} ===\n',
+        encoding='utf-8',
+    )
+    try:
+        run()
+    except Exception as exc:
+        log(f'FATAL: {exc}')
+        log(traceback.format_exc().rstrip())
+        log('STATUS: FAILED')
+        raise
 
 
 if __name__ == '__main__':

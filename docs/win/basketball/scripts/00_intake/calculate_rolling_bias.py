@@ -30,6 +30,14 @@
 # - Dates outside a league's configured season window are offseason.
 # - Rolling/regime-aware windows cross season boundaries and require the full configured window.
 # - Projection error sign is projected_minus_actual.
+# - A league whose status in model_config.yaml is not "active" is skipped
+#   (state status skipped_inactive_league); this is not an error.
+# - If a league ends in error, its failed component keeps the last good value
+#   from the previous state file in last_good_value (with
+#   last_good_generated_at_utc). The component status stays "error", so
+#   clean_basketball_inputs.py still refuses it.
+# - The log ends with STATUS: SUCCESS, STATUS: COMPLETED WITH ERRORS or
+#   STATUS: FAILED (after a fatal error).
 
 from __future__ import annotations
 
@@ -4199,10 +4207,11 @@ def warning_count_from_history(
 
 def skipped_league_state(
     config_status: str | None,
+    status: str = "skipped_no_bias_rules",
 ) -> dict[str, Any]:
     return {
         "status": (
-            "skipped_no_bias_rules"
+            status
         ),
         "config_status": (
             config_status
@@ -4285,6 +4294,29 @@ def process_league(
             config_status_raw
         ).strip().lower()
     )
+
+    # ------------------------------------------------------------
+    # INACTIVE LEAGUE
+    # ------------------------------------------------------------
+
+    if config_status != "active":
+        log(
+            (
+                f"{league_upper(league)} | "
+                f"SKIPPED | "
+                f"league status={config_status!r} "
+                f"is not active in model_config.yaml"
+            )
+        )
+
+        return (
+            skipped_league_state(
+                config_status,
+                "skipped_inactive_league",
+            ),
+            True,
+            False,
+        )
 
     # ------------------------------------------------------------
     # LOAD BIAS RULES
@@ -4594,11 +4626,45 @@ def process_league(
     # WARNING STATUS
     # ------------------------------------------------------------
 
-    warning_count = (
-        warning_count_from_history(
-            history_meta
+    try:
+        warning_count = (
+            warning_count_from_history(
+                history_meta
+            )
         )
-    )
+
+    except Exception as exc:
+        log(
+            (
+                f"{league_upper(league)} | "
+                f"ERROR | history warning "
+                f"count failed | {exc}"
+            ),
+            "ERROR",
+        )
+
+        return (
+            {
+                "status": "error",
+                "config_status": (
+                    config_status
+                ),
+                "error": str(
+                    exc
+                ),
+                "margin_bias": (
+                    margin
+                ),
+                "total_bias": (
+                    total
+                ),
+                "history": (
+                    history_meta
+                ),
+            },
+            False,
+            False,
+        )
 
     league_status = (
         "ready_with_warnings"
@@ -4649,6 +4715,159 @@ def process_league(
 # ============================================================================
 # STATE OUTPUT
 # ============================================================================
+
+def load_previous_state() -> dict[str, Any] | None:
+    """Read the existing state file (before it is replaced), if any."""
+    try:
+        if not STATE_PATH.exists():
+            return None
+
+        with open(
+            STATE_PATH,
+            "r",
+            encoding="utf-8",
+        ) as f:
+            data = yaml.safe_load(f)
+
+        return data if isinstance(data, dict) else None
+
+    except Exception as exc:
+        log(
+            (
+                f"WARNING | previous state could not be read; "
+                f"last_good_value not carried: {exc}"
+            ),
+            "WARN",
+        )
+
+        return None
+
+
+def _timestamp_text(value: Any) -> str | None:
+    if value is None:
+        return None
+
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+
+    return str(value)
+
+
+def last_good_from_previous(
+    previous_state: dict[str, Any] | None,
+    league: str,
+    component: str,
+) -> tuple[Any, str | None]:
+    """Return (value, generated_at) of the last good value, or (None, None)."""
+    if not previous_state:
+        return None, None
+
+    leagues = previous_state.get("leagues")
+    league_state = (
+        leagues.get(league)
+        if isinstance(leagues, dict)
+        else None
+    )
+
+    if not isinstance(league_state, dict):
+        return None, None
+
+    previous = league_state.get(component)
+
+    if not isinstance(previous, dict):
+        return None, None
+
+    value = previous.get("value")
+
+    if (
+        previous.get("status") == "ready"
+        and isinstance(value, (int, float))
+        and not isinstance(value, bool)
+    ):
+        return (
+            value,
+            _timestamp_text(
+                previous_state.get("generated_at_utc")
+            ),
+        )
+
+    carried = previous.get("last_good_value")
+
+    if (
+        isinstance(carried, (int, float))
+        and not isinstance(carried, bool)
+    ):
+        return (
+            carried,
+            _timestamp_text(
+                previous.get("last_good_generated_at_utc")
+            ),
+        )
+
+    return None, None
+
+
+def attach_last_good_values(
+    state: dict[str, Any],
+    previous_state: dict[str, Any] | None,
+) -> int:
+    """For leagues in error, keep the last good value of each failed component.
+
+    The component status stays "error"; only last_good_value and
+    last_good_generated_at_utc are added. Returns how many were attached.
+    """
+    attached = 0
+
+    for league, league_state in state["leagues"].items():
+        if (
+            not isinstance(league_state, dict)
+            or league_state.get("status") != "error"
+        ):
+            continue
+
+        for component in (
+            "margin_bias",
+            "total_bias",
+        ):
+            current = league_state.get(component)
+
+            if (
+                isinstance(current, dict)
+                and current.get("status") not in (None, "error")
+            ):
+                continue
+
+            value, generated = last_good_from_previous(
+                previous_state,
+                league,
+                component,
+            )
+
+            if value is None:
+                continue
+
+            if not isinstance(current, dict):
+                current = {
+                    "status": "error",
+                    "value": None,
+                }
+                league_state[component] = current
+
+            current["last_good_value"] = value
+            current["last_good_generated_at_utc"] = generated
+            attached += 1
+
+            log(
+                (
+                    f"{league_upper(league)} | "
+                    f"LAST GOOD VALUE KEPT | "
+                    f"{component}={value} "
+                    f"from={generated}"
+                )
+            )
+
+    return attached
+
 
 def write_state(
     state: dict[str, Any],
@@ -4858,6 +5077,11 @@ def main() -> int:
                 "run_status"
             ] = "success"
 
+        attach_last_good_values(
+            state,
+            load_previous_state(),
+        )
+
         write_state(
             state
         )
@@ -4868,6 +5092,17 @@ def main() -> int:
                 f"{state['run_status']}"
             )
         )
+
+        if failures:
+            log(
+                "STATUS: COMPLETED WITH ERRORS",
+                "ERROR",
+            )
+
+        else:
+            log(
+                "STATUS: SUCCESS"
+            )
 
         return (
             1
@@ -4882,6 +5117,11 @@ def main() -> int:
                 f"{exc}\n"
                 f"{traceback.format_exc()}"
             ),
+            "ERROR",
+        )
+
+        log(
+            "STATUS: FAILED",
             "ERROR",
         )
 

@@ -1,6 +1,7 @@
 
-# docs/win/basketball/scripts/00_intake/transform_basketball.py
+# docs/win/basketball/scripts/00_intake/transform_basketball_core.py
 
+import math
 import os
 import re
 import json
@@ -12,6 +13,8 @@ from zoneinfo import ZoneInfo
 
 ERROR_DIR = Path("docs/win/basketball/errors/00_intake")
 ERROR_DIR.mkdir(parents=True, exist_ok=True)
+
+PROB_SUM_TOLERANCE = 0.1
 
 LEAGUE_CONFIG = {
     "nba": {
@@ -82,7 +85,13 @@ def ensure_dir(path: str):
 
 def save(df: pd.DataFrame, path: str, files_written: list, league_key: str):
     ensure_dir(path)
-    df.to_csv(path, index=False)
+    tmp_path = path + ".tmp"
+    try:
+        df.to_csv(tmp_path, index=False)
+        os.replace(tmp_path, path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
     files_written.append((path, len(df)))
     log(league_key, f"WROTE {path} ({len(df)} rows)")
     print(f"  Saved {len(df)} rows -> {path}")
@@ -107,6 +116,73 @@ def games_to_df(games: list) -> pd.DataFrame:
     return df
 
 
+def require_number(value, label: str, context: str) -> float:
+    if value is None:
+        raise ValueError(f"{label} is missing: {context}")
+    try:
+        is_null = bool(pd.isna(value))
+    except (TypeError, ValueError):
+        is_null = False
+    if is_null:
+        raise ValueError(f"{label} is null/NaN: {context}")
+    text = str(value).replace("%", "").strip()
+    if text == "":
+        raise ValueError(f"{label} is blank: {context}")
+    try:
+        number = float(text)
+    except ValueError as exc:
+        raise ValueError(f"{label} is not numeric ({value!r}): {context}") from exc
+    if not math.isfinite(number):
+        raise ValueError(f"{label} is not finite ({value!r}): {context}")
+    return number
+
+
+def is_valid_game_date(value) -> bool:
+    text = str(value)
+    if not re.fullmatch(r"\d{4}_\d{2}_\d{2}", text):
+        return False
+    try:
+        datetime.strptime(text, "%Y_%m_%d")
+    except ValueError:
+        return False
+    return True
+
+
+def drop_bad_dates(
+    df: pd.DataFrame,
+    league_key: str,
+    source_name: str,
+    stats: dict,
+) -> pd.DataFrame:
+    valid = df["game_date"].apply(is_valid_game_date)
+    for _, row in df[~valid].iterrows():
+        log(
+            league_key,
+            "ERROR unparseable date, game skipped: "
+            f"file={source_name} date_time={row.get('date_time')!r} "
+            f"home={row.get('team2')!r} away={row.get('team1')!r}",
+        )
+    stats["date_rows_skipped"] = stats.get("date_rows_skipped", 0) + int((~valid).sum())
+    return df[valid].copy()
+
+
+def check_no_duplicate_games(df: pd.DataFrame, source_name: str) -> None:
+    seen = set()
+    duplicates = set()
+    for key in zip(
+        df["game_date"],
+        df["team1"].astype(str).str.strip().str.casefold(),
+        df["team2"].astype(str).str.strip().str.casefold(),
+    ):
+        if key in seen:
+            duplicates.add(key)
+        seen.add(key)
+    if duplicates:
+        raise ValueError(
+            f"Duplicate games inside {source_name}: {sorted(duplicates)[:10]}"
+        )
+
+
 def process_predictions(
     df: pd.DataFrame,
     files_written: list,
@@ -125,6 +201,7 @@ def process_predictions(
         return
 
     today_ny = datetime.now(ZoneInfo("America/New_York")).strftime("%Y_%m_%d")
+    pending = []
 
     for date_val, group in upcoming.groupby("game_date"):
         path = f"{cfg['predictions_dir']}/{date_val}_{league_label}_predictions.csv"
@@ -141,18 +218,34 @@ def process_predictions(
 
         rows = []
         for _, row in group.iterrows():
-            try:
-                home_prob = float(str(row["team2_win_pct"]).replace("%", "")) / 100
-                away_prob = float(str(row["team1_win_pct"]).replace("%", "")) / 100
-            except (ValueError, TypeError):
-                home_prob = away_prob = ""
+            context = (
+                f"game_date={date_val} home={row['team2']!r} away={row['team1']!r}"
+            )
+            home_prob = require_number(
+                row["team2_win_pct"], "home win pct", context
+            ) / 100
+            away_prob = require_number(
+                row["team1_win_pct"], "away win pct", context
+            ) / 100
+            for label, value in (("home_prob", home_prob), ("away_prob", away_prob)):
+                if not 0.0 <= value <= 1.0:
+                    raise ValueError(
+                        f"{label}={value:.6f} outside 0-1: {context}"
+                    )
+            prob_sum = home_prob + away_prob
+            if abs(prob_sum - 1.0) > PROB_SUM_TOLERANCE:
+                raise ValueError(
+                    f"home_prob + away_prob = {prob_sum:.6f}, differs from 1 by more "
+                    f"than tolerance {PROB_SUM_TOLERANCE}: {context}"
+                )
 
-            try:
-                away_proj = float(row["proj_score_1"])
-                home_proj = float(row["proj_score_2"])
-                total_proj = round(away_proj + home_proj, 1)
-            except (ValueError, TypeError):
-                away_proj = home_proj = total_proj = ""
+            away_proj = require_number(
+                row["proj_score_1"], "away projected score", context
+            )
+            home_proj = require_number(
+                row["proj_score_2"], "home projected score", context
+            )
+            total_proj = round(away_proj + home_proj, 1)
 
             rows.append({
                 "sport": "Basketball",
@@ -162,8 +255,8 @@ def process_predictions(
                 "game_time": row["game_time"],
                 "home_team": row["team2"],
                 "away_team": row["team1"],
-                "home_prob": f"{home_prob:.6f}" if home_prob != "" else "",
-                "away_prob": f"{away_prob:.6f}" if away_prob != "" else "",
+                "home_prob": f"{home_prob:.6f}",
+                "away_prob": f"{away_prob:.6f}",
                 "home_projected_points": home_proj,
                 "away_projected_points": away_proj,
                 "total_projected_points": total_proj,
@@ -174,6 +267,22 @@ def process_predictions(
             "home_team", "away_team", "home_prob", "away_prob",
             "home_projected_points", "away_projected_points", "total_projected_points",
         ])
+
+        if Path(path).is_file():
+            existing_rows = len(
+                pd.read_csv(path, dtype=str, keep_default_na=False)
+            )
+            if len(out) < existing_rows:
+                log(
+                    league_key,
+                    f"KEPT EXISTING PREDICTIONS (new rows fewer): {path} "
+                    f"existing_rows={existing_rows} new_rows={len(out)}",
+                )
+                continue
+
+        pending.append((path, out))
+
+    for path, out in pending:
         save(out, path, files_written, league_key)
         stats["prediction_files_written"] += 1
         stats["prediction_rows_written"] += len(out)
@@ -196,6 +305,8 @@ def process_final_scores(
         log(league_key, f"No completed {league_label} games found in this file.")
         return
 
+    pending = []
+
     for date_val, group in completed.groupby("game_date"):
         path = f"{cfg['final_scores_dir']}/{date_val}_final_scores_{league_label}.csv"
 
@@ -205,14 +316,14 @@ def process_final_scores(
 
         rows = []
         for _, row in group.iterrows():
-            try:
-                away_score = int(float(row["score1"]))
-                home_score = int(float(row["score2"]))
-                total = away_score + home_score
-                away_spread = away_score - home_score
-                home_spread = home_score - away_score
-            except (ValueError, TypeError):
-                away_score = home_score = total = away_spread = home_spread = ""
+            context = (
+                f"game_date={date_val} home={row['team2']!r} away={row['team1']!r}"
+            )
+            away_score = int(require_number(row["score1"], "away score", context))
+            home_score = int(require_number(row["score2"], "home score", context))
+            total = away_score + home_score
+            away_spread = away_score - home_score
+            home_spread = home_score - away_score
 
             rows.append({
                 "sport": "Basketball",
@@ -233,6 +344,9 @@ def process_final_scores(
             "home_team", "away_team", "home_score", "away_score",
             "total", "home_spread", "away_spread",
         ])
+        pending.append((path, out))
+
+    for path, out in pending:
         save(out, path, files_written, league_key)
         stats["final_score_files_written"] += 1
         stats["final_score_rows_written"] += len(out)
@@ -253,6 +367,7 @@ def write_summary(
     log(league_key, f"Input files found: {stats['input_files_found']}")
     log(league_key, f"Input files processed: {stats['input_files_processed']}")
     log(league_key, f"Raw games loaded: {stats['games_loaded']}")
+    log(league_key, f"Rows skipped (unparseable date): {stats.get('date_rows_skipped', 0)}")
     log(league_key, f"Upcoming games found: {stats['upcoming_games']}")
     log(league_key, f"Completed games found: {stats['completed_games']}")
     log(league_key, f"Prediction files written: {stats['prediction_files_written']}")
@@ -272,6 +387,11 @@ def process_league(league_key: str):
     input_dir = cfg["input_dir"]
 
     init_log(league_key)
+    log(
+        league_key,
+        "CHECKS | probability_range=0-1 "
+        f"probability_sum_tolerance={PROB_SUM_TOLERANCE}",
+    )
 
     files_written = []
     stats = {
@@ -285,6 +405,7 @@ def process_league(league_key: str):
         "final_score_files_written": 0,
         "final_score_rows_written": 0,
         "file_errors": 0,
+        "date_rows_skipped": 0,
     }
 
     try:
@@ -295,7 +416,7 @@ def process_league(league_key: str):
 
         run_date = (
             os.getenv("DATE")
-            or datetime.now().strftime("%Y_%m_%d")
+            or datetime.now(ZoneInfo("America/New_York")).strftime("%Y_%m_%d")
         )
 
         current_raw_path = (
@@ -320,11 +441,6 @@ def process_league(league_key: str):
         json_files = sorted(input_dir.glob("*.json"))
         stats["input_files_found"] = len(json_files)
 
-        if not json_files:
-            log(league_key, f"No JSON files found in {input_dir}")
-            write_summary(league_key, files_written, stats, "SUCCESS (nothing to do)")
-            return
-
         for json_path in json_files:
             log(league_key, f"Processing {league_label}: {json_path}")
             try:
@@ -334,6 +450,9 @@ def process_league(league_key: str):
                 log(league_key, f"{league_label} games loaded from {json_path.name}: {len(games)}")
 
                 df = games_to_df(games)
+                if not df.empty:
+                    df = drop_bad_dates(df, league_key, json_path.name, stats)
+                    check_no_duplicate_games(df, json_path.name)
                 if not df.empty:
                     process_predictions(df, files_written, league_key, stats)
                     process_final_scores(df, files_written, league_key, stats)
@@ -354,6 +473,7 @@ def process_league(league_key: str):
             status = "SUCCESS"
 
         write_summary(league_key, files_written, stats, status)
+        return status
 
     except Exception as e:
         log(league_key, f"FATAL ERROR: {e}\n{traceback.format_exc()}")
@@ -365,8 +485,21 @@ def process_league(league_key: str):
 
 
 def main():
+    failed = []
     for league_key in ["nba", "ncaam", "wnba"]:
-        process_league(league_key)
+        try:
+            status = process_league(league_key)
+        except Exception as exc:
+            failed.append(league_key)
+            print(f"{league_key} FAILED: {exc}")
+            continue
+        if str(status).startswith(("FAILED", "PARTIAL")):
+            failed.append(league_key)
+            print(f"{league_key} finished with status: {status}")
+
+    if failed:
+        print(f"\nLeagues with errors: {failed}")
+        raise SystemExit(1)
 
     print("\nDone.")
 

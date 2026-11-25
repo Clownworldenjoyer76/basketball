@@ -163,7 +163,13 @@ def convert_utc_to_et(date_time_str: str) -> str:
         TypeError,
         ValueError,
         OverflowError,
-    ):
+    ) as exc:
+        log(
+            "DATE_TIME CONVERSION WARNING | "
+            f"value={date_time_str!r} | "
+            f"error={exc} | "
+            "original text kept"
+        )
         return date_time_str
 
 
@@ -317,6 +323,10 @@ def parse_nba_ncaa(row, sport):
         team1, team2 = split_pair_expected(
             row[1], "teams", sport, row
         )
+
+        # Same as WNBA: store team names without the record suffix.
+        team1 = strip_record(team1)
+        team2 = strip_record(team2)
 
         wp1, wp2 = split_pair_expected(
             row[2], "win_pct", sport, row
@@ -576,29 +586,6 @@ def parse_row(row, sport):
         return parse_wnba(row)
 
     return parse_nba_ncaa(row, sport)
-
-
-def normalize_section_heading(text: str) -> str:
-    text = " ".join(
-        normalize_cell(text).lower().split()
-    )
-
-    if "games in progress" in text:
-        return "in_progress"
-
-    if (
-        "completed games" in text
-        or "final games" in text
-    ):
-        return "completed"
-
-    if (
-        "upcoming games" in text
-        or "upcoming" == text
-    ):
-        return "upcoming"
-
-    return ""
 
 
 class DRatingsNavigationError(RuntimeError):
@@ -895,21 +882,43 @@ def clean_section(value: str) -> str:
     return "unknown"
 
 
+def identity_date(date_time) -> str:
+    """
+    Return the calendar date of a saved date_time value.
+
+    A value that is not a valid date and time
+    (for example "Postponed") is compared as text.
+    """
+    text = normalize_cell(date_time)
+
+    try:
+        return datetime.strptime(
+            text,
+            "%m/%d/%Y %I:%M %p",
+        ).strftime("%m/%d/%Y")
+
+    except ValueError:
+        return text.casefold()
+
+
 def game_identity(game: dict) -> tuple:
     """
     The existing raw DRatings JSON does not contain
     ESPN game IDs.
 
     Therefore, identify games using the existing
-    league, converted ET date/time, and two team names.
+    league, converted ET calendar date, and two team
+    names. The tip-off time is not part of the identity,
+    so a changed time updates the saved game instead of
+    creating a second record.
     """
     return (
         normalize_cell(
             game.get("sport")
         ).casefold(),
-        normalize_cell(
+        identity_date(
             game.get("date_time")
-        ).casefold(),
+        ),
         strip_record(
             normalize_cell(game.get("team1"))
         ).casefold(),
@@ -1077,11 +1086,21 @@ def merge_upcoming_prediction(
     # Never replace the identity of an existing game.
     for field in (
         "sport",
-        "date_time",
         "team1",
         "team2",
     ):
         result[field] = saved[field]
+
+    # The tip-off time is not part of the identity.
+    # A changed time on the Upcoming Games table is saved.
+    new_time = normalize_cell(
+        incoming.get("date_time")
+    )
+
+    result["date_time"] = (
+        new_time
+        or saved["date_time"]
+    )
 
     # A pregame prediction must not be replaced by
     # a live score or final score.

@@ -48,6 +48,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import polars as pl
@@ -81,6 +82,13 @@ PREDICTION_FIELDS = [
     'prediction_generated_at_utc',
 ]
 PROBABILITY_EPSILON = 1e-12
+NY_TZ = ZoneInfo('America/New_York')
+DEFAULT_SPORT = 'basketball'
+MIN_TEAM_SCORE = 50.0
+MAX_TEAM_SCORE = 300.0
+MIN_TOTAL_SCORE = 100.0
+MAX_TOTAL_SCORE = 500.0
+_HISTORY_INDEX_CACHE: dict[str, Any] = {}
 
 def clean(value: Any) -> str:
     return '' if value is None else str(value).strip()
@@ -656,6 +664,13 @@ def build_feature_targets(
             )
 
         fallback_count += 1
+        log(
+            'FALLBACK CONTEXT ROW | '
+            f'league={LEAGUE_LABELS[league]} '
+            f'game_date={game_date} game_id={game_id} '
+            f'home_team={home_team!r} away_team={away_team!r} '
+            'neutral_site=blank venue=blank'
+        )
         targets.append({
             'sport': clean(slate_row.get('sport')) or 'basketball',
             'league': LEAGUE_LABELS[league],
@@ -700,15 +715,19 @@ def generate_current_features(
 ) -> Path:
     paths = feature_generation.configured_paths(cfg)
     history_root = paths['history_input_root']
+    history_indexes = _HISTORY_INDEX_CACHE.get(league)
+    if history_indexes is None:
+        history_indexes = feature_generation.build_indexes(
+            history_root, league, cfg
+        )
+        _HISTORY_INDEX_CACHE[league] = history_indexes
     (
         _,
         team_index,
         player_index,
         home_venue_index,
         league_efficiency_index,
-    ) = feature_generation.build_indexes(
-        history_root, league, cfg
-    )
+    ) = history_indexes
     targets = build_feature_targets(
         cfg,
         league,
@@ -911,6 +930,43 @@ def validate_artifacts(
         raise RuntimeError('Invalid categorical feature order')
     if numeric_order + categorical_order != raw_order:
         raise RuntimeError('Raw feature order mismatch')
+
+    numeric_scaling = margin_encoder.get('numeric_scaling')
+    categorical_encoding = margin_encoder.get(
+        'categorical_encoding'
+    )
+    if not isinstance(numeric_scaling, list):
+        raise RuntimeError('numeric_scaling invalid')
+    if not isinstance(categorical_encoding, list):
+        raise RuntimeError('categorical_encoding invalid')
+    scaled_names = {
+        clean(item.get('name'))
+        for item in numeric_scaling
+        if isinstance(item, dict)
+    }
+    encoded_names = {
+        clean(item.get('name'))
+        for item in categorical_encoding
+        if isinstance(item, dict)
+    }
+    missing_scaling = [
+        name for name in numeric_order
+        if clean(name) not in scaled_names
+    ]
+    missing_encoding = [
+        name for name in categorical_order
+        if clean(name) not in encoded_names
+    ]
+    if missing_scaling:
+        raise RuntimeError(
+            'numeric_scaling missing entries for numeric '
+            f'features: {missing_scaling}'
+        )
+    if missing_encoding:
+        raise RuntimeError(
+            'categorical_encoding missing entries for '
+            f'categorical features: {missing_encoding}'
+        )
 
     for model_name, model in (
         ('margin', margin),
@@ -1282,14 +1338,43 @@ def build_prediction_row(
         margin_residual_mean,
         margin_residual_std,
     )
+    adjusted_margin = expected_margin + margin_residual_mean
+    adjusted_total = expected_total + total_residual_mean
     home_projected_points = (
-        expected_total + expected_margin
+        adjusted_total + adjusted_margin
     ) / 2.0
     away_projected_points = (
-        expected_total - expected_margin
+        adjusted_total - adjusted_margin
     ) / 2.0
+    game_id = clean_id(slate_row['game_id'])
+    for field, value, low, high in (
+        (
+            'home_projected_points',
+            home_projected_points,
+            MIN_TEAM_SCORE,
+            MAX_TEAM_SCORE,
+        ),
+        (
+            'away_projected_points',
+            away_projected_points,
+            MIN_TEAM_SCORE,
+            MAX_TEAM_SCORE,
+        ),
+        (
+            'total_projected_points',
+            adjusted_total,
+            MIN_TOTAL_SCORE,
+            MAX_TOTAL_SCORE,
+        ),
+    ):
+        if not low <= value <= high:
+            raise RuntimeError(
+                'Projected score outside allowed range: '
+                f'game_id={game_id} {field}={value:.4f} '
+                f'allowed={low}-{high}'
+            )
     return {
-        'sport': clean(slate_row.get('sport')) or 'Basketball',
+        'sport': clean(slate_row.get('sport')) or DEFAULT_SPORT,
         'league': clean(slate_row.get('league')),
         'game_id': clean_id(slate_row['game_id']),
         'game_date': clean(slate_row['game_date']),
@@ -1305,9 +1390,9 @@ def build_prediction_row(
         'raw_away_ml_prob': raw_away_ml_prob,
         'home_projected_points': home_projected_points,
         'away_projected_points': away_projected_points,
-        'total_projected_points': expected_total,
-        'expected_margin': expected_margin,
-        'expected_total': expected_total,
+        'total_projected_points': adjusted_total,
+        'expected_margin': adjusted_margin,
+        'expected_total': adjusted_total,
         'margin_residual_mean': margin_residual_mean,
         'margin_residual_std': margin_residual_std,
         'total_residual_mean': total_residual_mean,
@@ -1373,6 +1458,19 @@ def run_prediction(
             f'game_date={game_date} path={daily_path} | skipped'
         )
         return None
+    for index, slate_row in enumerate(slate_rows, start=1):
+        slate_league = clean(slate_row.get('league'))
+        if not slate_league:
+            raise RuntimeError(
+                f'{daily_path}: row={index} '
+                f"game_id={slate_row['game_id']} has blank league"
+            )
+        if slate_league.upper() != label:
+            raise RuntimeError(
+                f'{daily_path}: row={index} '
+                f"game_id={slate_row['game_id']} league mismatch "
+                f'expected={label} actual={slate_league}'
+            )
     log(
         f'DAILY SLATE READY | league={label} '
         f'game_date={game_date} rows={len(slate_rows)} '
@@ -1491,6 +1589,7 @@ def main() -> int:
         f'=== SDV PRODUCTION PREDICTION {utc_now()} ===\n',
         encoding='utf-8',
     )
+    _HISTORY_INDEX_CACHE.clear()
     try:
         cfg = feature_generation.read_yaml(args.config)
         feature_generation.validate_config(cfg)
@@ -1502,8 +1601,21 @@ def main() -> int:
                 )
             game_dates = [game_date]
         else:
-            game_dates = discover_daily_game_dates(
+            discovered_dates = discover_daily_game_dates(
                 args.league
+            )
+            today_eastern = datetime.now(NY_TZ).strftime(
+                '%Y_%m_%d'
+            )
+            game_dates = [
+                d for d in discovered_dates
+                if d >= today_eastern
+            ]
+            log(
+                'PAST DATES LEFT ALONE | '
+                f'league={LEAGUE_LABELS[args.league]} '
+                f'today_eastern={today_eastern} '
+                f'past_dates={len(discovered_dates) - len(game_dates)}'
             )
 
         label = LEAGUE_LABELS[args.league]
@@ -1591,7 +1703,7 @@ def main() -> int:
             f'dates_skipped={dates_skipped} '
             f'date_errors={date_errors}'
         )
-        return 0
+        return 1 if date_errors else 0
     except Exception as exc:
         log(f'FATAL: {exc}')
         log(traceback.format_exc().rstrip())

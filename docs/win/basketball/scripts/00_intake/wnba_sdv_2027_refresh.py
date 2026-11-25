@@ -14,6 +14,8 @@ import csv
 import json
 import os
 import shutil
+import sys
+import traceback
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -29,6 +31,25 @@ LOOKBACK=21
 LOOKAHEAD=14
 MIN_TIPOFF_LAG_HOURS=8
 FULL_SCAN_INTERVAL_DAYS=7
+ERROR_DIR=Path('docs/win/basketball/errors/00_intake')
+LOG_FILE=ERROR_DIR / 'wnba_sdv_2027_refresh.txt'
+
+def init_log():
+    ERROR_DIR.mkdir(parents=True, exist_ok=True)
+    LOG_FILE.write_text(
+        '=== WNBA SDV 2027 REFRESH '+datetime.now(timezone.utc).isoformat()+' ===\n',
+        encoding='utf-8',
+    )
+
+
+def log(message):
+    try:
+        ERROR_DIR.mkdir(parents=True, exist_ok=True)
+        with LOG_FILE.open('a', encoding='utf-8') as handle:
+            handle.write(datetime.now(timezone.utc).isoformat()+' | '+str(message)+'\n')
+    except OSError as exc:
+        print('LOG WRITE FAILED: '+str(exc), file=sys.stderr)
+
 
 
 def backup_dir():
@@ -171,7 +192,7 @@ def atomic_update(entries):
     return str(backups)
 
 
-def refresh(repo_root=None, *, dry_run=False, lookback=LOOKBACK, lookahead=LOOKAHEAD, now=None, full_scan=False):
+def _refresh(repo_root=None, *, dry_run=False, lookback=LOOKBACK, lookahead=LOOKAHEAD, now=None, full_scan=False):
     root=fullpath(repo_root or Path.cwd())
     now=now or datetime.now(timezone.utc)
     if now.tzinfo is None:raise ValueError('Clock must include UTC offset')
@@ -213,6 +234,7 @@ def refresh(repo_root=None, *, dry_run=False, lookback=LOOKBACK, lookahead=LOOKA
     if not full_scan and not full_stamp.exists():full_scan=True
     first=start if full_scan else max(start,today-timedelta(days=lookback))
     events=fetch_2027(now,first,end)
+    log('SCAN | start='+str(first)+' end='+str(end)+' full_scan='+str(bool(full_scan))+' api_events='+str(len(events)))
     known_in_window={str(r['game_id']) for r in games.select(['game_id','game_date']).to_dicts() if first.strftime('%Y_%m_%d') <= str(r['game_date']) <= end.strftime('%Y_%m_%d')}
     missing=known_in_window-set(events)
     if missing:raise RuntimeError('ESPN 2027 scoreboard omitted staged completed games: '+repr(sorted(missing)[:15]))
@@ -235,6 +257,7 @@ def refresh(repo_root=None, *, dry_run=False, lookback=LOOKBACK, lookahead=LOOKA
             continue
         tip=datetime.fromisoformat(ev['date'].replace('Z','+00:00'))
         if now-tip < timedelta(hours=MIN_TIPOFF_LAG_HOURS):
+            log('LAG SKIP | game_id='+gid+' completed less than '+str(MIN_TIPOFF_LAG_HOURS)+'h after tipoff')
             continue
         raw=get_json('https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/summary?event='+gid)
         issues=[]
@@ -245,6 +268,7 @@ def refresh(repo_root=None, *, dry_run=False, lookback=LOOKBACK, lookahead=LOOKA
         if len(trs)!=2 or len(prs)<10:
             raise RuntimeError('Insufficient 2027 boxscore rows '+gid)
         new_game.append(gr);new_team.extend(trs);new_player.extend(prs)
+        log('ADDED COMPLETED GAME | game_id='+gid)
     if new_game:
         games=fit_schema(new_game,games)
         teams=fit_schema(new_team,teams)
@@ -276,19 +300,49 @@ def refresh(repo_root=None, *, dry_run=False, lookback=LOOKBACK, lookahead=LOOKA
     if entries:
         result['backup_directory']=atomic_update(entries)
         result['repo_modified']=True
+        log('WROTE | files='+str([str(p) for p,_ in entries])+' backup_directory='+result['backup_directory'])
     if full_scan:
         full_stamp.parent.mkdir(parents=True,exist_ok=True)
         full_stamp.write_text(json.dumps({'finished_at_utc':now.isoformat(),'games':games.height},indent=2),encoding='utf-8')
     return result
 
 
+def refresh(repo_root=None, *, dry_run=False, lookback=LOOKBACK, lookahead=LOOKAHEAD, now=None, full_scan=False):
+    log('REFRESH START | dry_run='+str(dry_run)+' lookback='+str(lookback)+' lookahead='+str(lookahead)+' full_scan='+str(full_scan))
+    try:
+        result=_refresh(repo_root, dry_run=dry_run, lookback=lookback, lookahead=lookahead, now=now, full_scan=full_scan)
+    except Exception as exc:
+        log('REFRESH FAILED | '+type(exc).__name__+': '+str(exc))
+        log(traceback.format_exc().rstrip())
+        raise
+    log('REFRESH RESULT | '+json.dumps(result, sort_keys=True, default=str))
+    return result
+
+
+
 def cli():
     import argparse
-    ap=argparse.ArgumentParser()
-    ap.add_argument('--repo',type=Path,default=Path.cwd())
-    ap.add_argument('--dry-run',action='store_true')
-    ap.add_argument('--full-scan',action='store_true')
-    ns=ap.parse_args()
-    print(json.dumps(refresh(ns.repo,dry_run=ns.dry_run,full_scan=ns.full_scan),indent=2))
+    init_log()
+    try:
+        ap=argparse.ArgumentParser()
+        ap.add_argument('--repo',type=Path,default=Path.cwd())
+        ap.add_argument('--dry-run',action='store_true')
+        ap.add_argument('--full-scan',action='store_true')
+        ns=ap.parse_args()
+        result=refresh(ns.repo,dry_run=ns.dry_run,full_scan=ns.full_scan)
+        print(json.dumps(result,indent=2))
+    except SystemExit as exc:
+        if exc.code in (None, 0):
+            log('STATUS: SUCCESS | exited without refresh')
+        else:
+            log('FATAL: exit code '+str(exc.code))
+            log('STATUS: FAILED')
+        raise
+    except Exception as exc:
+        log('FATAL: '+str(exc))
+        log(traceback.format_exc().rstrip())
+        log('STATUS: FAILED')
+        raise
+    log('STATUS: SUCCESS | status='+str(result.get('status')))
 
 if __name__=='__main__':cli()

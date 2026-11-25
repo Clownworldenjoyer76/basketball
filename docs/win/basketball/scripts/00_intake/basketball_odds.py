@@ -32,11 +32,17 @@ wnba:
 
 Both normal calendar-year windows and cross-year windows are supported.
 
-After a successful collection, raw sportsbook files are normalized to one row
-per (date, home team, away team) matchup. Numeric ESPN game IDs outrank legacy
-IDs; legacy alias rows are merged into the canonical row and removed.
-Conflicting numeric IDs for the same matchup are a hard failure. Rows with
-unresolved placeholder teams are excluded from matchup consolidation.
+After collection, raw sportsbook files are normalized to one row per (date,
+home team, away team) matchup. This cleanup also runs when the collector
+reported errors. Numeric ESPN game IDs outrank legacy IDs; legacy alias rows are
+merged into the canonical row and removed. Conflicting numeric IDs for the same
+matchup are a hard failure. Rows with unresolved placeholder teams (blank, TBD,
+to be determined, unknown, or a name containing "/") are DELETED from the raw
+sportsbook files. All files are checked before any file is rewritten, and the
+alias report is written last.
+
+The launcher writes the single final STATUS line: SUCCESS, COMPLETED WITH
+ERRORS (exit code 1), or FAILED (exit code 1).
 """
 from __future__ import annotations
 
@@ -44,6 +50,7 @@ import sys
 import csv
 import importlib.util
 import os
+import traceback
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -226,24 +233,6 @@ def load_core():
     return module
 
 
-def enable_espn_draftkings_name(core) -> None:
-    """Accept ESPN's 'Draft Kings' spelling without accepting other books."""
-    original_match = core.is_draftkings_odds
-
-    def matches_draftkings(odds: dict | None) -> bool:
-        if original_match(odds):
-            return True
-        if not isinstance(odds, dict):
-            return False
-        provider = odds.get("provider")
-        if not isinstance(provider, dict):
-            return False
-        name = str(provider.get("name") or "")
-        return "".join(char for char in name.casefold() if char.isalnum()) == "draftkings"
-
-    core.is_draftkings_odds = matches_draftkings
-
-
 def clean(value) -> str:
     return "" if value is None else str(value).strip()
 
@@ -305,16 +294,19 @@ def atomic_write_csv(
 ) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
 
-    with open(tmp, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(
-            f,
-            fieldnames=fieldnames,
-            extrasaction="ignore",
-        )
-        writer.writeheader()
-        writer.writerows(rows)
+    try:
+        with open(tmp, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=fieldnames,
+                extrasaction="ignore",
+            )
+            writer.writeheader()
+            writer.writerows(rows)
 
-    tmp.replace(path)
+        tmp.replace(path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def _partition_sportsbook_rows(rows):
@@ -411,10 +403,11 @@ def _collapse_sportsbook_group(path, league, key, items, fieldnames):
     )
 
 
-def collapse_file(
+def plan_collapse_file(
     path: Path,
     league: str,
-) -> tuple[int, int, list[dict]]:
+) -> dict | None:
+    """Work out the cleaned rows for one file. Nothing is written here."""
     safe_path = resolve_repository_path(
         path,
         strict=True,
@@ -426,7 +419,7 @@ def collapse_file(
         rows = list(reader)
 
     if not rows or not fieldnames:
-        return 0, 0, []
+        return None
 
     grouped, passthrough, placeholder_removed = _partition_sportsbook_rows(rows)
     output: list[tuple[int, dict]] = list(passthrough)
@@ -445,15 +438,19 @@ def collapse_file(
         removed += group_removed
         aliases.extend(group_aliases)
 
-    if removed or placeholder_removed:
-        output.sort(key=lambda item: item[0])
-        atomic_write_csv(
-            path,
-            fieldnames,
-            [row for _, row in output],
-        )
+    output.sort(key=lambda item: item[0])
+    changed = bool(removed or placeholder_removed)
 
-    return removed, placeholder_removed, aliases
+    return {
+        "league": league,
+        "source": path,
+        "path": safe_path,
+        "fieldnames": fieldnames,
+        "rows": [row for _, row in output] if changed else None,
+        "removed": removed,
+        "placeholder_removed": placeholder_removed,
+        "aliases": aliases,
+    }
 
 
 def cleanup_sportsbook_aliases(core) -> tuple[int, int]:
@@ -462,10 +459,10 @@ def cleanup_sportsbook_aliases(core) -> tuple[int, int]:
         exist_ok=True,
     )
 
+    # Step 1: check every file. Nothing is written in this step, so an error
+    # (such as conflicting numeric IDs) stops the run before any file changes.
+    plans: list[dict] = []
     alias_rows: list[dict] = []
-    changed_files = 0
-    removed_alias_rows = 0
-    removed_placeholder_rows = 0
 
     for league in LEAGUE_LABELS:
         folder = SPORTSBOOK_BASE / league
@@ -474,30 +471,45 @@ def cleanup_sportsbook_aliases(core) -> tuple[int, int]:
             continue
 
         for path in sorted(folder.glob("*.csv")):
-            (
-                removed,
-                placeholder_removed,
-                aliases,
-            ) = collapse_file(
+            plan = plan_collapse_file(
                 path,
                 league,
             )
 
-            if removed or placeholder_removed:
-                changed_files += 1
-                removed_alias_rows += removed
-                removed_placeholder_rows += placeholder_removed
+            if plan is None:
+                continue
 
-            if placeholder_removed:
-                core.log(
-                    "SPORTSBOOK PLACEHOLDER REMOVAL | "
-                    f"league={league.upper()} | "
-                    f"file={path} | "
-                    f"rows={placeholder_removed}"
-                )
+            plans.append(plan)
+            alias_rows.extend(plan["aliases"])
 
-            alias_rows.extend(aliases)
+    # Step 2: rewrite the changed files.
+    changed_files = 0
+    removed_alias_rows = 0
+    removed_placeholder_rows = 0
 
+    for plan in plans:
+        if plan["rows"] is None:
+            continue
+
+        atomic_write_csv(
+            plan["path"],
+            plan["fieldnames"],
+            plan["rows"],
+        )
+
+        changed_files += 1
+        removed_alias_rows += plan["removed"]
+        removed_placeholder_rows += plan["placeholder_removed"]
+
+        if plan["placeholder_removed"]:
+            core.log(
+                "SPORTSBOOK PLACEHOLDER REMOVAL | "
+                f"league={plan['league'].upper()} | "
+                f"file={plan['source']} | "
+                f"rows={plan['placeholder_removed']}"
+            )
+
+    # Step 3: the alias report is written last.
     atomic_write_csv(
         ALIAS_REPORT,
         ALIAS_FIELDS,
@@ -523,7 +535,6 @@ def cleanup_sportsbook_aliases(core) -> tuple[int, int]:
 
 def main() -> None:
     core = load_core()
-    enable_espn_draftkings_name(core)
     now = datetime.now(NY)
 
     force_all = truthy(
@@ -569,38 +580,22 @@ def main() -> None:
         f"force_all={int(force_all)}"
     )
 
+    errors = 0
+
     if active:
-        core.main()
+        try:
+            result = core.main()
+        except Exception as exc:
+            core.log(
+                f"COLLECTOR CRASHED: {exc}"
+            )
+            core.log(
+                traceback.format_exc().rstrip()
+            )
+            core.log("STATUS: FAILED")
+            raise SystemExit(1) from exc
 
-        # The core historically reported STATUS: SUCCESS even when
-        # per-event HTTP/build errors were counted. Convert a non-zero
-        # current-run error count into a failed process so GitHub Actions
-        # cannot be falsely green.
-        text = core.LOG_FILE.read_text(
-            encoding="utf-8",
-            errors="replace",
-        )
-
-        errors = 0
-
-        for line in reversed(
-            text.splitlines()
-        ):
-            if " | Errors: " in line:
-                try:
-                    errors = int(
-                        line.rsplit(
-                            "Errors:",
-                            1,
-                        )[1].strip()
-                    )
-                except ValueError:
-                    errors = 1
-
-                break
-
-        if "STATUS: FAILED" in text or errors:
-            raise SystemExit(1)
+        errors = int(result["errors"])
 
     else:
         core.log(
@@ -608,12 +603,16 @@ def main() -> None:
             "collector skipped"
         )
 
+    # Cleanup runs even when the collector counted errors.
     try:
         cleanup_sportsbook_aliases(core)
 
     except Exception as exc:
         core.log(
             f"SPORTSBOOK ALIAS CLEANUP FAILED: {exc}"
+        )
+        core.log(
+            traceback.format_exc().rstrip()
         )
         core.log("STATUS: FAILED")
         raise SystemExit(1) from exc
@@ -622,6 +621,16 @@ def main() -> None:
         core.log(
             "STATUS: SUCCESS (no leagues in season)"
         )
+        return
+
+    core.log(
+        core.status_line(errors)
+    )
+
+    if errors:
+        raise SystemExit(1)
+
+    print("basketball_odds complete.")
 
 
 if __name__ == "__main__":

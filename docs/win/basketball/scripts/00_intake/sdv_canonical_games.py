@@ -410,6 +410,7 @@ def canonicalize_schedule(
     rows: list[dict[str, str]] = []
     seen_ids = {}
     seen_identities = {}
+    skipped_blank_team = 0
 
     for _, source in df.iterrows():
         source_season = clean_id(
@@ -456,10 +457,15 @@ def canonicalize_schedule(
         )
 
         if not home_team or not away_team:
-            raise ValueError(
-                f"{league}: game_id={game_id} "
-                "has blank home/away team"
+            log(
+                "SCHEDULE SKIP BLANK TEAM | "
+                f"league={cfg['label']} "
+                f"game_id={game_id} "
+                f"home={home_team!r} "
+                f"away={away_team!r}"
             )
+            skipped_blank_team += 1
+            continue
 
         game_date = event_dt.strftime("%Y_%m_%d")
 
@@ -527,7 +533,34 @@ def canonicalize_schedule(
             "fetched_at_utc": fetched_at_utc,
         })
 
+    if skipped_blank_team:
+        log(
+            "SCHEDULE BLANK TEAM SKIPPED | "
+            f"league={cfg['label']} "
+            f"skipped={skipped_blank_team}"
+        )
+
     return sort_rows(rows)
+
+
+def game_time_sort_key(
+    value: Any,
+) -> tuple[int, str]:
+    text = clean(value)
+
+    try:
+        parsed = datetime.strptime(
+            text,
+            "%I:%M %p",
+        )
+
+    except ValueError:
+        return (24 * 60, text)
+
+    return (
+        parsed.hour * 60 + parsed.minute,
+        text,
+    )
 
 
 def sort_rows(
@@ -537,7 +570,7 @@ def sort_rows(
         rows,
         key=lambda row: (
             row["game_date"],
-            row["game_time"],
+            game_time_sort_key(row["game_time"]),
             row["home_team"],
             row["away_team"],
             row["game_id"],
@@ -949,7 +982,7 @@ def nba_scoreboard_row(
     sdv_season: int,
     fetched_at_utc: str,
     team_map: dict[str, str],
-) -> dict[str, str]:
+) -> dict[str, str] | None:
     game_id = clean_id(event.get("id"))
 
     if not game_id:
@@ -1021,10 +1054,13 @@ def nba_scoreboard_row(
         not teams["home"]["name"]
         or not teams["away"]["name"]
     ):
-        raise ValueError(
-            f"NBA game_id={game_id}: "
-            "blank team name"
+        log(
+            "NBA DAILY SKIP BLANK TEAM | "
+            f"game_id={game_id} "
+            f"home={teams['home']['name']!r} "
+            f"away={teams['away']['name']!r}"
         )
+        return None
 
     event_dt = parse_event_datetime(
         competition.get("date")
@@ -1105,6 +1141,7 @@ def fetch_nba_current_window(
 
     rows = []
     queried_dates: set[str] = set()
+    skipped_blank_team = 0
 
     start = today - timedelta(
         days=NBA_LOOKBACK_DAYS
@@ -1158,6 +1195,10 @@ def fetch_nba_current_window(
                 team_map=team_map,
             )
 
+            if row is None:
+                skipped_blank_team += 1
+                continue
+
             # ESPN may return an event whose ET game date
             # is adjacent to the requested UTC calendar date.
             # Only retain events in the mapped NBA season.
@@ -1182,7 +1223,8 @@ def fetch_nba_current_window(
     log(
         "NBA CURRENT WINDOW COMPLETE | "
         f"dates={len(queried_dates)} "
-        f"games={len(rows)}"
+        f"games={len(rows)} "
+        f"skipped_blank_team={skipped_blank_team}"
     )
 
     return sort_rows(rows), queried_dates
@@ -1431,9 +1473,19 @@ def fetch_ncaam_season_days(
         futures = {
             pool.submit(request_espn_ncaam_day, day): day for day in days
         }
-        for future in as_completed(futures):
-            day, events = future.result()  # A failed day fails the entire refresh.
-            collected[day] = events
+        try:
+            for future in as_completed(futures):
+                day, events = future.result()  # A failed day fails the entire refresh.
+                collected[day] = events
+        except BaseException:
+            cancelled = sum(
+                1 for pending in futures if pending.cancel()
+            )
+            log(
+                "NCAAM DAILY FETCH ABORTED | "
+                f"queued_days_cancelled={cancelled}"
+            )
+            raise
 
     if set(collected) != set(days):
         raise RuntimeError("NCAAM schedule missing one or more requested dates")
@@ -1552,7 +1604,37 @@ def build_league(
         _wnba_2027_refresh(Path.cwd())
         _wnba_2027_canonical = output_path("wnba", 2027)
         if _wnba_2027_canonical.is_file():
-            return _wnba_2027_canonical  # avoids truncated season-wide SDV fetch
+            # avoids truncated season-wide SDV fetch
+            try:
+                _wnba_2027_rows = read_cached_rows(
+                    _wnba_2027_canonical,
+                    league=league,
+                    internal_season=internal,
+                    sdv_season=mapped_sdv_season,
+                )
+
+                if not _wnba_2027_rows:
+                    raise ValueError(
+                        f"{league}: empty canonical schedule"
+                    )
+
+            except Exception as exc:
+                log(
+                    "FETCH FAILURE | "
+                    f"league={config['label']} "
+                    f"error={exc}"
+                )
+                raise
+
+            log(
+                "FETCH SUCCESS | "
+                f"league={config['label']} "
+                f"rows={len(_wnba_2027_rows)} "
+                "source=wnba_sdv_2027_refresh "
+                f"path={_wnba_2027_canonical}"
+            )
+
+            return _wnba_2027_canonical
         raise RuntimeError("WNBA 2027 scoreboard has no regular/playoff schedule yet")
 
     # A corrupted existing cache must not be used as a
@@ -1694,7 +1776,7 @@ def build_league(
         # Never fall back to the previously incomplete
         # current NBA schedule. It was the original
         # failure condition.
-        if current_nba or verify_ncaam:
+        if current_nba:
             raise
 
         if (
@@ -1741,10 +1823,17 @@ def build_current_canonical_games(
 
     paths = []
 
-    for league in selected:
-        paths.append(
-            build_league(league)
-        )
+    try:
+        for league in selected:
+            paths.append(
+                build_league(league)
+            )
+
+    except Exception as exc:
+        log(f"FATAL: {exc}")
+        log(traceback.format_exc().rstrip())
+        log("STATUS: FAILED")
+        raise
 
     log(
         f"STATUS: SUCCESS | files={len(paths)}"

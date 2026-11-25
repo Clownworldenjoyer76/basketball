@@ -14,6 +14,7 @@ import os
 import shutil
 import sys
 import tempfile
+import traceback
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -24,9 +25,28 @@ YEAR = 2026
 LOOKBACK = 21
 LOOKAHEAD = 14
 MIN_TIPOFF_LAG_HOURS = 8
+ERROR_DIR = Path('docs/win/basketball/errors/00_intake')
+LOG_FILE = ERROR_DIR / 'wnba_sdv_current_refresh.txt'
 FIELDS = ["sport", "league", "internal_season", "sdv_season", "game_date", "game_time",
           "home_team", "away_team", "game_id", "home_team_id", "away_team_id", "neutral_site",
           "venue_id", "venue_full_name", "venue_name", "status", "source", "fetched_at_utc"]
+
+
+def init_log():
+    ERROR_DIR.mkdir(parents=True, exist_ok=True)
+    LOG_FILE.write_text(
+        '=== WNBA SDV CURRENT REFRESH '+datetime.now(timezone.utc).isoformat()+' ===\n',
+        encoding='utf-8',
+    )
+
+
+def log(message):
+    try:
+        ERROR_DIR.mkdir(parents=True, exist_ok=True)
+        with LOG_FILE.open('a', encoding='utf-8') as handle:
+            handle.write(datetime.now(timezone.utc).isoformat()+' | '+str(message)+'\n')
+    except OSError as exc:
+        print('LOG WRITE FAILED: '+str(exc), file=sys.stderr)
 
 
 def fullpath(repo_root):
@@ -41,7 +61,14 @@ def read_canonical(path):
         rd = csv.DictReader(fp)
         if set(rd.fieldnames or []) != set(FIELDS):
             raise RuntimeError('Canonical field names differ; refuse update')
-        rows = {r['game_id']: r for r in rd if r.get('game_id')}
+        rows = {}
+        for line_number, r in enumerate(rd, start=2):
+            gid = r.get('game_id') or ''
+            if not gid.strip():
+                raise RuntimeError('Canonical CSV has blank game_id at line '+str(line_number))
+            if gid in rows:
+                raise RuntimeError('Canonical CSV has duplicate game_id '+gid+' at line '+str(line_number))
+            rows[gid] = r
     return rows
 
 
@@ -135,7 +162,7 @@ def check_history(games, team, players):
 
 
 def atomic_update(file_contents):
-    """Rollback on any mid-transaction write failure. Store backup copies alongside originals."""
+    """Rollback on any mid-transaction write failure. Backup copies are stored under ~/Downloads/WNBA_SDV_Daily_Backups."""
     txid=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
     backup_root=Path.home()/'Downloads'/'WNBA_SDV_Daily_Backups'
     backup_root.mkdir(parents=True,exist_ok=True)
@@ -156,14 +183,19 @@ def atomic_update(file_contents):
     except BaseException:
         for path, backup in reversed(backed):
             if path in installed and backup.exists():
-                shutil.copy2(backup,path)
+                restore=path.with_name(path.name+'.wnba-restore-'+txid)
+                try:
+                    shutil.copy2(backup,restore)
+                    os.replace(restore,path)
+                finally:
+                    if restore.exists():restore.unlink()
         raise
     finally:
         for path,tmp in staged:
             if tmp.exists():tmp.unlink()
 
 
-def refresh(repo_root=None, *, dry_run=False, lookback=LOOKBACK, lookahead=LOOKAHEAD):
+def _refresh(repo_root=None, *, dry_run=False, lookback=LOOKBACK, lookahead=LOOKAHEAD):
     """Refresh 2026 WNBA statistics and canonical schedule; fail closed."""
     root = fullpath(repo_root or Path.cwd())
     hist=root/'docs/win/basketball/00_intake/sdv/history/wnba/2026'
@@ -184,6 +216,7 @@ def refresh(repo_root=None, *, dry_run=False, lookback=LOOKBACK, lookahead=LOOKA
     old_scores={str(r['game_id']):(int(r['home_score']),int(r['away_score'])) for r in games.select(['game_id','home_score','away_score']).to_dicts()}
     canon=read_canonical(canonical)
     events=fetch_window(now,lookback,lookahead)
+    log('SCAN | lookback='+str(lookback)+' lookahead='+str(lookahead)+' api_events='+str(len(events)))
     from zoneinfo import ZoneInfo
     et_today=now.astimezone(ZoneInfo('America/New_York')).date()
     start=(et_today-timedelta(days=lookback)).strftime('%Y_%m_%d')
@@ -223,6 +256,7 @@ def refresh(repo_root=None, *, dry_run=False, lookback=LOOKBACK, lookahead=LOOKA
         gr, trs, prs=parsed_rows
         if len(trs)!=2 or len(prs)<10:raise RuntimeError('Invalid new team/player groups '+eid)
         added_games.append(gr);added_team.extend(trs);added_players.extend(prs)
+        log('ADDED COMPLETED GAME | game_id='+eid)
     if added_games:
         games=fit_schema(added_games,games)
         team=fit_schema(added_team,team)
@@ -250,20 +284,50 @@ def refresh(repo_root=None, *, dry_run=False, lookback=LOOKBACK, lookahead=LOOKA
                             for path,t in zip(paths,[games,team,players]))
         payloads.append((canonical,save_csv))
         atomic_update(payloads)
+        log('WROTE | files='+str([str(p) for p,_ in payloads]))
     stamp.parent.mkdir(parents=True,exist_ok=True)
     stamp.write_text(json.dumps({'completed_at_utc':now.isoformat(),**result},indent=2),encoding='utf-8')
     return result
 
 
+def refresh(repo_root=None, *, dry_run=False, lookback=LOOKBACK, lookahead=LOOKAHEAD):
+    log('REFRESH START | dry_run='+str(dry_run)+' lookback='+str(lookback)+' lookahead='+str(lookahead))
+    try:
+        result=_refresh(repo_root, dry_run=dry_run, lookback=lookback, lookahead=lookahead)
+    except Exception as exc:
+        log('REFRESH FAILED | '+type(exc).__name__+': '+str(exc))
+        log(traceback.format_exc().rstrip())
+        raise
+    log('REFRESH RESULT | '+json.dumps(result, sort_keys=True, default=str))
+    return result
+
+
+
 def cli():
     import argparse
-    ap=argparse.ArgumentParser()
-    ap.add_argument('--repo',type=Path,default=Path.cwd())
-    ap.add_argument('--dry-run',action='store_true')
-    ap.add_argument('--lookback',type=int,default=LOOKBACK)
-    ap.add_argument('--lookahead',type=int,default=LOOKAHEAD)
-    args=ap.parse_args()
-    if args.lookback<1 or args.lookahead<0:ap.error('Invalid date window')
-    print(json.dumps(refresh(args.repo,dry_run=args.dry_run,lookback=args.lookback,lookahead=args.lookahead),indent=2))
+    init_log()
+    try:
+        ap=argparse.ArgumentParser()
+        ap.add_argument('--repo',type=Path,default=Path.cwd())
+        ap.add_argument('--dry-run',action='store_true')
+        ap.add_argument('--lookback',type=int,default=LOOKBACK)
+        ap.add_argument('--lookahead',type=int,default=LOOKAHEAD)
+        args=ap.parse_args()
+        if args.lookback<1 or args.lookahead<0:ap.error('Invalid date window')
+        result=refresh(args.repo,dry_run=args.dry_run,lookback=args.lookback,lookahead=args.lookahead)
+        print(json.dumps(result,indent=2))
+    except SystemExit as exc:
+        if exc.code in (None, 0):
+            log('STATUS: SUCCESS | exited without refresh')
+        else:
+            log('FATAL: exit code '+str(exc.code))
+            log('STATUS: FAILED')
+        raise
+    except Exception as exc:
+        log('FATAL: '+str(exc))
+        log(traceback.format_exc().rstrip())
+        log('STATUS: FAILED')
+        raise
+    log('STATUS: SUCCESS | status='+str(result.get('status')))
 
 if __name__=='__main__':cli()

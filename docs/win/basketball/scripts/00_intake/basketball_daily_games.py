@@ -192,6 +192,7 @@ def choose(
     candidate: dict,
     source_file: str,
     aliases: list[dict],
+    source_kind: str = '',
 ) -> dict:
     old_id = clean(existing.get('game_id'))
     new_id = clean(candidate.get('game_id'))
@@ -202,9 +203,20 @@ def choose(
         )
     if id_rank(new_id) > id_rank(old_id):
         canonical, alias = new_id, old_id
-        chosen = candidate.copy()
-        if not clean(chosen.get('game_time')):
-            chosen['game_time'] = existing.get('game_time', '')
+        if source_kind == 'sportsbook':
+            # A sportsbook row supplies only the game ID (and a missing
+            # time). Team names and all other fields stay as loaded.
+            chosen = existing.copy()
+            chosen['game_id'] = new_id
+            if (
+                not clean(chosen.get('game_time'))
+                and clean(candidate.get('game_time'))
+            ):
+                chosen['game_time'] = candidate.get('game_time', '')
+        else:
+            chosen = candidate.copy()
+            if not clean(chosen.get('game_time')):
+                chosen['game_time'] = existing.get('game_time', '')
     else:
         canonical, alias = old_id, new_id
         chosen = existing
@@ -294,16 +306,20 @@ def remove_unresolved_only_output_files(
             )
     return removed
 
-def remove_stale_suppressed_daily_file(
+def plan_stale_suppressed_removals(
     *,
     output_dir: Path,
     league_label: str,
     active_dates: set[str],
     rejected: dict[str, set[tuple[str, str, str, str]]],
     current_day: str,
-) -> int:
-    """Remove future ghost slates only when every old row was rejected."""
-    removed = 0
+) -> list[tuple[Path, int]]:
+    """List future ghost slates to remove. Nothing is deleted here.
+
+    A slate is listed only when every old row was rejected. Any old row
+    still supported by current sources stops the run.
+    """
+    planned: list[tuple[Path, int]] = []
     for game_date, rejected_keys in rejected.items():
         if (
             game_date in active_dates
@@ -331,11 +347,19 @@ def remove_stale_suppressed_daily_file(
                 'current sources; manual review required instead of '
                 f'deleting: {target}'
             )
+        planned.append((target, len(old_rows)))
+    return planned
+
+def apply_stale_suppressed_removals(
+    planned: list[tuple[Path, int]],
+) -> int:
+    removed = 0
+    for target, row_count in planned:
         target.unlink()
         removed += 1
         log(
             f'REMOVED obsolete active daily slate: '
-            f'{target} ({len(old_rows)} rows)'
+            f'{target} ({row_count} rows)'
         )
     return removed
 
@@ -448,6 +472,19 @@ def load_source_files(
                     )
                     continue
 
+                if source_kind == 'sdv' and key in inactive_keys:
+                    # A canceled/postponed status wins over any later
+                    # active row for the same date and teams.
+                    if active_date:
+                        rejected.setdefault(
+                            row['game_date'], set()
+                        ).add(key)
+                    log(
+                        f"SKIPPED active SDV row for fixture already "
+                        f"marked inactive: {row['game_date']} {key}"
+                    )
+                    continue
+
                 if (
                     source_kind == 'sportsbook'
                     and (
@@ -505,7 +542,8 @@ def load_source_files(
                         canonical[key].get('game_id')
                     )
                     canonical[key] = choose(
-                        canonical[key], row, str(csv_path), aliases
+                        canonical[key], row, str(csv_path), aliases,
+                        source_kind=source_kind,
                     )
                     resolved_id = clean(
                         canonical[key].get('game_id')
@@ -539,6 +577,7 @@ def main() -> None:
         log(
             f'SDV CANONICAL REFRESHED: {len(refreshed)} season files'
         )
+        staged = []
         for cfg in LEAGUES.values():
             league_label = cfg['league_label']
             canonical: dict[tuple[str, str, str, str], dict] = {}
@@ -591,16 +630,23 @@ def main() -> None:
                     row['game_date'], []
                 ).append(row)
 
-            remove_unresolved_only_output_files(
-                cfg['output_dir'], league_label, set(by_date)
-            )
-            remove_stale_suppressed_daily_file(
+            stale_removals = plan_stale_suppressed_removals(
                 output_dir=cfg['output_dir'],
                 league_label=league_label,
                 active_dates=set(by_date),
                 rejected=rejected,
                 current_day=observed.astimezone(NY).strftime('%Y_%m_%d'),
             )
+            staged.append(
+                (cfg, league_label, by_date, stale_removals)
+            )
+
+        # Every league loaded and validated. Only now change files.
+        for cfg, league_label, by_date, stale_removals in staged:
+            remove_unresolved_only_output_files(
+                cfg['output_dir'], league_label, set(by_date)
+            )
+            apply_stale_suppressed_removals(stale_removals)
             for game_date, rows in sorted(by_date.items()):
                 rows = sorted(rows, key=sort_key)
                 out_path = (
@@ -623,7 +669,10 @@ def main() -> None:
     except Exception as exc:
         errors += 1
         log(f'FATAL: {exc}\n{traceback.format_exc()}')
-    write_aliases(aliases)
+    if errors == 0:
+        write_aliases(aliases)
+    else:
+        log('ALIAS FILE NOT WRITTEN: run had errors')
     log('--- SUMMARY ---')
     log(f'SDV season files read: {total_sdv_files}')
     log(f'SDV rows read: {total_sdv_rows}')

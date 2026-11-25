@@ -32,17 +32,19 @@ wnba:
 Both normal calendar-year windows and cross-year windows are supported.
 
 This launcher replaces the old "skip if date file exists" final-score behavior
-with an idempotent upsert so late finals and corrected scores can be incorporated.
+with an idempotent upsert so late finals can be incorporated. A matched final whose
+score differs from the stored score raises an error.
 """
 from __future__ import annotations
 
 import csv
 import importlib.util
 import re
+import traceback
 import unicodedata
 from functools import lru_cache
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -56,6 +58,8 @@ CORE_PATH = Path(__file__).with_name("transform_basketball_core.py")
 
 BASE = Path("docs/win/basketball")
 SEASON_CONFIG = BASE / "config/season_dates.yaml"
+ERROR_DIR = BASE / "errors/00_intake"
+LOG_FILE = ERROR_DIR / "transform_basketball.txt"
 
 SUPPORTED_LEAGUES = ("nba", "ncaam", "wnba")
 
@@ -72,6 +76,14 @@ FINAL_COLUMNS = [
     "home_spread",
     "away_spread",
 ]
+
+
+def log(message: str) -> None:
+    ERROR_DIR.mkdir(parents=True, exist_ok=True)
+    with LOG_FILE.open("a", encoding="utf-8") as handle:
+        handle.write(
+            f"{datetime.now(timezone.utc).isoformat()} | {message}\n"
+        )
 
 
 def truthy(value: str | None) -> bool:
@@ -284,6 +296,32 @@ def _nba_final_aliases() -> dict[str, str]:
     return result
 
 
+@lru_cache(maxsize=1)
+def _wnba_final_aliases() -> dict[str, str]:
+    path = BASE / "maps/team_map_wnba.csv"
+    result: dict[str, str] = {}
+    with path.open(newline="", encoding="utf-8-sig") as handle:
+        reader = csv.DictReader(handle)
+        required = {"league", "alias", "canonical_team"}
+        if not required.issubset(set(reader.fieldnames or [])):
+            raise ValueError(f"WNBA team map has invalid columns: {path}")
+        for lineno, entry in enumerate(reader, start=2):
+            if clean(entry.get("league")).casefold() != "wnba":
+                continue
+            alias = re.sub(r"[^a-z0-9]", "", clean(entry.get("alias")).casefold())
+            canonical = re.sub(r"[^a-z0-9]", "", clean(entry.get("canonical_team")).casefold())
+            if not alias or not canonical:
+                raise ValueError(f"Missing team identity in WNBA team map: {path}:{lineno}")
+            for key in (alias, canonical):
+                prior = result.get(key)
+                if prior is not None and prior != canonical:
+                    raise ValueError(f"Conflicting WNBA alias {key!r} in {path}:{lineno}")
+                result[key] = canonical
+    if not result:
+        raise ValueError(f"WNBA team map contains no identities: {path}")
+    return result
+
+
 def _normalized_ncaam_final_name(value: str) -> str:
     text = unicodedata.normalize("NFKD", clean(value)).casefold()
     text = "".join(char for char in text if not unicodedata.combining(char))
@@ -323,6 +361,9 @@ def _team_key_for_final(row: dict, field: str) -> str:
     if league == "ncaam":
         canonical_key = _normalized_ncaam_final_name(name)
         return _ncaam_final_aliases().get(canonical_key, canonical_key)
+    if league == "wnba":
+        compact = re.sub(r"[^a-z0-9]", "", name)
+        return _wnba_final_aliases().get(compact, compact)
     if league != "nba":
         return name
     compact = re.sub(r"[^a-z0-9]", "", name)
@@ -349,9 +390,16 @@ def id_rank(game_id: str) -> int:
     return 1
 
 
-def collapse_rows(rows: list[dict]) -> list[dict]:
+def collapse_rows(
+    rows: list[dict],
+    merge_log: list[str] | None = None,
+) -> list[dict]:
     """One row per date/home/away, preserving the strongest known game_id."""
     by_comp: dict[tuple[str, str, str], dict] = {}
+
+    def note(message: str) -> None:
+        if merge_log is not None:
+            merge_log.append(message)
 
     for raw in rows:
         row = {
@@ -361,11 +409,18 @@ def collapse_rows(rows: list[dict]) -> list[dict]:
 
         key = composite_key(row)
 
-        # NCAAM historical DRatings rows can reverse the ESPN home/away
+        # Historical DRatings rows can reverse the ESPN home/away
         # orientation. Align all paired score/spread fields before merging.
-        if clean(row.get("league")).casefold() == "ncaam" and key not in by_comp:
+        if (
+            clean(row.get("league")).casefold() in ("ncaam", "nba", "wnba")
+            and key not in by_comp
+        ):
             reversed_key = (key[0], key[2], key[1])
             if reversed_key in by_comp:
+                note(
+                    "REALIGNED reversed home/away | "
+                    f"league={clean(row.get('league'))} key={reversed_key}"
+                )
                 for left, right in (
                     ("home_team", "away_team"),
                     ("home_score", "away_score"),
@@ -388,6 +443,12 @@ def collapse_rows(rows: list[dict]) -> list[dict]:
             row.get("game_id")
         )
 
+        note(
+            "MERGE final score | "
+            f"league={clean(row.get('league'))} key={key} "
+            f"old_game_id={old_gid!r} new_game_id={new_gid!r}"
+        )
+
         if (
             old_gid.isdigit()
             and new_gid.isdigit()
@@ -398,24 +459,27 @@ def collapse_rows(rows: list[dict]) -> list[dict]:
                 f"{key}: {old_gid} vs {new_gid}"
             )
 
+        for field in ("home_score", "away_score"):
+            previous = clean(old.get(field))
+            incoming = clean(row.get(field))
+            if previous and incoming:
+                try:
+                    same = float(previous) == float(incoming)
+                except ValueError:
+                    same = previous == incoming
+                if not same:
+                    raise ValueError(
+                        f"{clean(old.get('league')).upper()} matchup-matched "
+                        "final has conflicting scores: "
+                        f"key={key}, field={field}, "
+                        f"stored={previous}, incoming={incoming}"
+                    )
+
         if clean(old.get("league")).casefold() == "ncaam":
-            for field in ("home_score", "away_score"):
-                previous = clean(old.get(field))
-                incoming = clean(row.get(field))
-                if previous and incoming:
-                    try:
-                        same = float(previous) == float(incoming)
-                    except ValueError:
-                        same = previous == incoming
-                    if not same:
-                        raise ValueError(
-                            "NCAAM matchup-matched final has conflicting scores: "
-                            f"key={key}, field={field}, "
-                            f"stored={previous}, incoming={incoming}"
-                        )
             # ESPN's identified final is authoritative. A DRatings row with
             # no game ID must never overwrite it or create an alias duplicate.
             if old_gid.isdigit() and not new_gid:
+                note(f"MERGE skipped incoming row without game_id | key={key}")
                 continue
 
         # New score values are authoritative; preserve/prefer canonical ID.
@@ -428,7 +492,7 @@ def collapse_rows(rows: list[dict]) -> list[dict]:
         # Alias-based duplicates must not create a second game or silently
         # replace an official score with an inconsistent provider score.
         name_alias_duplicate = (
-            clean(old.get("league")).casefold() in ("nba", "ncaam")
+            clean(old.get("league")).casefold() in ("nba", "ncaam", "wnba")
             and (
                 clean(old.get("home_team")).casefold()
                 != clean(row.get("home_team")).casefold()
@@ -502,6 +566,8 @@ def make_process_final_scores(core):
             )
             return
 
+        pending = []
+
         for date_val, group in completed.groupby("game_date"):
             path = (
                 Path(cfg["final_scores_dir"])
@@ -511,36 +577,37 @@ def make_process_final_scores(core):
             incoming = []
 
             for _, row in group.iterrows():
-                try:
-                    away_score = int(
-                        float(row["score1"])
-                    )
+                context = (
+                    f"game_date={date_val} "
+                    f"home={row['team2']!r} away={row['team1']!r}"
+                )
 
-                    home_score = int(
-                        float(row["score2"])
+                away_score = int(
+                    core.require_number(
+                        row["score1"], "away score", context
                     )
+                )
 
-                    total = (
-                        away_score
-                        + home_score
+                home_score = int(
+                    core.require_number(
+                        row["score2"], "home score", context
                     )
+                )
 
-                    away_spread = (
-                        away_score
-                        - home_score
-                    )
+                total = (
+                    away_score
+                    + home_score
+                )
 
-                    home_spread = (
-                        home_score
-                        - away_score
-                    )
+                away_spread = (
+                    away_score
+                    - home_score
+                )
 
-                except (ValueError, TypeError):
-                    away_score = ""
-                    home_score = ""
-                    total = ""
-                    away_spread = ""
-                    home_spread = ""
+                home_spread = (
+                    home_score
+                    - away_score
+                )
 
                 incoming.append({
                     "sport": "Basketball",
@@ -565,14 +632,30 @@ def make_process_final_scores(core):
                     keep_default_na=False,
                 )
 
+                dropped = [
+                    column
+                    for column in old.columns
+                    if column not in FINAL_COLUMNS
+                ]
+
+                if dropped:
+                    core.log(
+                        league_key,
+                        f"WARNING dropped columns not in FINAL_COLUMNS: "
+                        f"{path} columns={dropped}",
+                    )
+
                 existing = old.to_dict(
                     "records"
                 )
 
             before = len(existing)
 
+            merge_log: list[str] = []
+
             merged = collapse_rows(
-                existing + incoming
+                existing + incoming,
+                merge_log,
             )
 
             out = pd.DataFrame(
@@ -580,6 +663,11 @@ def make_process_final_scores(core):
                 columns=FINAL_COLUMNS,
             )
 
+            pending.append(
+                (path, out, before, len(incoming), merge_log)
+            )
+
+        for path, out, before, incoming_rows, merge_log in pending:
             core.save(
                 out,
                 str(path),
@@ -590,19 +678,60 @@ def make_process_final_scores(core):
             stats["final_score_files_written"] += 1
             stats["final_score_rows_written"] += len(out)
 
+            for message in merge_log:
+                core.log(
+                    league_key,
+                    f"{message} | file={path}",
+                )
+
             core.log(
                 league_key,
                 f"UPSERT final scores: {path} "
                 f"existing_rows={before} "
-                f"incoming_rows={len(incoming)} "
+                f"incoming_rows={incoming_rows} "
                 f"result_rows={len(out)}",
             )
 
     return process_final_scores
 
 
+def league_status_text(core, league_key: str) -> tuple[str, str]:
+    text = Path(
+        core.LEAGUE_CONFIG[
+            league_key
+        ]["log_file"]
+    ).read_text(
+        encoding="utf-8",
+        errors="replace",
+    )
+
+    found = [
+        line.split("|", 1)[-1].strip()
+        for line in text.splitlines()
+        if "STATUS:" in line
+    ]
+
+    return text, (found[-1] if found else "STATUS: (none found)")
+
+
 def main() -> None:
-    core = load_core()
+    ERROR_DIR.mkdir(parents=True, exist_ok=True)
+
+    LOG_FILE.write_text(
+        "=== TRANSFORM BASKETBALL LAUNCHER "
+        f"{datetime.now(timezone.utc).isoformat()} ===\n",
+        encoding="utf-8",
+    )
+
+    try:
+        core = load_core()
+
+    except Exception as exc:
+        log(f"FATAL: unable to load transform core: {exc}")
+        log(traceback.format_exc().rstrip())
+        log("STATUS: FAILED")
+        print(f"TRANSFORM CORE LOAD FAILED: {exc}")
+        raise SystemExit(1) from exc
 
     core.process_final_scores = make_process_final_scores(
         core
@@ -616,14 +745,24 @@ def main() -> None:
         )
     )
 
+    log(
+        f"RUN | date_ny={now.strftime('%Y_%m_%d')} "
+        f"force_all={force_all}"
+    )
+
     try:
         season_config = load_season_config()
 
     except Exception as exc:
+        log(f"SEASON CONFIG FAILED: {exc}")
+        log(traceback.format_exc().rstrip())
+        log("STATUS: FAILED")
         print(
             f"SEASON CONFIG FAILED: {exc}"
         )
         raise SystemExit(1) from exc
+
+    log(f"SEASON CONFIG VALID | config={SEASON_CONFIG}")
 
     leagues = list(
         core.LEAGUE_CONFIG
@@ -642,32 +781,39 @@ def main() -> None:
             )
         ]
 
-    had_errors = False
+    skipped = sorted(
+        set(leagues)
+        - set(active)
+    )
+
+    log(f"LEAGUES | active={active} skipped={skipped}")
+
+    error_leagues = []
 
     for league_key in active:
-        core.process_league(
-            league_key
+        try:
+            core.process_league(
+                league_key
+            )
+
+        except Exception as exc:
+            error_leagues.append(league_key)
+            log(f"LEAGUE FAILED | league={league_key} error={exc}")
+            log(traceback.format_exc().rstrip())
+            print(f"{league_key} FAILED: {exc}")
+
+        text, status_text = league_status_text(
+            core, league_key
         )
 
-        text = Path(
-            core.LEAGUE_CONFIG[
-                league_key
-            ]["log_file"]
-        ).read_text(
-            encoding="utf-8",
-            errors="replace",
-        )
+        log(f"LEAGUE RESULT | league={league_key} {status_text}")
 
         if (
             "STATUS: FAILED" in text
             or "STATUS: PARTIAL" in text
         ):
-            had_errors = True
-
-    skipped = sorted(
-        set(leagues)
-        - set(active)
-    )
+            if league_key not in error_leagues:
+                error_leagues.append(league_key)
 
     for league_key in skipped:
         core.init_log(
@@ -702,8 +848,13 @@ def main() -> None:
             "SUCCESS (offseason skipped)",
         )
 
-    if had_errors:
+        log(f"LEAGUE SKIPPED | league={league_key}")
+
+    if error_leagues:
+        log(f"STATUS: FAILED | leagues_with_errors={error_leagues}")
         raise SystemExit(1)
+
+    log(f"STATUS: SUCCESS | active={active} skipped={skipped}")
 
     print("\nDone.")
 

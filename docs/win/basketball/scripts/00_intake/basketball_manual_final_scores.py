@@ -6,6 +6,9 @@ optional/blank moneyline and spread columns, and repeated table headers.
 
 For games already present in raw JSON, adds only scores/status through the
 existing shared merger, retaining original pregame predictions and odds.
+
+Log (overwritten each run):
+  docs/win/basketball/errors/00_intake/basketball_manual_final_scores.txt
 """
 from __future__ import annotations
 
@@ -14,11 +17,14 @@ import html
 import json
 import re
 import sys
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from basketball_manual_input import LEAGUE_SPORT, merge_into_files
+from basketball_manual_input import ERROR_DIR, LEAGUE_SPORT, init_log, log, merge_into_files
+
+LOG_FILE = ERROR_DIR / "basketball_manual_final_scores.txt"
 
 
 DATE = re.compile(r"^\d{1,2}/\d{1,2}/\d{4}(?:\s|$)")
@@ -236,12 +242,22 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--time-basis", choices=["et", "utc"], required=True)
     args = ap.parse_args(argv)
 
-    text = args.raw_file.read_text(encoding="utf-8-sig")
-    rows = parse_final_scores(text, args.league, args.time_basis)
-    paths = merge_into_files(rows, args.league, "final")
+    init_log(LOG_FILE, "basketball_manual_final_scores")
+    log(LOG_FILE, f"ARGS | league={args.league} | raw_file={args.raw_file} | time_basis={args.time_basis}")
+    try:
+        text = args.raw_file.read_text(encoding="utf-8-sig")
+        rows = parse_final_scores(text, args.league, args.time_basis)
+        paths = merge_into_files(rows, args.league, "final")
+    except Exception as exc:
+        log(LOG_FILE, f"ERROR: {exc}\n{traceback.format_exc()}")
+        log(LOG_FILE, "STATUS: FAILED")
+        raise
     for path, added, updated in paths:
         print(f"WROTE/VERIFIED {path}: added={added} updated={updated}")
+        log(LOG_FILE, f"WROTE/VERIFIED {path}: added={added} updated={updated}")
     print(f"SUCCESS: parsed={len(rows)} league={args.league} files={len(paths)}")
+    log(LOG_FILE, f"SUMMARY | parsed={len(rows)} | league={args.league} | files={len(paths)}")
+    log(LOG_FILE, "STATUS: SUCCESS")
     return 0
 
 

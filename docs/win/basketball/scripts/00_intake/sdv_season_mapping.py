@@ -19,42 +19,52 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
+import traceback
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 
-SCRIPT_PATH = Path(__file__).resolve()
+BASE = Path("docs/win/basketball")
 
-_EXPECTED_REPO_ROOT = (
-    SCRIPT_PATH.parents[5]
-    if len(SCRIPT_PATH.parents) > 5
-    else Path.cwd()
+CONFIG_PATH = BASE / "config/sdv_seasons.yaml"
+
+LOG_PATH = (
+    BASE
+    / "errors/00_intake/sdv_season_mapping.txt"
 )
 
-_CWD_REPO_ROOT = Path.cwd().resolve()
 
-if (
-    _EXPECTED_REPO_ROOT
-    / "docs/win/basketball/config/sdv_seasons.yaml"
-).exists():
-    REPO_ROOT = _EXPECTED_REPO_ROOT
-
-elif (
-    _CWD_REPO_ROOT
-    / "docs/win/basketball/config/sdv_seasons.yaml"
-).exists():
-    REPO_ROOT = _CWD_REPO_ROOT
-
-else:
-    REPO_ROOT = _EXPECTED_REPO_ROOT
+def _utc_now() -> str:
+    return datetime.now(
+        timezone.utc
+    ).isoformat()
 
 
-CONFIG_PATH = (
-    REPO_ROOT
-    / "docs/win/basketball/config/sdv_seasons.yaml"
-)
+def log(message: str) -> None:
+    try:
+        LOG_PATH.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        with LOG_PATH.open(
+            "a",
+            encoding="utf-8",
+        ) as handle:
+            handle.write(
+                f"{_utc_now()} | {message}\n"
+            )
+
+    except OSError as exc:
+        print(
+            f"sdv_season_mapping log write failed: {exc}",
+            file=sys.stderr,
+        )
+
 
 SUPPORTED_LEAGUES = {
     "nba": "NBA",
@@ -233,32 +243,42 @@ def sdv_season_id(
     internal_season: Any,
     config_path: Path = CONFIG_PATH,
 ) -> int:
-    key = normalize_league(league)
-    internal = normalize_internal_season(
-        internal_season
-    )
-
-    config = load_config(
-        config_path
-    )
-
-    league_cfg = validate_league_config(
-        config,
-        key,
-    )
-
-    mappings: dict[int, int] = (
-        league_cfg["mappings"]
-    )
-
-    if internal not in mappings:
-        raise ValueError(
-            f"No explicit SDV season mapping for "
-            f"league={key} internal_season={internal}. "
-            f"Add it to {config_path} before querying SDV."
+    try:
+        key = normalize_league(league)
+        internal = normalize_internal_season(
+            internal_season
         )
 
-    return mappings[internal]
+        config = load_config(
+            config_path
+        )
+
+        league_cfg = validate_league_config(
+            config,
+            key,
+        )
+
+        mappings: dict[int, int] = (
+            league_cfg["mappings"]
+        )
+
+        if internal not in mappings:
+            raise ValueError(
+                f"No explicit SDV season mapping for "
+                f"league={key} internal_season={internal}. "
+                f"Add it to {config_path} before querying SDV."
+            )
+
+        return mappings[internal]
+
+    except Exception as exc:
+        log(
+            "ERROR | "
+            f"league={league!r} "
+            f"internal_season={internal_season!r} | "
+            f"{exc}"
+        )
+        raise
 
 
 def parse_internal_season_label(
@@ -291,11 +311,18 @@ def sdv_season_from_label(
     label: str,
     config_path: Path = CONFIG_PATH,
 ) -> int:
-    league, internal = (
-        parse_internal_season_label(
-            label
+    try:
+        league, internal = (
+            parse_internal_season_label(
+                label
+            )
         )
-    )
+
+    except ValueError as exc:
+        log(
+            f"ERROR | label={label!r} | {exc}"
+        )
+        raise
 
     return sdv_season_id(
         league,
@@ -324,37 +351,44 @@ def sdv_season_from_filename(
 def validate_all_active_mappings(
     config_path: Path = CONFIG_PATH,
 ) -> None:
-    config = load_config(
-        config_path
-    )
-
-    leagues = config.get("leagues") or {}
-
-    for league, league_cfg in leagues.items():
-        if not isinstance(
-            league_cfg,
-            dict,
-        ):
-            raise ValueError(
-                f"Invalid league config for {league!r}"
-            )
-
-        status = (
-            str(
-                league_cfg.get(
-                    "status",
-                    "",
-                )
-            )
-            .strip()
-            .lower()
+    try:
+        config = load_config(
+            config_path
         )
 
-        if status == "active":
-            validate_league_config(
-                config,
-                league,
+        leagues = config.get("leagues") or {}
+
+        for league, league_cfg in leagues.items():
+            if not isinstance(
+                league_cfg,
+                dict,
+            ):
+                raise ValueError(
+                    f"Invalid league config for {league!r}"
+                )
+
+            status = (
+                str(
+                    league_cfg.get(
+                        "status",
+                        "",
+                    )
+                )
+                .strip()
+                .lower()
             )
+
+            if status == "active":
+                validate_league_config(
+                    config,
+                    league,
+                )
+
+    except Exception as exc:
+        log(
+            f"ERROR | validate | {exc}"
+        )
+        raise
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -422,50 +456,109 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
+def main() -> int:
     parser = build_parser()
-    args = parser.parse_args()
 
-    if args.validate:
-        validate_all_active_mappings(
-            config_path=args.config
-        )
-        print("SDV season mappings valid.")
-        return
-
-    if args.label:
-        result = sdv_season_from_label(
-            args.label,
-            config_path=args.config,
-        )
-        print(result)
-        return
-
-    if args.file:
-        result = sdv_season_from_filename(
-            args.file,
-            config_path=args.config,
-        )
-        print(result)
-        return
-
-    if (
-        args.league
-        and args.internal_season
-    ):
-        result = sdv_season_id(
-            args.league,
-            args.internal_season,
-            config_path=args.config,
-        )
-        print(result)
-        return
-
-    parser.error(
-        "Provide --validate, --label, --file, "
-        "or both --league and --internal-season"
+    LOG_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True,
     )
+
+    LOG_PATH.write_text(
+        "=== SDV SEASON MAPPING "
+        f"{_utc_now()} ===\n",
+        encoding="utf-8",
+    )
+
+    try:
+        args = parser.parse_args()
+
+    except SystemExit as exc:
+        if exc.code in (0, None):
+            log("STATUS: SUCCESS")
+
+        else:
+            log(
+                "FATAL: invalid command-line arguments"
+            )
+            log("STATUS: FAILED")
+
+        raise
+
+    try:
+        if args.validate:
+            validate_all_active_mappings(
+                config_path=args.config
+            )
+            print("SDV season mappings valid.")
+            log(
+                "VALIDATE | all active mappings valid"
+            )
+
+        elif args.label:
+            result = sdv_season_from_label(
+                args.label,
+                config_path=args.config,
+            )
+            print(result)
+            log(
+                f"LABEL | {args.label} -> {result}"
+            )
+
+        elif args.file:
+            result = sdv_season_from_filename(
+                args.file,
+                config_path=args.config,
+            )
+            print(result)
+            log(
+                f"FILE | {args.file} -> {result}"
+            )
+
+        elif (
+            args.league
+            and args.internal_season
+        ):
+            result = sdv_season_id(
+                args.league,
+                args.internal_season,
+                config_path=args.config,
+            )
+            print(result)
+            log(
+                f"SEASON | {args.league} "
+                f"{args.internal_season} -> {result}"
+            )
+
+        else:
+            log(
+                "FATAL: Provide --validate, --label, "
+                "--file, or both --league and "
+                "--internal-season"
+            )
+            log("STATUS: FAILED")
+
+            parser.error(
+                "Provide --validate, --label, --file, "
+                "or both --league and --internal-season"
+            )
+
+    except Exception as exc:
+        log(f"FATAL: {exc}")
+        log(traceback.format_exc().rstrip())
+        log("STATUS: FAILED")
+
+        print(
+            f"SDV season mapping FAILED: {exc}",
+            file=sys.stderr,
+        )
+
+        return 1
+
+    log("STATUS: SUCCESS")
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

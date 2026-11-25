@@ -461,6 +461,33 @@ def validate_frame(
         path,
     )
 
+    blank_game_ids = int(
+        frame.select(
+            pl.col("game_id")
+            .cast(
+                pl.String,
+                strict=False,
+            )
+            .fill_null("")
+            .str.strip_chars()
+            .eq("")
+            .sum()
+        )
+        .item()
+    )
+
+    if blank_game_ids:
+        raise RuntimeError(
+            f"{path} game_id contains null or "
+            f"blank values: rows={blank_game_ids}"
+        )
+
+    if venue_stats["venue_id_present"] <= 0:
+        raise RuntimeError(
+            f"{path} has no game with a venue_id: "
+            f"rows={frame.height}"
+        )
+
     unique_games = int(
         frame.select(
             pl.col("game_id")
@@ -549,12 +576,9 @@ def write_parquet_atomic(
             tmp.unlink()
 
 
-def update_manifest(
+def load_manifest(
     manifest_path: Path,
-    *,
-    games_path: Path,
-    frame: pl.DataFrame,
-) -> None:
+) -> dict[str, Any]:
     if not manifest_path.exists():
         raise FileNotFoundError(
             manifest_path
@@ -592,6 +616,21 @@ def update_manifest(
         raise RuntimeError(
             f"{manifest_path} missing games table entry"
         )
+
+    return payload
+
+
+def update_manifest(
+    manifest_path: Path,
+    *,
+    games_path: Path,
+    frame: pl.DataFrame,
+) -> None:
+    payload = load_manifest(
+        manifest_path
+    )
+
+    games = payload["tables"]["games"]
 
     games["rows"] = int(frame.height)
     games["columns"] = list(frame.columns)
@@ -707,16 +746,35 @@ def process_season(
         games_path,
     )
 
+    load_manifest(
+        manifest_path
+    )
+
+    original_bytes = games_path.read_bytes()
+
     write_parquet_atomic(
         games_path,
         enriched,
     )
 
-    update_manifest(
-        manifest_path,
-        games_path=games_path,
-        frame=enriched,
-    )
+    try:
+        update_manifest(
+            manifest_path,
+            games_path=games_path,
+            frame=enriched,
+        )
+
+    except Exception:
+        games_path.write_bytes(
+            original_bytes
+        )
+
+        log(
+            "ROLLBACK | games.parquet restored "
+            f"internal_season={internal_season}"
+        )
+
+        raise
 
     stored = pl.read_parquet(
         games_path

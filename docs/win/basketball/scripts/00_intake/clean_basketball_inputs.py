@@ -12,14 +12,22 @@
 # Originals are never mutated. Filenames are preserved.
 # Permanent bias rules come from model_config.yaml. Dynamic rolling/regime-aware
 # bias values come from rolling_bias_state.yaml. Past cleaned prediction files are preserved so
-# today's rolling bias is never retroactively applied to historical predictions.
+# today's rolling bias is never retroactively applied to historical predictions:
+# bias is NOT applied to a preserved past-dated cleaned file, whatever its rows contain.
+#
+# rolling_bias_state.yaml is refused when generated_at_utc is missing or older than
+# STATE_MAX_AGE_HOURS, or when its run_status is completed_with_errors.
+# Leagues whose status in model_config.yaml is not "active" are skipped (logged).
+# Cleaned files are written to a temporary file first and then swapped in.
 
+import os
 import sys
 import csv
 import re
+import tempfile
 import traceback
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import yaml
@@ -79,6 +87,11 @@ LEAGUE_LOG_FILES = {
 }
 
 NY_TZ = ZoneInfo("America/New_York")
+
+# rolling_bias_state.yaml is refused when older than this many hours.
+STATE_MAX_AGE_HOURS = 24
+# rolling_bias_state.yaml is refused when its run_status is this value.
+STATE_BLOCKED_RUN_STATUS = "completed_with_errors"
 
 # =========================
 # SETTINGS
@@ -225,10 +238,20 @@ def write_csv(path: Path, fieldnames, rows):
     )
 
     safe_path.parent.mkdir(parents=True, exist_ok=True)
-    with safe_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(rows)
+    tmp = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", newline="", encoding="utf-8", dir=safe_path.parent,
+            prefix=".clean-", suffix=".csv", delete=False,
+        ) as f:
+            tmp = Path(f.name)
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(rows)
+        os.replace(tmp, safe_path)
+    finally:
+        if tmp is not None and tmp.exists():
+            tmp.unlink()
 
 
 def csv_files(folder: Path, league: str):
@@ -311,9 +334,59 @@ def prediction_dirs_for_source(
     }
 
 
+def parse_utc_timestamp(value) -> datetime:
+    """Parse generated_at_utc (YAML may give a datetime or a string)."""
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        text = str(value or "").strip()
+        if not text:
+            raise ValueError("rolling_bias_state.yaml generated_at_utc is blank")
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(
+                f"rolling_bias_state.yaml generated_at_utc is not a valid timestamp: {text!r}"
+            ) from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def validate_bias_state(state_cfg: dict, now_utc: datetime | None = None) -> float:
+    """Refuse a stale or failed rolling_bias_state.yaml. Returns age in hours."""
+    if "generated_at_utc" not in state_cfg:
+        raise ValueError("rolling_bias_state.yaml missing generated_at_utc")
+
+    generated = parse_utc_timestamp(state_cfg.get("generated_at_utc"))
+    now_utc = now_utc or datetime.now(timezone.utc)
+    age = now_utc - generated
+    age_hours = age.total_seconds() / 3600.0
+
+    if age > timedelta(hours=STATE_MAX_AGE_HOURS):
+        raise ValueError(
+            f"rolling_bias_state.yaml is stale: generated_at_utc={generated.isoformat()} "
+            f"age_hours={age_hours:.2f} max_hours={STATE_MAX_AGE_HOURS}"
+        )
+
+    run_status = str(state_cfg.get("run_status", "")).strip().lower()
+    if run_status == STATE_BLOCKED_RUN_STATUS:
+        raise ValueError(
+            f"rolling_bias_state.yaml run_status={run_status}; "
+            f"re-run calculate_rolling_bias.py"
+        )
+
+    log_master(
+        f"INFO | Bias state accepted: generated_at_utc={generated.isoformat()} "
+        f"age_hours={age_hours:.2f} run_status={run_status or '(missing)'}"
+    )
+    return age_hours
+
+
 def resolve_bias_values() -> dict:
     model_cfg = load_yaml(CONFIG_PATH)
     state_cfg = load_yaml(BIAS_STATE_PATH)
+    validate_bias_state(state_cfg)
 
     leagues_cfg = model_cfg.get("leagues")
     state_leagues = state_cfg.get("leagues")
@@ -330,7 +403,12 @@ def resolve_bias_values() -> dict:
         if not isinstance(league_cfg, dict):
             raise ValueError(f"Missing model config for {league}")
         if str(league_cfg.get("status", "")).strip().lower() != "active":
-            raise ValueError(f"{league} is not active in model_config.yaml")
+            # Inactive league: skipped, not an error.
+            resolved[league] = {
+                "skipped": True,
+                "config_status": str(league_cfg.get("status", "")).strip().lower(),
+            }
+            continue
 
         bias_cfg = league_cfg.get("bias") or {}
         state_league = state_leagues.get(key) or {}
@@ -692,20 +770,31 @@ def blank_bad_market_lines(book_files):
 # =========================
 
 def build_pred_index(pred_files):
+    """Return (index, duplicate_counts). A duplicate key keeps the LAST row and
+    logs a WARNING naming the key and both files."""
     index = {}
+    duplicate_counts = {league: 0 for league in pred_files}
 
     for league, files in pred_files.items():
         for path, (_, rows) in files.items():
             for row in rows:
                 key = row_key(row)
                 if key:
+                    if key in index:
+                        previous = index[key]
+                        duplicate_counts[league] += 1
+                        log_league(
+                            league,
+                            f"WARN | DUPLICATE_PREDICTION_KEY | key={key} | "
+                            f"kept_last={path} | replaced={previous['path']}"
+                        )
                     index[key] = {
                         "league": league,
                         "path": path,
                         "row": row,
                     }
 
-    return index
+    return index, duplicate_counts
 
 
 def build_book_index(book_files):
@@ -867,6 +956,7 @@ def preserve_past_cleaned_predictions(pred_files):
     today = datetime.now(NY_TZ).date()
     preserved = {league: 0 for league in pred_files}
     skipped_missing = {league: 0 for league in pred_files}
+    preserved_paths = {league: set() for league in pred_files}
 
     for league, files in pred_files.items():
         cleaned_root = CLEANED_PREDICTION_DIRS[league]
@@ -890,19 +980,21 @@ def preserve_past_cleaned_predictions(pred_files):
             fieldnames, rows = read_csv(cleaned_path)
             files[raw_path] = [fieldnames, rows]
             preserved[league] += 1
+            preserved_paths[league].add(raw_path)
             log_league(
                 league,
                 f"PRESERVED HISTORICAL CLEANED PREDICTION | {cleaned_path}"
             )
 
-    return preserved, skipped_missing
+    return preserved, skipped_missing, preserved_paths
 
 
 # =========================
 # STEP 6B: APPLY PREDICTION BIASES
 # =========================
 
-def apply_prediction_biases(pred_files, bias_values):
+def apply_prediction_biases(pred_files, bias_values, preserved_paths=None):
+    preserved_paths = preserved_paths or {}
     stats = {
         league: {
             "files_with_biased_rows": 0,
@@ -928,6 +1020,14 @@ def apply_prediction_biases(pred_files, bias_values):
 
         for path, data in files.items():
             fieldnames, rows = data
+
+            if path in preserved_paths.get(league, set()):
+                # Past-dated cleaned file: never apply today's bias to it.
+                log_league(
+                    league,
+                    f"BIAS SKIPPED | preserved historical cleaned file | {path}"
+                )
+                continue
 
             if not required.issubset(set(fieldnames)):
                 log_league(league, f"WARN | Missing prediction columns, skipped: {path}")
@@ -998,11 +1098,22 @@ def apply_prediction_biases(pred_files, bias_values):
 # STEP 7: WRITE CLEANED FILES
 # =========================
 
-def write_cleaned(loaded_files, cleaned_dirs, label):
+def count_loaded_rows(loaded_files):
+    return {
+        league: {path: len(data[1]) for path, data in files.items()}
+        for league, files in loaded_files.items()
+    }
+
+
+def write_cleaned(loaded_files, cleaned_dirs, label, loaded_rows=None):
+    """loaded_rows: row counts captured at load time, used to report how many
+    rows of the loaded files are missing from the written files."""
+    loaded_rows = loaded_rows or {}
     stats = {
         league: {
             "files_written": 0,
             "rows_written": 0,
+            "rows_removed": 0,
         }
         for league in loaded_files
     }
@@ -1016,6 +1127,9 @@ def write_cleaned(loaded_files, cleaned_dirs, label):
 
             stats[league]["files_written"] += 1
             stats[league]["rows_written"] += len(rows)
+            loaded_count = loaded_rows.get(league, {}).get(path)
+            if loaded_count is not None:
+                stats[league]["rows_removed"] += max(0, loaded_count - len(rows))
 
             log_league(
                 league,
@@ -1106,8 +1220,22 @@ def write_league_summaries(
     book_write_stats,
     preserved_historical,
     skipped_historical_missing,
+    skipped_leagues=(),
+    duplicate_keys=None,
 ):
+    duplicate_keys = duplicate_keys or {}
+
     for league in ("NBA", "NCAAM", "WNBA"):
+        if league in skipped_leagues:
+            log_league(league, "")
+            log_league(league, "============================================================")
+            log_league(league, "SUMMARY")
+            log_league(league, "============================================================")
+            log_league(league, "SKIPPED | league status is not active in model_config.yaml")
+            log_league(league, "STATUS: SKIPPED")
+            log_league(league, "============================================================")
+            continue
+
         (
             bad_ml,
             bad_total,
@@ -1143,8 +1271,9 @@ def write_league_summaries(
         log_league(league, f"sportsbook_outlier_market_rows_blanked: {sportsbook_outlier_market_blanked.get(league, 0)}")
         log_league(league, f"historical_cleaned_files_preserved   : {preserved_historical.get(league, 0)}")
         log_league(league, f"historical_raw_missing_cleaned_skipped: {skipped_historical_missing.get(league, 0)}")
-        log_league(league, "prediction_rows_removed              : 0")
-        log_league(league, "sportsbook_rows_removed              : 0")
+        log_league(league, f"prediction_duplicate_keys_kept_last  : {duplicate_keys.get(league, 0)}")
+        log_league(league, f"prediction_rows_removed              : {sum_nested(pred_write_stats, league, 'rows_removed')}")
+        log_league(league, f"sportsbook_rows_removed              : {sum_nested(book_write_stats, league, 'rows_removed')}")
         log_league(league, f"bias_files_with_adjusted_rows        : {sum_nested(bias_stats, league, 'files_with_biased_rows')}")
         log_league(league, f"bias_rows_adjusted                   : {sum_nested(bias_stats, league, 'rows_adjusted')}")
         log_league(league, f"bias_rows_skipped_already_flagged    : {sum_nested(bias_stats, league, 'rows_skipped_already_flagged')}")
@@ -1168,13 +1297,24 @@ def write_master_summary(
     book_write_stats,
     preserved_historical,
     skipped_historical_missing,
+    skipped_leagues=(),
+    duplicate_keys=None,
 ):
+    duplicate_keys = duplicate_keys or {}
+
     log_master("")
     log_master("============================================================")
     log_master("SUMMARY")
     log_master("============================================================")
 
     for league in ("NBA", "NCAAM", "WNBA"):
+        if league in skipped_leagues:
+            log_master("")
+            log_master(f"--- {league} ---")
+            log_master("SKIPPED | league status is not active in model_config.yaml")
+            log_master(f"league_detail_log                    : {LEAGUE_LOG_FILES[league]}")
+            continue
+
         (
             bad_ml,
             bad_total,
@@ -1208,8 +1348,9 @@ def write_master_summary(
         log_master(f"sportsbook_outlier_market_rows_blanked: {sportsbook_outlier_market_blanked.get(league, 0)}")
         log_master(f"historical_cleaned_files_preserved   : {preserved_historical.get(league, 0)}")
         log_master(f"historical_raw_missing_cleaned_skipped: {skipped_historical_missing.get(league, 0)}")
-        log_master("prediction_rows_removed              : 0")
-        log_master("sportsbook_rows_removed              : 0")
+        log_master(f"prediction_duplicate_keys_kept_last  : {duplicate_keys.get(league, 0)}")
+        log_master(f"prediction_rows_removed              : {sum_nested(pred_write_stats, league, 'rows_removed')}")
+        log_master(f"sportsbook_rows_removed              : {sum_nested(book_write_stats, league, 'rows_removed')}")
         log_master(f"bias_files_with_adjusted_rows        : {sum_nested(bias_stats, league, 'files_with_biased_rows')}")
         log_master(f"bias_rows_adjusted                   : {sum_nested(bias_stats, league, 'rows_adjusted')}")
         log_master(f"prediction_files_written             : {sum_nested(pred_write_stats, league, 'files_written')}")
@@ -1265,7 +1406,34 @@ def main():
     )
 
     bias_values = resolve_bias_values()
+
+    skipped_leagues = tuple(
+        league
+        for league in ("NBA", "NCAAM", "WNBA")
+        if bias_values[league].get("skipped")
+    )
+    for league in skipped_leagues:
+        message = (
+            f"SKIPPED | league status={bias_values[league]['config_status']!r} "
+            f"is not active in model_config.yaml"
+        )
+        log_master(f"{league} | {message}")
+        log_league(league, message)
+
+    active_prediction_dirs = {
+        league: folder
+        for league, folder in prediction_dirs.items()
+        if league not in skipped_leagues
+    }
+    active_sportsbook_dirs = {
+        league: folder
+        for league, folder in SPORTSBOOK_DIRS.items()
+        if league not in skipped_leagues
+    }
+
     for league in ("NBA", "NCAAM", "WNBA"):
+        if league in skipped_leagues:
+            continue
         log_league(
             league,
             f"BIAS CONFIG | margin_method={bias_values[league]['margin']['method']} "
@@ -1274,8 +1442,10 @@ def main():
             f"total_value={bias_values[league]['total']['value']}"
         )
 
-    pred_files = load_all(prediction_dirs)
-    book_files = load_all(SPORTSBOOK_DIRS)
+    pred_files = load_all(active_prediction_dirs)
+    book_files = load_all(active_sportsbook_dirs)
+    pred_loaded_rows = count_loaded_rows(pred_files)
+    book_loaded_rows = count_loaded_rows(book_files)
 
     pred_loaded = sum(len(v) for v in pred_files.values())
     book_loaded = sum(len(v) for v in book_files.values())
@@ -1284,25 +1454,31 @@ def main():
     bad_odds_blanked = blank_bad_market_odds(book_files)
     bad_lines_blanked = blank_bad_market_lines(book_files)
 
-    pred_index = build_pred_index(pred_files)
+    pred_index, duplicate_keys = build_pred_index(pred_files)
     book_index = build_book_index(book_files)
 
     market_outlier_actions, outlier_counts = find_market_outlier_actions(pred_index, book_index)
     sportsbook_outlier_market_blanked = apply_market_outlier_actions(book_files, market_outlier_actions)
 
-    preserved_historical, skipped_historical_missing = preserve_past_cleaned_predictions(pred_files)
-    bias_stats = apply_prediction_biases(pred_files, bias_values)
+    (
+        preserved_historical,
+        skipped_historical_missing,
+        preserved_paths,
+    ) = preserve_past_cleaned_predictions(pred_files)
+    bias_stats = apply_prediction_biases(pred_files, bias_values, preserved_paths)
 
     pred_write_stats = write_cleaned(
         pred_files,
         CLEANED_PREDICTION_DIRS,
         "PREDICTIONS",
+        pred_loaded_rows,
     )
 
     book_write_stats = write_cleaned(
         book_files,
         CLEANED_SPORTSBOOK_DIRS,
         "SPORTSBOOK",
+        book_loaded_rows,
     )
 
     write_league_summaries(
@@ -1317,6 +1493,8 @@ def main():
         book_write_stats=book_write_stats,
         preserved_historical=preserved_historical,
         skipped_historical_missing=skipped_historical_missing,
+        skipped_leagues=skipped_leagues,
+        duplicate_keys=duplicate_keys,
     )
 
     write_master_summary(
@@ -1331,6 +1509,8 @@ def main():
         book_write_stats=book_write_stats,
         preserved_historical=preserved_historical,
         skipped_historical_missing=skipped_historical_missing,
+        skipped_leagues=skipped_leagues,
+        duplicate_keys=duplicate_keys,
     )
 
     print("STATUS: SUCCESS")

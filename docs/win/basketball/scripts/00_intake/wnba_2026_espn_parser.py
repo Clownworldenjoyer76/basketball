@@ -4,6 +4,9 @@
 No writes under --repo. ESPN scoreboards and summaries are persisted to --output
 for reproducibility. Replays the production feature-generation functions in
 memory with a read-only monkeypatch for history reads; NEVER invokes their writers.
+
+Log: docs/win/basketball/errors/00_intake/wnba_2026_espn_parser.txt (relative to the
+working directory). Overwritten on a direct run, appended to when imported.
 """
 from __future__ import annotations
 
@@ -21,6 +24,30 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
+
+ERROR_DIR = Path("docs/win/basketball/errors/00_intake")
+LOG_FILE = ERROR_DIR / "wnba_2026_espn_parser.txt"
+
+
+def init_log():
+    """Direct run only: overwrite the log and write the header."""
+    try:
+        ERROR_DIR.mkdir(parents=True, exist_ok=True)
+        LOG_FILE.write_text(
+            f"=== WNBA 2026 ESPN PARSER {datetime.now(timezone.utc).isoformat()} ===\n",
+            encoding="utf-8")
+    except OSError as exc:
+        print(f"LOG WRITE FAILED: {exc}", file=sys.stderr)
+
+
+def log(message):
+    """Append one timestamped line; a log write failure never stops the run."""
+    try:
+        ERROR_DIR.mkdir(parents=True, exist_ok=True)
+        with LOG_FILE.open("a", encoding="utf-8") as handle:
+            handle.write(f"{datetime.now(timezone.utc).isoformat()} | {message}\n")
+    except OSError as exc:
+        print(f"LOG WRITE FAILED: {exc}", file=sys.stderr)
 
 try:
     NY = ZoneInfo("America/New_York")
@@ -85,8 +112,10 @@ def get_json(url, retries=3):
                 return json.loads(response.read().decode("utf-8"))
         except (HTTPError, URLError, TimeoutError, ValueError, OSError) as exc:
             last = exc
+            log(f"HTTP RETRY | attempt={attempt}/{retries} url={url} error={exc}")
             if attempt < retries:
                 time.sleep(attempt)
+    log(f"HTTP FAILED | url={url} error={last}")
     raise RuntimeError(f"Unable to retrieve {url}: {last}")
 
 
@@ -102,6 +131,17 @@ def save_csv(path, rows, columns=None):
 
 def log_issue(issues, severity, reason, **details):
     issues.append({"severity": severity, "reason": reason, **details})
+
+
+def log_issues(issues):
+    """Write every warning/error issue to the log, then counts by severity and reason."""
+    for item in issues:
+        if item.get("severity") in ("warning", "error"):
+            details = " ".join(f"{k}={v}" for k, v in item.items() if k not in ("severity", "reason"))
+            log(f"{str(item['severity']).upper()} {item['reason']} | {details}")
+    counts = Counter((x.get("severity"), x.get("reason")) for x in issues)
+    for (severity, reason), n in sorted(counts.items(), key=lambda kv: (str(kv[0][0]), str(kv[0][1]))):
+        log(f"ISSUE COUNT | severity={severity} reason={reason} count={n}")
 
 
 def read_archive(base, start, end):
@@ -298,7 +338,8 @@ def summary_tables(s, game, issues):
             if tid not in team_ids:
                 raise ValueError("player group team id does not match scoreboard")
             players.extend(player_rows(entry, game, gid, issues))
-        counts = Counter(p["team_id"] for p in players)
+        counts = Counter(p["team_id"] for p in players
+                         if p.get("points") is not None or p.get("minutes") is not None)
         if any(counts.get(tid, 0) < 5 for tid in team_ids):
             raise ValueError(f"too few parsed player rows: {dict(counts)}")
         if sum(p.get("points") is not None for p in players) < 10:
@@ -419,6 +460,8 @@ def build(args, base, output):
         parsed = summary_tables(summary, game, issues)
         if parsed is None:
             if summaries_attempted == 12 and len(trusted) < 2:
+                log_issues(issues)
+                log("BUILD STOPPED | most initial ESPN summaries failed schema validation")
                 save_csv(output/"quarantine_and_flags.csv", issues)
                 raise RuntimeError("Most initial ESPN summaries failed schema validation; inspect quarantine_and_flags.csv before downloading all games")
             continue
@@ -445,6 +488,7 @@ def build(args, base, output):
             continue
         pl.DataFrame(rows, infer_schema_length=None, strict=False).write_parquet(stage_dir/(filename+".parquet"))
     save_csv(output/"espn_vs_archive_crosswalk.csv", audit_matches)
+    log_issues(issues)
     save_csv(output/"quarantine_and_flags.csv", issues)
     save_csv(output/"validated_2026_games.csv", [dict(game_id=g["game_id"],game_date=g["game_date"],
              home_team_id=g["home_team_id"],away_team_id=g["away_team_id"],
@@ -460,9 +504,10 @@ def build(args, base, output):
                 "boxscore_team_rows": len(box_rows), "player_rows": len(players),
                 "quarantine_counts": dict(Counter(x["reason"] for x in issues)),
                 "allstar_or_non_club_exclusions": sum(x["reason"]=="EXCLUDED_NON_WNBA_CLUB_GAME" for x in issues),
-                "source_statistics_method": "ESPN summary team boxscore; estimated possessions when historical possessions unavailable",
+                "source_statistics_method": "ESPN summary team boxscore statistics; no possession estimate is computed in this script",
                 "status": "candidate_research_only_no_production_use"}
     (output/"build_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    log("BUILD MANIFEST | " + json.dumps({k: v for k, v in manifest.items()}, sort_keys=True))
     print("\nISOLATED HISTORY RECONSTRUCTION")
     for name, val in manifest.items():
         if name not in ("quarantine_counts",):
@@ -474,8 +519,10 @@ def build(args, base, output):
         "SCOREBOARD_HTTP_FAILURE", "INCOMPLETE_ESPN_DATE_COVERAGE",
         "DUPLICATE_ESPN_DIFFERENT_CONTENT") for x in issues)
     if fatal:
+        log(f"REPLAY BLOCKED | ESPN coverage or identity errors={fatal}")
         raise RuntimeError(f"Replay blocked: ESPN coverage or identity errors ({fatal}); inspect quarantine_and_flags.csv")
     if len(trusted) < len(games)*0.90:
+        log(f"REPLAY BLOCKED | validated boxscores {len(trusted)}/{len(games)}")
         raise RuntimeError(f"Replay blocked: only {len(trusted)}/{len(games)} validated boxscores")
     return manifest
 
@@ -524,9 +571,12 @@ def model_replay(feature, model):
     for n in enc["numeric_scaling"]:
         name=n["name"]
         raw=feature.get(name)
-        v=num(raw)
-        if v is None:
-            v=num(n["missing_fill_value"])
+        if raw is None or (isinstance(raw,str) and raw.strip()==""):
+            v=num(n["missing_fill_value"])      # missing/blank: use the model fill value
+        else:
+            v=num(raw)
+            if v is None:
+                raise ValueError(f"Non-numeric value for feature {name}: {raw!r}")
         if v is None:
             raise ValueError(f"Invalid numeric feature {name}")
         sd=float(n["std"])
@@ -595,6 +645,7 @@ def replay(args, base, output, manifest):
     finally:
         fg.history_seasons=original_seasons
         fg.read_history_table=original_read
+    log(f"REPLAY START | score_from={args.score_from_date} through={args.through_date}")
     print("\nREPLAYING PREEXISTING ARCHIVED PREDICTION GAMES AGAINST ISOLATED 2026 HISTORY")
     archived=load_past_archive(base,args.score_from_date,args.through_date)
     hist_games={str(row["game_id"]):row for row in pl.read_parquet(newdir/"games.parquet").to_dicts()}
@@ -626,8 +677,8 @@ def replay(args, base, output, manifest):
                 feature_version=fg.active_feature_version(cfg),generated_at="isolated_diagnostic",
                 team_index=team_index,player_index=player_index,home_venue_index=venue_index,
                 league_efficiency_index=league_index,**dict(zip(("team_windows", "opponent_rating_games", "player_game_window", "player_top_n", "venue_history_games", "team_pseudo_games", "opponent_pseudo_games", "player_pseudo_games", "player_weights"),fg.generation_settings(cfg))))
-            margin=model_replay(f,model)
-            prob=n_cdf((margin+mean)/sd)
+            margin=model_replay(f,model)+mean      # mean-adjusted margin
+            prob=n_cdf(margin/sd)
             y=int(integer(s["home_score"])>integer(s["away_score"]))
             recorded.append({"date":p["game_date"],"game_id":gid,"home":p["home_team"],"away":p["away_team"],
                              "y":y,"p_dr":float(p["dratings_home_prob"]),"p_sdv_orig":float(p["sdv_home_prob"]),
@@ -642,11 +693,19 @@ def replay(args, base, output, manifest):
         except Exception as exc:
             failures.append({"date":p["game_date"],"game_id":gid,"error":str(exc),
                              "trace":traceback.format_exc(limit=3)})
+    for x in excluded:
+        log(f"REPLAY EXCLUDED | game_id={x['game_id']} date={x['date']} reason={x['reason']}")
+    for x in failures:
+        log(f"REPLAY ERROR | game_id={x['game_id']} date={x['date']} error={x['error']}")
+        for line in str(x["trace"]).rstrip().splitlines():
+            log(f"  {line}")
     save_csv(output/"replay_game_by_game.csv",recorded)
     save_csv(output/"replay_excluded.csv",excluded)
     save_csv(output/"replay_errors.csv",failures)
     print(f"Archive predictions eligible: {len(archived)}, evaluated: {len(recorded)}, excluded: {len(excluded)}, errors: {len(failures)}")
+    log(f"REPLAY COUNTS | eligible={len(archived)} evaluated={len(recorded)} excluded={len(excluded)} errors={len(failures)}")
     if not recorded:
+        log("REPLAY FAILED | no validated archived predictions could be replayed")
         raise RuntimeError("No validated archived predictions could be replayed; inspect replay_errors.csv")
     for k,label in (("p_dr","DRatings"),("p_sdv_orig","Original SDV"),
                     ("p_sdv_repaired","SDV with rebuilt 2026 history"),
@@ -654,8 +713,14 @@ def replay(args, base, output, manifest):
                     ("p_ens_repaired","50/50 ensemble with rebuilt SDV")):
         print(f"{label:36s} {proper_scores(recorded,k)}")
     print("Mean corrected SDV margin:",round(sum(r["margin_sdv_repaired"] for r in recorded)/len(recorded),3))
-    print("Mean home/away rest:",round(sum((num(r["home_rest_days"]) or 0) for r in recorded)/len(recorded),3),
-          round(sum((num(r["away_rest_days"]) or 0) for r in recorded)/len(recorded),3))
+    rest_msg=[]
+    for col in ("home_rest_days","away_rest_days"):
+        vals=[num(r[col]) for r in recorded]
+        vals=[v for v in vals if v is not None]
+        rest_msg.append((round(sum(vals)/len(vals),3) if vals else None, len(recorded)-len(vals)))
+    print("Mean home/away rest:",rest_msg[0][0],rest_msg[1][0],
+          f"(missing rest days left out: home {rest_msg[0][1]}, away {rest_msg[1][1]})")
+    log(f"REST DAYS MEAN | home={rest_msg[0][0]} away={rest_msg[1][0]} left_out_home={rest_msg[0][1]} left_out_away={rest_msg[1][1]}")
     result={"eligible":len(archived),"evaluated":len(recorded),"excluded":len(excluded),"errors":len(failures),
             "scores":{label:proper_scores(recorded,k) for k,label in (("p_dr","dratings"),
               ("p_sdv_orig","sdv_original"),("p_sdv_repaired","sdv_2026_rebuilt"),
@@ -666,6 +731,7 @@ def replay(args, base, output, manifest):
                            "Target-day earlier games excluded conservatively",
                            "If other dates failed ESPN API or ESPN boxscore validity, results are incomplete"]}
     (output/"replay_summary.json").write_text(json.dumps(result,indent=2),encoding="utf-8")
+    log("REPLAY SUMMARY | " + json.dumps(result, sort_keys=True))
     print("ISOLATED OUTPUT:",output)
     return result
 
@@ -700,6 +766,7 @@ def main():
     ap.add_argument("--delay-ms",type=int,default=120)
     ap.add_argument("--self-test",action="store_true")
     args=ap.parse_args()
+    log("RUN | " + " ".join(f"{k}={v}" for k, v in sorted(vars(args).items())))
     if args.self_test:
         self_test(); return
     if args.repo is None or args.output is None:
@@ -734,8 +801,21 @@ def main():
 
 
 if __name__=="__main__":
+    init_log()
     try:
         main()
-    except Exception:
+    except SystemExit as exc:
+        if exc.code not in (None, 0):
+            log(f"FATAL | {exc.code}")
+            log("STATUS: FAILED")
+            raise
+        log("STATUS: SUCCESS")
+    except Exception as exc:
+        log(f"FATAL | {type(exc).__name__}: {exc}")
+        for line in traceback.format_exc().rstrip().splitlines():
+            log(f"  {line}")
+        log("STATUS: FAILED")
         traceback.print_exc()
         sys.exit(1)
+    else:
+        log("STATUS: SUCCESS")

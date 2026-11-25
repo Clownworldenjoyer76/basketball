@@ -24,6 +24,7 @@ import io
 import json
 import re
 import tempfile
+import time
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
@@ -59,6 +60,20 @@ ERROR_DIR = BASE / "errors/00_intake"
 LOG_FILE = ERROR_DIR / "sdv_historical_storage.txt"
 
 LEAGUES = ("nba", "ncaam", "wnba")
+
+# SDV seasons below this value use the legacy schedule-crosswalk path
+# (NBA and WNBA).
+PRO_CROSSWALK_MINIMUM_SDV_SEASON = 2026
+
+# WNBA possessions/lineups for SDV seasons below this value come from the
+# published release asset instead of the SportsDataVerse loader.
+WNBA_RELEASE_FALLBACK_BEFORE_SDV_SEASON = 2026
+
+# http_get: total attempts; waits 2 s then 4 s between attempts.
+HTTP_GET_ATTEMPTS = 3
+
+# NCAAM transform failures recorded during this run (used for final STATUS).
+TRANSFORM_FAILURES: list[str] = []
 
 TABLES = (
     "games",
@@ -182,7 +197,7 @@ PRO_SCHEDULE_CROSSWALKS = {
             "nba_crosswalk/"
             "nba_schedule_crosswalk_{season}.parquet"
         ),
-        "minimum_season": 2026,
+        "minimum_season": PRO_CROSSWALK_MINIMUM_SDV_SEASON,
     },
     "wnba": {
         "module": "sportsdataverse.wnba",
@@ -194,7 +209,7 @@ PRO_SCHEDULE_CROSSWALKS = {
             "wnba_crosswalk/"
             "wnba_schedule_crosswalk_{season}.parquet"
         ),
-        "minimum_season": 2026,
+        "minimum_season": PRO_CROSSWALK_MINIMUM_SDV_SEASON,
     },
 }
 
@@ -550,21 +565,6 @@ def fallback_asset_year(
     internal_season: int,
     sdv_season: int,
 ) -> int:
-    if (
-        league == "nba"
-        and table
-        in {
-            "possessions",
-            "lineups",
-        }
-    ):
-        return (
-            int(
-                internal_season
-            )
-            + 1
-        )
-
     return int(
         sdv_season
     )
@@ -575,20 +575,46 @@ def http_get(
     *,
     timeout: int = 180,
 ) -> requests.Response:
-    response = requests.get(
-        url,
-        timeout=timeout,
-    )
+    last_error: Exception | None = None
 
-    if response.status_code == 404:
-        raise RuntimeError(
-            "SportsDataVerse source "
-            f"not published: {url}"
-        )
+    for attempt in range(
+        1,
+        HTTP_GET_ATTEMPTS + 1,
+    ):
+        try:
+            response = requests.get(
+                url,
+                timeout=timeout,
+            )
 
-    response.raise_for_status()
+            if response.status_code == 404:
+                raise RuntimeError(
+                    "SportsDataVerse source "
+                    f"not published: {url}"
+                )
 
-    return response
+            response.raise_for_status()
+
+            return response
+
+        except requests.RequestException as exc:
+            last_error = exc
+
+            log(
+                "HTTP RETRY | "
+                f"url={url} "
+                f"attempt={attempt}/{HTTP_GET_ATTEMPTS} "
+                f"error={exc}"
+            )
+
+            if attempt < HTTP_GET_ATTEMPTS:
+                time.sleep(
+                    attempt * 2
+                )
+
+    assert last_error is not None
+
+    raise last_error
 
 
 def release_fallback(
@@ -2154,334 +2180,559 @@ def build_wnba_legacy_schedule_crosswalk(
     internal_season: int,
     sdv_season: int,
 ):
+    """Map historical WWNBA Stats game IDs to canonical ESPN game IDs.
+
+    Historical WWNBA Stats schedule data can arrive as either team rows (one
+    row per team) or game rows (explicit home/away columns).
+
+    WWNBA Stats team-row ``matchup`` values are not used. For every team-row
+    game, this function requires exactly two unique teams, and matches the
+    game to the canonical ESPN schedule by game date plus the unordered pair
+    of teams. The canonical ESPN schedule supplies the final home/away
+    orientation. Scores are used only as a deterministic disambiguator if
+    more than one canonical candidate remains. Conflicting duplicate rows
+    stop the run.
+    """
     pl_module = pl()
 
     (
         stats_schedule,
         stats_source,
     ) = load_wnba_stats_schedule(
-        sdv_season
+        sdv_season,
     )
 
-    required = {
+    columns = set(
+        stats_schedule.columns
+    )
+
+    team_row_required = {
         "game_id",
         "game_date",
         "team_name",
         "team_abbreviation",
-        "matchup",
     }
 
-    missing = sorted(
-        required
-        - set(
-            stats_schedule.columns
-        )
+    game_row_required = {
+        "game_id",
+        "game_date",
+        "home_team_name",
+        "home_team_abbreviation",
+        "away_team_name",
+        "away_team_abbreviation",
+    }
+
+    has_team_rows = (
+        team_row_required
+        <= columns
     )
 
-    if missing:
+    has_game_rows = (
+        game_row_required
+        <= columns
+    )
+
+    if not (
+        has_team_rows
+        or has_game_rows
+    ):
         raise RuntimeError(
-            "WNBA Stats schedule "
-            f"missing columns={missing}; "
+            "WNBA Stats schedule has unsupported schema; "
             f"columns={stats_schedule.columns}"
         )
 
-    expressions = [
-        pl_module.col(
-            "game_id"
-        )
-        .cast(
-            pl_module.Utf8,
-            strict=False,
-        )
-        .str.strip_chars()
-        .alias(
-            "game_id"
-        ),
-        pl_module.col(
-            "game_date"
-        )
-        .cast(
-            pl_module.Utf8,
-            strict=False,
-        )
-        .str.slice(
-            0,
-            10,
-        )
-        .alias(
-            "game_date_key"
-        ),
-        pl_module.col(
-            "team_name"
-        )
-        .cast(
-            pl_module.Utf8,
-            strict=False,
-        )
-        .alias(
-            "team_name"
-        ),
-        pl_module.col(
-            "team_abbreviation"
-        )
-        .cast(
-            pl_module.Utf8,
-            strict=False,
-        )
-        .alias(
-            "team_abbreviation"
-        ),
-        pl_module.col(
-            "matchup"
-        )
-        .cast(
-            pl_module.Utf8,
-            strict=False,
-        )
-        .alias(
-            "matchup"
-        ),
-    ]
+    stats_games: dict[
+        str,
+        dict[str, Any],
+    ] = {}
 
-    if (
-        "pts"
-        in stats_schedule.columns
-    ):
-        expressions.append(
-            pl_module.col(
+    bad_date_ids: set[str] = set()
+    conflicting_duplicate_ids: set[str] = set()
+    incomplete_ids: set[str] = set()
+
+    exact_duplicate_rows = 0
+    unordered_team_row_games = 0
+
+    def maybe_float(
+        value: Any,
+    ) -> float | None:
+        if value is None:
+            return None
+
+        text = clean(value)
+
+        if not text:
+            return None
+
+        try:
+            return float(text)
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return None
+
+    def side_payload(
+        *,
+        team_name: Any,
+        team_abbreviation: Any,
+        pts: Any,
+    ) -> dict[str, Any]:
+        return {
+            "team_name": clean(
+                team_name
+            ),
+            "team_abbreviation": clean(
+                team_abbreviation
+            ),
+            "pts": maybe_float(
+                pts
+            ),
+        }
+
+    def side_identity(
+        side_data: dict[str, Any] | None,
+    ) -> tuple[Any, ...] | None:
+        if side_data is None:
+            return None
+
+        return (
+            clean(
+                side_data.get(
+                    "team_name"
+                )
+            ).lower(),
+            clean(
+                side_data.get(
+                    "team_abbreviation"
+                )
+            ).lower(),
+            side_data.get(
                 "pts"
-            )
-            .cast(
-                pl_module.Float64,
-                strict=False,
-            )
-            .alias(
-                "pts"
-            )
-        )
-    else:
-        expressions.append(
-            pl_module.lit(
-                None,
-                dtype=pl_module.Float64,
-            ).alias(
-                "pts"
-            )
+            ),
         )
 
-    stats_schedule = (
-        stats_schedule
-        .select(
-            expressions
+    def side_team_identity(
+        side_data: dict[str, Any] | None,
+    ) -> tuple[str, str] | None:
+        if side_data is None:
+            return None
+
+        return (
+            clean(
+                side_data.get(
+                    "team_name"
+                )
+            ).lower(),
+            clean(
+                side_data.get(
+                    "team_abbreviation"
+                )
+            ).lower(),
         )
-        .filter(
-            pl_module.col(
-                "game_id"
-            ).is_not_null()
-            & (
-                pl_module.col(
-                    "game_id"
+
+    def side_variants(
+        side_data: dict[str, Any] | None,
+    ) -> set[str]:
+        if side_data is None:
+            return set()
+
+        return (
+            team_variants(
+                side_data.get(
+                    "team_name"
                 )
-                != ""
+            )
+            | team_variants(
+                side_data.get(
+                    "team_abbreviation"
+                )
             )
         )
-        .with_columns(
-            pl_module.when(
-                pl_module.col(
-                    "matchup"
+
+    def game_identity(
+        game_data: dict[str, Any],
+    ) -> tuple[Any, ...]:
+        return (
+            clean(
+                game_data.get(
+                    "game_date_key"
                 )
-                .str.contains(
-                    "@",
-                    literal=True,
+            ),
+            clean(
+                game_data.get(
+                    "match_mode"
                 )
-            )
-            .then(
-                pl_module.lit(
-                    "away"
-                )
-            )
-            .when(
-                pl_module.col(
-                    "matchup"
-                )
-                .str.to_lowercase()
-                .str.contains(
-                    "vs",
-                    literal=True,
-                )
-            )
-            .then(
-                pl_module.lit(
+            ),
+            side_identity(
+                game_data.get(
                     "home"
                 )
-            )
-            .otherwise(
-                pl_module.lit(
-                    None,
-                    dtype=pl_module.Utf8,
+            ),
+            side_identity(
+                game_data.get(
+                    "away"
                 )
-            )
-            .alias(
-                "home_away"
-            )
-        )
-    )
-
-    unclassified = (
-        stats_schedule
-        .filter(
-            pl_module.col(
-                "home_away"
-            ).is_null()
-        )
-        .select(
-            "game_id"
-        )
-        .unique()
-    )
-
-    if unclassified.height:
-        ids = (
-            unclassified
-            .get_column(
-                "game_id"
-            )
-            .to_list()[:20]
+            ),
+            side_identity(
+                game_data.get(
+                    "team_a"
+                )
+            ),
+            side_identity(
+                game_data.get(
+                    "team_b"
+                )
+            ),
         )
 
-        raise RuntimeError(
-            "WNBA Stats schedule has "
-            "unrecognized matchup format "
-            f"for game_ids={ids}"
-        )
+    if has_game_rows:
+        schema_used = "game_rows"
 
-    grouped = (
-        stats_schedule
-        .group_by(
+        selected_columns = [
             "game_id",
-            maintain_order=False,
-        )
-        .agg(
-            pl_module.col(
-                "game_date_key"
-            )
-            .drop_nulls()
-            .first()
-            .alias(
-                "game_date_key"
-            ),
-            pl_module.col(
-                "team_name"
-            )
-            .filter(
-                pl_module.col(
-                    "home_away"
+            "game_date",
+            "home_team_name",
+            "home_team_abbreviation",
+            "away_team_name",
+            "away_team_abbreviation",
+        ]
+
+        for optional_column in (
+            "home_pts",
+            "away_pts",
+        ):
+            if optional_column in columns:
+                selected_columns.append(
+                    optional_column
                 )
-                == "home"
+
+        for row in (
+            stats_schedule
+            .select(
+                selected_columns
             )
-            .first()
-            .alias(
-                "home_team_name"
-            ),
-            pl_module.col(
-                "team_abbreviation"
+            .iter_rows(
+                named=True
             )
-            .filter(
-                pl_module.col(
-                    "home_away"
+        ):
+            native_game_id = clean(
+                row.get(
+                    "game_id"
                 )
-                == "home"
             )
-            .first()
-            .alias(
-                "home_team_abbreviation"
-            ),
-            pl_module.col(
+
+            if not native_game_id:
+                continue
+
+            date_key = normalize_legacy_schedule_date(
+                row.get(
+                    "game_date"
+                )
+            )
+
+            if not date_key:
+                bad_date_ids.add(
+                    native_game_id
+                )
+                continue
+
+            game = {
+                "game_date_key": date_key,
+                "match_mode": "explicit_home_away",
+                "home": side_payload(
+                    team_name=row.get(
+                        "home_team_name"
+                    ),
+                    team_abbreviation=row.get(
+                        "home_team_abbreviation"
+                    ),
+                    pts=row.get(
+                        "home_pts"
+                    ),
+                ),
+                "away": side_payload(
+                    team_name=row.get(
+                        "away_team_name"
+                    ),
+                    team_abbreviation=row.get(
+                        "away_team_abbreviation"
+                    ),
+                    pts=row.get(
+                        "away_pts"
+                    ),
+                ),
+                "team_a": None,
+                "team_b": None,
+            }
+
+            if (
+                not side_variants(
+                    game[
+                        "home"
+                    ]
+                )
+                or not side_variants(
+                    game[
+                        "away"
+                    ]
+                )
+            ):
+                incomplete_ids.add(
+                    native_game_id
+                )
+                continue
+
+            existing = stats_games.get(
+                native_game_id
+            )
+
+            if existing is None:
+                stats_games[
+                    native_game_id
+                ] = game
+                continue
+
+            if (
+                game_identity(
+                    existing
+                )
+                == game_identity(
+                    game
+                )
+            ):
+                exact_duplicate_rows += 1
+            else:
+                conflicting_duplicate_ids.add(
+                    native_game_id
+                )
+
+    else:
+        schema_used = "team_rows"
+
+        selected_columns = [
+            "game_id",
+            "game_date",
+            "team_name",
+            "team_abbreviation",
+        ]
+
+        if "pts" in columns:
+            selected_columns.append(
                 "pts"
             )
-            .filter(
-                pl_module.col(
-                    "home_away"
-                )
-                == "home"
-            )
-            .first()
-            .alias(
-                "home_pts"
-            ),
-            pl_module.col(
-                "team_name"
-            )
-            .filter(
-                pl_module.col(
-                    "home_away"
-                )
-                == "away"
-            )
-            .first()
-            .alias(
-                "away_team_name"
-            ),
-            pl_module.col(
-                "team_abbreviation"
-            )
-            .filter(
-                pl_module.col(
-                    "home_away"
-                )
-                == "away"
-            )
-            .first()
-            .alias(
-                "away_team_abbreviation"
-            ),
-            pl_module.col(
-                "pts"
-            )
-            .filter(
-                pl_module.col(
-                    "home_away"
-                )
-                == "away"
-            )
-            .first()
-            .alias(
-                "away_pts"
-            ),
-        )
-    )
 
-    incomplete = (
-        grouped
-        .filter(
-            pl_module.col(
-                "game_date_key"
-            ).is_null()
-            | pl_module.col(
-                "home_team_name"
-            ).is_null()
-            | pl_module.col(
-                "away_team_name"
-            ).is_null()
-        )
-    )
+        raw_games: dict[
+            str,
+            dict[str, Any],
+        ] = {}
 
-    if incomplete.height:
-        ids = (
-            incomplete
-            .get_column(
-                "game_id"
+        for row in (
+            stats_schedule
+            .select(
+                selected_columns
             )
-            .to_list()[:20]
-        )
+            .iter_rows(
+                named=True
+            )
+        ):
+            native_game_id = clean(
+                row.get(
+                    "game_id"
+                )
+            )
 
+            if not native_game_id:
+                continue
+
+            date_key = normalize_legacy_schedule_date(
+                row.get(
+                    "game_date"
+                )
+            )
+
+            if not date_key:
+                bad_date_ids.add(
+                    native_game_id
+                )
+                continue
+
+            side = side_payload(
+                team_name=row.get(
+                    "team_name"
+                ),
+                team_abbreviation=row.get(
+                    "team_abbreviation"
+                ),
+                pts=row.get(
+                    "pts"
+                ),
+            )
+
+            if not side_variants(
+                side
+            ):
+                incomplete_ids.add(
+                    native_game_id
+                )
+                continue
+
+            raw_game = raw_games.setdefault(
+                native_game_id,
+                {
+                    "game_date_key": date_key,
+                    "teams": [],
+                },
+            )
+
+            if (
+                raw_game[
+                    "game_date_key"
+                ]
+                != date_key
+            ):
+                conflicting_duplicate_ids.add(
+                    native_game_id
+                )
+                continue
+
+            duplicate_found = False
+            conflict_found = False
+
+            for existing_side in raw_game[
+                "teams"
+            ]:
+                if (
+                    side_team_identity(
+                        existing_side
+                    )
+                    != side_team_identity(
+                        side
+                    )
+                ):
+                    continue
+
+                if (
+                    side_identity(
+                        existing_side
+                    )
+                    == side_identity(
+                        side
+                    )
+                ):
+                    duplicate_found = True
+                else:
+                    conflict_found = True
+
+                break
+
+            if duplicate_found:
+                exact_duplicate_rows += 1
+                continue
+
+            if conflict_found:
+                conflicting_duplicate_ids.add(
+                    native_game_id
+                )
+                continue
+
+            raw_game[
+                "teams"
+            ].append(
+                side
+            )
+
+        for (
+            native_game_id,
+            raw_game,
+        ) in raw_games.items():
+            if (
+                native_game_id
+                in conflicting_duplicate_ids
+            ):
+                continue
+
+            teams = raw_game[
+                "teams"
+            ]
+
+            if len(
+                teams
+            ) != 2:
+                incomplete_ids.add(
+                    native_game_id
+                )
+                continue
+
+            if (
+                side_team_identity(
+                    teams[0]
+                )
+                == side_team_identity(
+                    teams[1]
+                )
+            ):
+                incomplete_ids.add(
+                    native_game_id
+                )
+                continue
+
+            stats_games[
+                native_game_id
+            ] = {
+                "game_date_key": raw_game[
+                    "game_date_key"
+                ],
+                "match_mode": "unordered_teams",
+                "home": None,
+                "away": None,
+                "team_a": teams[0],
+                "team_b": teams[1],
+            }
+
+            unordered_team_row_games += 1
+
+    if bad_date_ids:
         raise RuntimeError(
-            "WNBA Stats schedule cannot "
-            "identify both teams for "
-            f"game_ids={ids}"
+            "WNBA Stats schedule has unparseable "
+            "game_date values for game_ids="
+            f"{sorted(bad_date_ids)[:20]}"
         )
 
-    root = storage_root(cfg)
+    if conflicting_duplicate_ids:
+        raise RuntimeError(
+            "WNBA Stats schedule has conflicting duplicate "
+            "team rows for game_ids="
+            f"{sorted(conflicting_duplicate_ids)[:20]}"
+        )
+
+    if incomplete_ids:
+        raise RuntimeError(
+            "WNBA Stats schedule cannot identify exactly "
+            "two unique teams for game_ids="
+            f"{sorted(incomplete_ids)[:20]}"
+        )
+
+    if not stats_games:
+        raise RuntimeError(
+            "WNBA Stats schedule produced zero usable games "
+            f"for SDV season={sdv_season}"
+        )
+
+    log(
+        "WNBA STATS SCHEDULE SCHEMA | "
+        f"internal={internal_season} "
+        f"sdv={sdv_season} "
+        f"schema={schema_used} "
+        f"rows={stats_schedule.height} "
+        f"games={len(stats_games)} "
+        f"unordered_team_row_games={unordered_team_row_games} "
+        f"exact_duplicate_rows_ignored={exact_duplicate_rows}"
+    )
+
+    root = storage_root(
+        cfg
+    )
 
     games_file = table_path(
         root,
@@ -2492,8 +2743,8 @@ def build_wnba_legacy_schedule_crosswalk(
 
     if not games_file.exists():
         raise RuntimeError(
-            "WNBA canonical games file "
-            f"missing: {games_file}"
+            "WNBA canonical games file missing: "
+            f"{games_file}"
         )
 
     games = pl_module.read_parquet(
@@ -2551,57 +2802,138 @@ def build_wnba_legacy_schedule_crosswalk(
         or not away_name_columns
     ):
         raise RuntimeError(
-            "WNBA games.parquet does not "
-            "expose usable home/away "
-            "team-name columns"
+            "WNBA games.parquet does not expose usable "
+            "home/away team-name columns"
         )
 
-    game_rows = (
+    canonical_columns = [
+        "game_id",
+        "game_date",
+        *home_name_columns,
+        *away_name_columns,
+    ]
+
+    for score_column in (
+        "home_score",
+        "away_score",
+    ):
+        if score_column in games.columns:
+            canonical_columns.append(
+                score_column
+            )
+
+    by_date: dict[
+        str,
+        list[dict[str, Any]],
+    ] = {}
+
+    canonical_bad_dates: list[str] = []
+
+    for row in (
         games
         .select(
-            [
-                "game_id",
-                "game_date",
-                *home_name_columns,
-                *away_name_columns,
-                *[
-                    column
-                    for column
-                    in (
-                        "home_score",
-                        "away_score",
-                    )
-                    if column
-                    in games.columns
-                ],
-            ]
+            canonical_columns
         )
         .iter_rows(
             named=True
         )
-    )
+    ):
+        espn_game_id = clean(
+            row.get(
+                "game_id"
+            )
+        )
 
-    by_date: dict[
-        str,
-        list[
-            dict[str, Any]
-        ],
-    ] = {}
-
-    for row in game_rows:
-        date_key = normalize_date_key(
+        date_key = normalize_legacy_schedule_date(
             row.get(
                 "game_date"
             )
         )
 
         if not date_key:
+            if espn_game_id:
+                canonical_bad_dates.append(
+                    espn_game_id
+                )
             continue
 
         by_date.setdefault(
             date_key,
             [],
-        ).append(row)
+        ).append(
+            row
+        )
+
+    if canonical_bad_dates:
+        raise RuntimeError(
+            "WNBA games.parquet has unparseable game_date "
+            "values for game_ids="
+            f"{sorted(canonical_bad_dates)[:20]}"
+        )
+
+    def candidate_variants(
+        candidate_row: dict[str, Any],
+        name_columns: list[str],
+    ) -> set[str]:
+        variants: set[str] = set()
+
+        for column in name_columns:
+            variants.update(
+                team_variants(
+                    candidate_row.get(
+                        column
+                    )
+                )
+            )
+
+        return variants
+
+    def unordered_orientations(
+        team_a: dict[str, Any],
+        team_b: dict[str, Any],
+        candidate_row: dict[str, Any],
+    ) -> set[str]:
+        team_a_variants = side_variants(
+            team_a
+        )
+
+        team_b_variants = side_variants(
+            team_b
+        )
+
+        candidate_home_variants = candidate_variants(
+            candidate_row,
+            home_name_columns,
+        )
+
+        candidate_away_variants = candidate_variants(
+            candidate_row,
+            away_name_columns,
+        )
+
+        matched_orientations: set[str] = set()
+
+        if (
+            team_a_variants
+            & candidate_home_variants
+            and team_b_variants
+            & candidate_away_variants
+        ):
+            matched_orientations.add(
+                "a_home"
+            )
+
+        if (
+            team_a_variants
+            & candidate_away_variants
+            and team_b_variants
+            & candidate_home_variants
+        ):
+            matched_orientations.add(
+                "a_away"
+            )
+
+        return matched_orientations
 
     mappings: list[
         dict[str, str]
@@ -2610,137 +2942,137 @@ def build_wnba_legacy_schedule_crosswalk(
     unmatched: list[str] = []
     ambiguous: list[str] = []
 
-    for row in grouped.iter_rows(
-        named=True
+    for native_game_id in sorted(
+        stats_games
     ):
-        native_game_id = clean(
-            row.get(
-                "game_id"
-            )
-        )
-
-        date_key = clean(
-            row.get(
-                "game_date_key"
-            )
-        )
+        game = stats_games[
+            native_game_id
+        ]
 
         candidates = by_date.get(
-            date_key,
+            game[
+                "game_date_key"
+            ],
             [],
         )
 
-        stats_home_variants = set()
+        match_records: list[
+            dict[str, Any]
+        ] = []
 
-        stats_home_variants.update(
-            team_variants(
-                row.get(
-                    "home_team_name"
+        if (
+            game[
+                "match_mode"
+            ]
+            == "unordered_teams"
+        ):
+            for candidate in candidates:
+                orientations = unordered_orientations(
+                    game[
+                        "team_a"
+                    ],
+                    game[
+                        "team_b"
+                    ],
+                    candidate,
                 )
-            )
-        )
 
-        stats_home_variants.update(
-            team_variants(
-                row.get(
-                    "home_team_abbreviation"
-                )
-            )
-        )
-
-        stats_away_variants = set()
-
-        stats_away_variants.update(
-            team_variants(
-                row.get(
-                    "away_team_name"
-                )
-            )
-        )
-
-        stats_away_variants.update(
-            team_variants(
-                row.get(
-                    "away_team_abbreviation"
-                )
-            )
-        )
-
-        name_matches = []
-
-        for candidate in candidates:
-            home_variants = set()
-
-            for column in home_name_columns:
-                home_variants.update(
-                    team_variants(
-                        candidate.get(
-                            column
-                        )
+                if orientations:
+                    match_records.append(
+                        {
+                            "candidate": candidate,
+                            "orientations": orientations,
+                        }
                     )
+
+        else:
+            stats_home_variants = side_variants(
+                game[
+                    "home"
+                ]
+            )
+
+            stats_away_variants = side_variants(
+                game[
+                    "away"
+                ]
+            )
+
+            for candidate in candidates:
+                home_variants = candidate_variants(
+                    candidate,
+                    home_name_columns,
                 )
 
-            away_variants = set()
+                away_variants = candidate_variants(
+                    candidate,
+                    away_name_columns,
+                )
 
-            for column in away_name_columns:
-                away_variants.update(
-                    team_variants(
-                        candidate.get(
-                            column
-                        )
+                if (
+                    stats_home_variants
+                    & home_variants
+                    and stats_away_variants
+                    & away_variants
+                ):
+                    match_records.append(
+                        {
+                            "candidate": candidate,
+                            "orientations": {
+                                "home_away"
+                            },
+                        }
                     )
-                )
-
-            if (
-                stats_home_variants
-                & home_variants
-                and stats_away_variants
-                & away_variants
-            ):
-                name_matches.append(
-                    candidate
-                )
 
         chosen = None
         method = ""
 
-        if len(name_matches) == 1:
-            chosen = name_matches[0]
-            method = (
-                "date_home_away_team"
-            )
+        if len(
+            match_records
+        ) == 1:
+            chosen = match_records[
+                0
+            ][
+                "candidate"
+            ]
 
-        elif len(name_matches) > 1:
-            candidates = name_matches
+            if (
+                game[
+                    "match_mode"
+                ]
+                == "unordered_teams"
+            ):
+                method = (
+                    "date_unordered_team_pair_"
+                    "canonical_home_away"
+                )
+            else:
+                method = (
+                    "date_home_away_team"
+                )
 
-        if (
-            chosen is None
-            and row.get(
-                "home_pts"
-            )
-            is not None
-            and row.get(
-                "away_pts"
-            )
-            is not None
-        ):
-            score_matches = []
+        elif len(
+            match_records
+        ) > 1:
+            score_matches: list[
+                dict[str, Any]
+            ] = []
 
-            for candidate in candidates:
+            for record in match_records:
+                candidate = record[
+                    "candidate"
+                ]
+
                 try:
                     home_score = float(
-                        clean(
-                            candidate.get(
-                                "home_score"
-                            )
+                        candidate.get(
+                            "home_score"
                         )
                     )
 
                     away_score = float(
-                        clean(
-                            candidate.get(
-                                "away_score"
-                            )
+                        candidate.get(
+                            "away_score"
                         )
                     )
 
@@ -2751,37 +3083,113 @@ def build_wnba_legacy_schedule_crosswalk(
                     continue
 
                 if (
-                    home_score
-                    == float(
-                        row[
-                            "home_pts"
-                        ]
-                    )
-                    and away_score
-                    == float(
-                        row[
-                            "away_pts"
-                        ]
-                    )
+                    game[
+                        "match_mode"
+                    ]
+                    == "unordered_teams"
                 ):
-                    score_matches.append(
-                        candidate
+                    team_a_pts = game[
+                        "team_a"
+                    ].get(
+                        "pts"
                     )
 
-            if len(score_matches) == 1:
-                chosen = score_matches[0]
-                method = (
-                    "date_home_away_score"
-                )
+                    team_b_pts = game[
+                        "team_b"
+                    ].get(
+                        "pts"
+                    )
 
-            elif len(score_matches) > 1:
-                ambiguous.append(
-                    native_game_id
-                )
-                continue
+                    if (
+                        team_a_pts is None
+                        or team_b_pts is None
+                    ):
+                        continue
+
+                    orientation_match = False
+
+                    if (
+                        "a_home"
+                        in record[
+                            "orientations"
+                        ]
+                        and home_score
+                        == team_a_pts
+                        and away_score
+                        == team_b_pts
+                    ):
+                        orientation_match = True
+
+                    if (
+                        "a_away"
+                        in record[
+                            "orientations"
+                        ]
+                        and home_score
+                        == team_b_pts
+                        and away_score
+                        == team_a_pts
+                    ):
+                        orientation_match = True
+
+                    if orientation_match:
+                        score_matches.append(
+                            record
+                        )
+
+                else:
+                    home_pts = game[
+                        "home"
+                    ].get(
+                        "pts"
+                    )
+
+                    away_pts = game[
+                        "away"
+                    ].get(
+                        "pts"
+                    )
+
+                    if (
+                        home_pts is not None
+                        and away_pts is not None
+                        and home_score
+                        == home_pts
+                        and away_score
+                        == away_pts
+                    ):
+                        score_matches.append(
+                            record
+                        )
+
+            if len(
+                score_matches
+            ) == 1:
+                chosen = score_matches[
+                    0
+                ][
+                    "candidate"
+                ]
+
+                if (
+                    game[
+                        "match_mode"
+                    ]
+                    == "unordered_teams"
+                ):
+                    method = (
+                        "date_unordered_team_pair_score_"
+                        "canonical_home_away"
+                    )
+                else:
+                    method = (
+                        "date_home_away_team_score"
+                    )
 
         if chosen is None:
-            if len(name_matches) > 1:
+            if len(
+                match_records
+            ) > 1:
                 ambiguous.append(
                     native_game_id
                 )
@@ -2792,27 +3200,31 @@ def build_wnba_legacy_schedule_crosswalk(
 
             continue
 
+        espn_game_id = clean(
+            chosen.get(
+                "game_id"
+            )
+        )
+
+        if not espn_game_id:
+            unmatched.append(
+                native_game_id
+            )
+            continue
+
         mappings.append(
             {
-                "wnba_game_id": (
-                    native_game_id
-                ),
-                "espn_game_id": clean(
-                    chosen.get(
-                        "game_id"
-                    )
-                ),
-                "match_method": (
-                    method
-                ),
+                "wnba_game_id": native_game_id,
+                "espn_game_id": espn_game_id,
+                "match_method": method,
             }
         )
 
     if not mappings:
         raise RuntimeError(
-            "WNBA Stats->ESPN "
-            "crosswalk produced zero "
-            "mapped games"
+            "WNBA historical Stats->ESPN crosswalk "
+            "produced zero mapped games for "
+            f"internal={internal_season} sdv={sdv_season}"
         )
 
     xwalk = pl_module.DataFrame(
@@ -2868,8 +3280,8 @@ def build_wnba_legacy_schedule_crosswalk(
         or duplicate_espn.height
     ):
         raise RuntimeError(
-            "WNBA Stats->ESPN "
-            "crosswalk is not one-to-one"
+            "WNBA historical Stats->ESPN crosswalk "
+            "is not one-to-one"
         )
 
     for game_id in sorted(
@@ -2878,7 +3290,7 @@ def build_wnba_legacy_schedule_crosswalk(
         log(
             "WNBA GAME UNMAPPED | "
             f"wnba_game_id={game_id} "
-            "reason=no_unique_date_team_or_score_match"
+            "reason=no_unique_date_unordered_team_match"
         )
 
     for game_id in sorted(
@@ -2887,14 +3299,15 @@ def build_wnba_legacy_schedule_crosswalk(
         log(
             "WNBA GAME AMBIGUOUS | "
             f"wnba_game_id={game_id} "
-            "reason=multiple_canonical_matches"
+            "reason=multiple_date_unordered_team_matches"
         )
 
     log(
         "WNBA LEGACY GAME CROSSWALK | "
         f"internal={internal_season} "
         f"sdv={sdv_season} "
-        f"stats_games={grouped.height} "
+        f"stats_games={len(stats_games)} "
+        f"unordered_team_row_games={unordered_team_row_games} "
         f"mapped={xwalk.height} "
         f"unmatched={len(unmatched)} "
         f"ambiguous={len(ambiguous)} "
@@ -2907,9 +3320,9 @@ def build_wnba_legacy_schedule_crosswalk(
             "espn_game_id",
         ),
         (
-            f"{stats_source} -> "
-            "deterministic game_date/"
-            "home-away team/score match"
+            f"{stats_source} -> deterministic "
+            "game_date/unordered-team-pair match with "
+            "canonical ESPN home-away orientation"
         ),
         "wnba_game_id",
     )
@@ -3618,7 +4031,7 @@ def call_loader(
         and int(
             sdv_season
         )
-        < 2026
+        < WNBA_RELEASE_FALLBACK_BEFORE_SDV_SEASON
     ):
         (
             frame,
@@ -3645,21 +4058,42 @@ def call_loader(
         function_name,
     )
 
+    empty_primary = None
+
     if loader is not None:
         try:
-            return (
-                loader(
-                    seasons=[
-                        loader_season
-                    ],
-                    return_as_pandas=False,
-                ),
+            primary_frame = loader(
+                seasons=[
+                    loader_season
+                ],
+                return_as_pandas=False,
+            )
+
+            primary_result = (
+                primary_frame,
                 (
                     f"{module_name}."
                     f"{function_name}"
                 ),
                 loader_season,
             )
+
+            try:
+                primary_rows = to_pl(
+                    primary_frame
+                ).height
+
+            except Exception:
+                primary_rows = None
+
+            if primary_rows != 0:
+                return primary_result
+
+            primary_error = RuntimeError(
+                "loader returned zero rows"
+            )
+
+            empty_primary = primary_result
 
         except Exception as exc:
             primary_error = exc
@@ -3683,6 +4117,9 @@ def call_loader(
         action = "release_fallback"
 
     else:
+        if empty_primary is not None:
+            return empty_primary
+
         raise primary_error
 
     if loader is not None:
@@ -5252,17 +5689,46 @@ def build_season(
         )
 
     if league == "ncaam":
+        derived_tables = build_ncaam_derived_tables(
+            cfg,
+            internal_season,
+            sdv_season,
+            ingested_at_utc,
+            force,
+        )
+
         manifest[
             "tables"
         ].update(
-            build_ncaam_derived_tables(
-                cfg,
-                internal_season,
-                sdv_season,
-                ingested_at_utc,
-                force,
-            )
+            derived_tables
         )
+
+        for (
+            derived_name,
+            derived_entry,
+        ) in derived_tables.items():
+            failed_games = int(
+                derived_entry.get(
+                    "transform_failed_games",
+                    0,
+                )
+                or 0
+            )
+
+            if failed_games:
+                TRANSFORM_FAILURES.append(
+                    f"{league}:{internal_season}:"
+                    f"{derived_name}:"
+                    f"transform_failed_games={failed_games}"
+                )
+
+                log(
+                    "TRANSFORM FAILURES | "
+                    f"league={league} "
+                    f"internal={internal_season} "
+                    f"table={derived_name} "
+                    f"transform_failed_games={failed_games}"
+                )
 
     manifest[
         "tables"
@@ -5390,6 +5856,28 @@ def resolve_jobs(
             "is not configured as historical"
         )
 
+    unconfigured = sorted(
+        season
+        for season
+        in selected_seasons
+        if not any(
+            job_season == season
+            for (
+                _,
+                job_season,
+            )
+            in result
+        )
+    )
+
+    if unconfigured:
+        raise ValueError(
+            "Requested internal season(s) "
+            f"{unconfigured} not configured as "
+            "historical for any selected league "
+            f"{selected_leagues}"
+        )
+
     return result
 
 
@@ -5479,6 +5967,10 @@ def main() -> None:
         )
 
         if args.validate_config:
+            log(
+                "STATUS: SUCCESS | config valid"
+            )
+
             print(
                 "SDV historical storage "
                 "config valid."
@@ -5499,15 +5991,29 @@ def main() -> None:
             in work
         ]
 
-        log(
-            "STATUS: SUCCESS | "
-            f"manifests={len(manifests)}"
-        )
+        if TRANSFORM_FAILURES:
+            log(
+                "STATUS: COMPLETED WITH ERRORS | "
+                f"manifests={len(manifests)} "
+                f"transform_failures={TRANSFORM_FAILURES}"
+            )
 
-        print(
-            "SDV historical basketball "
-            "storage complete."
-        )
+            print(
+                "SDV historical basketball "
+                "storage complete with errors: "
+                f"{TRANSFORM_FAILURES}"
+            )
+
+        else:
+            log(
+                "STATUS: SUCCESS | "
+                f"manifests={len(manifests)}"
+            )
+
+            print(
+                "SDV historical basketball "
+                "storage complete."
+            )
 
     except Exception as exc:
         log(

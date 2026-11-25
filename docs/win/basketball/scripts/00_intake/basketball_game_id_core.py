@@ -8,6 +8,7 @@ including its side-specific values. No game ID is invented from a team name.
 """
 
 import csv
+import math
 import re
 import sys
 import traceback
@@ -294,6 +295,21 @@ def _canonical_targets(rows, daily_map, league_label):
     return matches, counts
 
 
+def _negate_number_text(value):
+    """Flip the sign of a numeric string and keep its original formatting."""
+    text = clean_value(value)
+    number = float(text)
+    if not math.isfinite(number):
+        raise ValueError(f'Non-finite number: {text!r}')
+    if number == 0.0:
+        return text
+    if text.startswith('-'):
+        return text[1:]
+    if text.startswith('+'):
+        return '-' + text[1:]
+    return '-' + text
+
+
 def _aligned_reversed_row(row, source):
     """Return an aligned COPY, never mutating the original on validation failure.
 
@@ -318,11 +334,13 @@ def _aligned_reversed_row(row, source):
                 raise ValueError(f'Cannot align unpaired field {field!r}')
 
     # Signed home-margin fields, if present, change sign with the orientation.
-    for field in ('expected_margin', 'projected_margin'):
+    # margin_bias is home-relative (see reverse_adjusted_projection in
+    # calculate_rolling_bias.py), so it changes sign too. total_bias does not.
+    for field in ('expected_margin', 'projected_margin', 'margin_bias'):
         value = clean_value(row.get(field))
         if value:
             try:
-                aligned[field] = str(-float(value))
+                aligned[field] = _negate_number_text(value)
             except ValueError as exc:
                 raise ValueError(f'Cannot align nonnumeric {field!r}: {value!r}') from exc
 

@@ -3,6 +3,11 @@
 
 Only actual DraftKings observations populate betting fields. Missing sportsbook
 quotes remain empty, and historical rows are retained when newer prices are absent.
+
+A saved game that ESPN moves to a different date is moved into the file for its
+new date. main() returns the run counts and does not write a STATUS line; the
+launcher (basketball_odds.py) writes the final STATUS line. Run directly, this
+file writes its own STATUS line.
 """
 from __future__ import annotations
 import csv
@@ -100,6 +105,22 @@ def clean_number(value) -> str:
         return "" if not math.isfinite(number) else clean_text(value)
     except (TypeError, ValueError):
         return ""
+
+
+def negate_number_text(value) -> str:
+    """Flip the sign of a number and keep its original formatting.
+
+    Zero is returned unchanged, so "-0.0" is never produced.
+    """
+    text = clean_text(value)
+    number = float(text)
+    if not math.isfinite(number):
+        raise ValueError(f"Non-finite number: {text!r}")
+    if number == 0:
+        return text
+    if text.startswith("-"):
+        return text[1:]
+    return "-" + text.lstrip("+")
 
 
 def nested_get(value: dict | None, *keys):
@@ -239,7 +260,7 @@ def build_row(league_label: str, event: dict, competition: dict, odds: dict | No
         home_spread = o.get("spread")
     if is_blank(away_spread) and not is_blank(home_spread):
         try:
-            away_spread = -float(home_spread)
+            away_spread = negate_number_text(home_spread)
         except (TypeError, ValueError):
             pass
     if is_blank(total):
@@ -298,10 +319,15 @@ def merge_nonblank(old: dict, new: dict) -> dict:
 def write_file(path: Path, rows: list[dict]) -> int:
     p = resolve_repository_path(path, strict=False)
     p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=FIELDNAMES, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(normalized_row(r) for r in rows)
+    tmp = p.with_name(p.name + ".tmp")
+    try:
+        with tmp.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=FIELDNAMES, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(normalized_row(r) for r in rows)
+        tmp.replace(p)
+    finally:
+        tmp.unlink(missing_ok=True)
     return len(rows)
 
 
@@ -313,7 +339,7 @@ def load_existing_files(output_dir: Path, league_label: str) -> dict[Path, list[
     return result
 
 
-def main() -> None:
+def main() -> dict:
     run_dt = datetime.now(NY_TZ)
     full_rebuild = str(os.getenv("BASKETBALL_FULL_REBUILD", "")).strip().casefold() in {"1", "true", "yes", "on"}
     end_dt = (run_dt + timedelta(days=7) if full_rebuild else run_dt.replace(hour=23, minute=59, second=59, microsecond=999999))
@@ -377,8 +403,19 @@ def main() -> None:
                     snapshots.append(row)
                 prior = index.get(event_id)
                 if prior:
-                    if has_odds_values(row):
-                        path, old = prior
+                    path, old = prior
+                    old_date = clean_text(old.get("game_date"))
+                    if old_date and old_date != row["game_date"]:
+                        # ESPN moved the game: put the row in the new date's file.
+                        target = output_dir / f"{row['game_date']}_{label}_odds.csv"
+                        updated = merge_nonblank(old, row)
+                        existing[path] = [r for r in existing[path] if r is not old]
+                        existing.setdefault(target, []).append(updated)
+                        index[event_id] = (target, updated)
+                        modified.add(path)
+                        modified.add(target)
+                        log(f"RESCHEDULED GAME MOVED | {label} {event_id} | {old_date} -> {row['game_date']} | from={path} | to={target}")
+                    elif has_odds_values(row):
                         updated = merge_nonblank(old, row)
                         if updated != old:
                             old.update(updated)
@@ -401,11 +438,22 @@ def main() -> None:
                 writer.writerows(normalized_row(row) for row in snapshots)
             log(f"WROTE IMMUTABLE SNAPSHOT {path} ({len(snapshots)} observations)")
     log(f"Events found: {total_events} | priced: {total_priced} | errors: {total_errors}")
-    log("STATUS: SUCCESS" if total_errors == 0 else "STATUS: COMPLETED WITH ERRORS")
-    if total_errors:
-        sys.exit(1)
-    print("basketball_odds complete.")
+    return {"events": total_events, "priced": total_priced, "errors": total_errors}
+
+
+def status_line(errors: int) -> str:
+    return "STATUS: SUCCESS" if errors == 0 else "STATUS: COMPLETED WITH ERRORS"
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        result = main()
+    except Exception as exc:
+        log(f"FATAL ERROR: {exc}")
+        log(traceback.format_exc().rstrip())
+        log("STATUS: FAILED")
+        raise SystemExit(1) from exc
+    log(status_line(result["errors"]))
+    if result["errors"]:
+        raise SystemExit(1)
+    print("basketball_odds complete.")
