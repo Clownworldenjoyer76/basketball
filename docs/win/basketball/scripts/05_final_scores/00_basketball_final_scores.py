@@ -10,8 +10,10 @@ NBA team-name comparisons use:
 Aliases are resolved transitively. Placeholder names such as
 TBC and TBD are supported without changing actual team identities.
 
-Previously stored final scores and team names are preserved.
-Genuine game-ID, matchup, and final-score conflicts are fatal.
+ESPN is authoritative. When a fetched game has the same game_id and date as
+a stored row, the stored row is replaced by ESPN's row (team names, home/away
+orientation and scores) and each change is logged as a WARN.
+Other game-ID and matchup conflicts remain fatal.
 """
 
 from __future__ import annotations
@@ -581,12 +583,13 @@ def merge_rows(
     existing: list[dict], fetched: list[dict], label: str,
     output_path: Path | None = None,
 ) -> list[dict]:
-    """Preserve stored finals and team names when ESPN revises a display name.
+    """Merge fetched ESPN finals into stored finals; ESPN is authoritative.
 
-    Matching game IDs may have one renamed team only when the date, all
-    result numbers, and the other team's identity agree. Changes to scores,
-    dates, both teams, or home/away orientation are fatal. Matching team
-    identities can also promote a previously blank game ID.
+    A fetched row with the same game_id and date as a stored row replaces it
+    (team names, home/away orientation, scores); the changes are logged.
+    A different date for the same game_id, or a collision with a different
+    game, is fatal. Matching team identities can also promote a previously
+    blank game ID.
     """
     merged: list[dict] = []
     by_id: dict[str, dict] = {}
@@ -613,21 +616,30 @@ def merge_rows(
             if original_key == key and signature(same_id) == scores:
                 return
 
-            one_team_unchanged = (
-                (original_key[1] == key[1] and original_key[2] != key[2])
-                or (original_key[2] == key[2] and original_key[1] != key[1])
-            )
-            if (
-                fetched_row
-                and original_key[0] == key[0]
-                and signature(same_id) == scores
-                and one_team_unchanged
-            ):
+            if fetched_row and original_key[0] == key[0]:
+                other = by_comp.get(key)
+                if other is not None and other is not same_id:
+                    raise RuntimeError(
+                        f"{label}: conflicting final for {key};{source} "
+                        f"stored={other} incoming={row}"
+                    )
+                changed = [
+                    f"{field}: {str(same_id.get(field, '')).strip()!r} -> "
+                    f"{str(row.get(field, '')).strip()!r}"
+                    for field in (
+                        "home_team", "away_team", "home_score", "away_score",
+                        "total", "home_spread", "away_spread",
+                    )
+                    if str(same_id.get(field, "")).strip()
+                    != str(row.get(field, "")).strip()
+                ]
+                by_comp.pop(original_key, None)
+                same_id.clear()
+                same_id.update(row)
+                by_comp[key] = same_id
                 log(
-                    f"{label}: ESPN team name changed for game_id {gid}; "
-                    f"preserved stored teams; stored="
-                    f"{same_id.get('home_team')!r}/{same_id.get('away_team')!r}; "
-                    f"incoming={row.get('home_team')!r}/{row.get('away_team')!r}",
+                    f"{label}: ESPN is authoritative; replaced stored row for "
+                    f"game_id {gid}; " + "; ".join(changed),
                     "WARN",
                 )
                 return
