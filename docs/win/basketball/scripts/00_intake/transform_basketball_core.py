@@ -433,9 +433,12 @@ def process_league(league_key: str):
         current_games = load_json(current_raw_path)
 
         if not current_games:
-            raise RuntimeError(
-                f"Current raw input contains zero usable "
-                f"{league_label} games: {current_raw_path}"
+            # An empty current raw file means no games today. Other raw files
+            # in the folder are still processed (e.g. final scores).
+            log(
+                league_key,
+                f"NO GAMES TODAY for {league_label}: "
+                f"{current_raw_path} is empty",
             )
 
         json_files = sorted(input_dir.glob("*.json"))

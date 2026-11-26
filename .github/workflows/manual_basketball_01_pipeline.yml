@@ -89,6 +89,17 @@ jobs:
       - name: Consolidate sportsbook aliases
         run: python docs/win/basketball/scripts/00_intake/consolidate_sportsbook_aliases.py
 
+      - name: Create empty raw file for leagues with no manual input today
+        shell: bash
+        run: |
+          for league in nba ncaam wnba; do
+            raw="docs/win/basketball/00_intake/drat_raw/$league/${DATE}_${league}_raw.json"
+            if [ ! -f "$raw" ]; then
+              echo "[]" > "$raw"
+              echo "No raw file for $league on $DATE; wrote empty file (no games)"
+            fi
+          done
+
       - name: Basketball Transform
         run: python docs/win/basketball/scripts/00_intake/transform_basketball.py
 
