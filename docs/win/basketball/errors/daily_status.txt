@@ -1,22 +1,23 @@
 BASKETBALL DAILY STATUS
 =======================
-generated_at_utc: 2026-11-27T08:07:00Z
+generated_at_utc: 2026-11-27T13:45:51Z
 game_date_new_york: 2026_11_27
-github_run_id: 45962958182
+github_run_id: 46009645104
 workflow_status: failure
 
 PIPELINE HEALTH
-=== basketball pipeline health 2026-11-27T08:07:00.750619+00:00 ===
+=== basketball pipeline health 2026-11-27T13:45:51.718231+00:00 ===
 game_date_new_york: 2026_11_27
 season_config: docs/win/basketball/config/season_dates.yaml
 status: failed
-NBA: in_season=True scheduled=11 dratings=0 predictions=0 sportsbook=0 merged=0 selected=0
-WARN: NBA: 11 ESPN games omitted (no DRatings prediction)
-WARN: NBA: 11 DRatings prediction rows have no canonical game ID; preserved in raw source but cannot be merged or bet on until mapped
+NBA: in_season=True scheduled=11 dratings=11 predictions=0 sportsbook=0 merged=0 selected=0
 NCAAM: in_season=True scheduled=45 dratings=0 predictions=0 sportsbook=0 merged=0 selected=0
 WARN: NCAAM: 45 ESPN games omitted (no DRatings prediction)
-WARN: NCAAM: 49 DRatings prediction rows have no canonical game ID; preserved in raw source but cannot be merged or bet on until mapped
 WNBA: in_season=False scheduled=0 dratings=0 predictions=0 sportsbook=0 merged=0 selected=0
-WARN: NBA: 11 scheduled games have no DRatings prediction; ignored
 WARN: NCAAM: 45 scheduled games have no DRatings prediction; ignored
-FATAL: stage failure: docs/win/basketball/errors/00_intake/basketball_daily_games.txt -> 2026-11-27T08:07:00.465035 | STATUS: FAILED
+FATAL: stage failure: docs/win/basketball/errors/00_intake/basketball_drat_scraper.txt -> 2026-11-27T08:45:51.592692-05:00 | STATUS: FAILED
+FATAL: NBA: 11 DRatings games missing cleaned predictions
+FATAL: NBA: missing current SDV predictions: docs/win/basketball/00_intake/predictions_sdv/nba/2026_11_27_NBA_predictions.csv
+FATAL: NBA: missing current ensemble predictions: docs/win/basketball/00_intake/predictions_ensemble/nba/2026_11_27_NBA_predictions.csv
+FATAL: NBA: DRatings game IDs missing from ensemble: ['401909326', '401909327', '401909328', '401909329', '401909330', '401909331', '401909332', '401909333', '401909334', '401909335', '401909336']
+FATAL: NBA: DRatings game IDs missing downstream: ['401909326', '401909327', '401909328', '401909329', '401909330', '401909331', '401909332', '401909333', '401909334', '401909335', '401909336']
