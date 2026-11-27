@@ -1,16 +1,22 @@
 BASKETBALL DAILY STATUS
 =======================
-generated_at_utc: 2026-11-26T16:56:11Z
-game_date_new_york: 2026_11_26
-github_run_id: 45863029555
+generated_at_utc: 2026-11-27T08:07:00Z
+game_date_new_york: 2026_11_27
+github_run_id: 45962958182
 workflow_status: failure
 
 PIPELINE HEALTH
-=== basketball pipeline health 2026-11-26T16:56:11.602652+00:00 ===
-game_date_new_york: 2026_11_26
+=== basketball pipeline health 2026-11-27T08:07:00.750619+00:00 ===
+game_date_new_york: 2026_11_27
 season_config: docs/win/basketball/config/season_dates.yaml
 status: failed
-NBA: in_season=True scheduled=0 dratings=0 predictions=0 sportsbook=0 merged=0 selected=0
-NCAAM: in_season=True scheduled=21 dratings=21 predictions=21 sportsbook=21 merged=21 selected=0
+NBA: in_season=True scheduled=11 dratings=0 predictions=0 sportsbook=0 merged=0 selected=0
+WARN: NBA: 11 ESPN games omitted (no DRatings prediction)
+WARN: NBA: 11 DRatings prediction rows have no canonical game ID; preserved in raw source but cannot be merged or bet on until mapped
+NCAAM: in_season=True scheduled=45 dratings=0 predictions=0 sportsbook=0 merged=0 selected=0
+WARN: NCAAM: 45 ESPN games omitted (no DRatings prediction)
+WARN: NCAAM: 49 DRatings prediction rows have no canonical game ID; preserved in raw source but cannot be merged or bet on until mapped
 WNBA: in_season=False scheduled=0 dratings=0 predictions=0 sportsbook=0 merged=0 selected=0
-FATAL: stage failure: docs/win/basketball/errors/00_intake/basketball_drat_scraper.txt -> 2026-11-26T11:56:11.480419-05:00 | STATUS: FAILED
+WARN: NBA: 11 scheduled games have no DRatings prediction; ignored
+WARN: NCAAM: 45 scheduled games have no DRatings prediction; ignored
+FATAL: stage failure: docs/win/basketball/errors/00_intake/basketball_daily_games.txt -> 2026-11-27T08:07:00.465035 | STATUS: FAILED
