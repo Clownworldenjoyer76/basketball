@@ -1062,6 +1062,16 @@ def nba_scoreboard_row(
         )
         return None
 
+    if any(
+        teams[side]["name"].casefold() == "tbd"
+        for side in ("home", "away")
+    ):
+        log(
+            "NBA DAILY SKIP TBD TEAM | "
+            f"game_id={game_id}"
+        )
+        return None
+
     event_dt = parse_event_datetime(
         competition.get("date")
         or event.get("date")
