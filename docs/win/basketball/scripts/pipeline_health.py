@@ -3,7 +3,9 @@
 
 ESPN schedules are diagnostic only. Unpriced DRatings games are a no-bet case,
 not a fatal pipeline error. Real duplicate identity, lost predictions and stage
-failures remain fatal. Writes the existing JSON and text report locations.
+failures remain fatal. Writes the existing JSON report and the text log:
+  docs/win/basketball/pipeline_health.json
+  docs/win/basketball/errors/99_validation/pipeline_health.txt
 """
 from __future__ import annotations
 
@@ -12,6 +14,7 @@ import json
 import math
 import os
 import sys
+import traceback
 from datetime import datetime, UTC
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -22,13 +25,12 @@ import yaml
 BASE = Path("docs/win/basketball")
 ERRORS = BASE / "errors"
 OUTPUT = BASE / "pipeline_health.json"
-LOG = ERRORS / "pipeline_health.txt"
+LOG = ERRORS / "99_validation/pipeline_health.txt"
 SEASON_CONFIG = BASE / "config/season_dates.yaml"
-SDV_SEASONS_CONFIG = BASE / "config/sdv_seasons.yaml"
-SDV_STORAGE_CONFIG = BASE / "config/sdv_storage.yaml"
-SDV_MODEL_CONFIG = BASE / "config/sdv_model.yaml"
 MODEL_CONFIG = BASE / "config/model_config.yaml"
 WNBA_DRIFT_REPORT = ERRORS / "99_validation/wnba_bias_drift.csv"
+DRIFT_WINDOWS = [25, 50, 100]
+DRIFT_WARN = float(os.getenv("WNBA_BIAS_DRIFT_WARN", "2.0"))
 CANONICAL_GAMES_ROOT = BASE / "00_intake/sdv/canonical_games"
 LOCKED_PICKS_ROOT = BASE / "04_select"
 LOCKED_GRADES_ROOT = BASE / "05_final_scores/locked_picks"
@@ -73,6 +75,16 @@ def clean_id(value) -> str:
         return str(int(n)) if math.isfinite(n) and n.is_integer() else val
     except (TypeError, ValueError, OverflowError):
         return val
+
+
+def fnum(value):
+    try:
+        if value is None or clean(value) == "":
+            return None
+        number = float(value)
+        return number if math.isfinite(number) else None
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def read_rows(path: Path) -> list[dict]:
@@ -143,16 +155,20 @@ def in_season(league: str, now: datetime, config: dict) -> bool:
 
 
 def stage_health():
-    stages, fatals = [], []
+    stages, fatals, warnings = [], [], []
     for path in STAGE_LOGS:
         status = None
         if path.exists():
             lines = [line.strip() for line in path.read_text(encoding="utf-8", errors="replace").splitlines() if "STATUS:" in line]
             status = lines[-1] if lines else None
+            if status is None:
+                warnings.append(f"stage log has no STATUS line: {path}")
+        else:
+            warnings.append(f"stage log missing: {path}")
         stages.append({"path": str(path), "exists": path.exists(), "status": status})
         if status and any(bad in status for bad in BAD_STATUS):
             fatals.append(f"stage failure: {path} -> {status}")
-    return stages, fatals
+    return stages, fatals, warnings
 
 
 def current_league_health(league: str, now: datetime, config: dict):
@@ -221,7 +237,7 @@ def current_league_health(league: str, now: datetime, config: dict):
     return item, fatals
 
 
-def sdv_health(now: datetime, seasons: dict, leagues: dict):
+def sdv_health(now: datetime, seasons: dict):
     """Check current prediction lineage, not unmatched ESPN fixtures."""
     date = now.strftime("%Y_%m_%d")
     errors, warnings, current = [], [], {}
@@ -365,8 +381,98 @@ def locked_grading_health(now: datetime) -> tuple[dict, list[str]]:
     return result, errors
 
 
-def wnba_bias_drift():
-    return {"windows": {str(n): {"games": 0, "margin_mean_residual": None, "total_mean_residual": None, "warning": False} for n in (25, 50, 100)}, "warnings": [], "report_path": str(WNBA_DRIFT_REPORT)}
+def load_all_csv(folder: Path, pattern: str = "*.csv") -> list[dict]:
+    rows = []
+    if not folder.exists():
+        return rows
+    for path in sorted(folder.glob(pattern)):
+        try:
+            rows.extend(read_rows(path))
+        except (OSError, UnicodeError, csv.Error):
+            continue
+    return rows
+
+
+def wnba_bias_drift() -> dict:
+    """Mean (projected - actual) residuals over the last 25/50/100 WNBA games.
+
+    Informational only: warnings never change the health decision.
+    """
+    preds = load_all_csv(CLEANED_PREDICTION_ROOT / "wnba", "*_WNBA_predictions.csv")
+    finals = load_all_csv(BASE / "05_final_scores/results/wnba", "*_final_scores_WNBA.csv")
+    finals_by_id, finals_by_comp = {}, {}
+    for row in finals:
+        if fnum(row.get("home_score")) is None or fnum(row.get("away_score")) is None:
+            continue
+        gid, key = clean_id(row.get("game_id")), comp(row)
+        if gid:
+            finals_by_id[gid] = row
+        if all(key):
+            finals_by_comp[key] = row
+    residuals = []
+    for prediction in preds:
+        gid = clean_id(prediction.get("game_id"))
+        final = finals_by_id.get(gid) if gid else None
+        if final is None:
+            final = finals_by_comp.get(comp(prediction))
+        if final is None:
+            continue
+        hp = fnum(prediction.get("home_projected_points"))
+        ap = fnum(prediction.get("away_projected_points"))
+        tp = fnum(prediction.get("total_projected_points"))
+        hs = fnum(final.get("home_score"))
+        aws = fnum(final.get("away_score"))
+        if None in (hp, ap, tp, hs, aws):
+            continue
+        residuals.append({
+            "game_date": clean(prediction.get("game_date")),
+            "game_id": gid or clean_id(final.get("game_id")),
+            "margin_residual_projected_minus_actual": (hp - ap) - (hs - aws),
+            "total_residual_projected_minus_actual": tp - (hs + aws),
+        })
+    residuals.sort(key=lambda r: (r["game_date"], r["game_id"]))
+    windows, warnings = {}, []
+    for n in DRIFT_WINDOWS:
+        sample = residuals[-n:]
+        if not sample:
+            windows[str(n)] = {"games": 0, "margin_mean_residual": None, "total_mean_residual": None, "warning": False}
+            continue
+        margin = sum(r["margin_residual_projected_minus_actual"] for r in sample) / len(sample)
+        total = sum(r["total_residual_projected_minus_actual"] for r in sample) / len(sample)
+        warn = len(sample) >= min(n, 25) and (abs(margin) >= DRIFT_WARN or abs(total) >= DRIFT_WARN)
+        windows[str(n)] = {"games": len(sample), "margin_mean_residual": round(margin, 4), "total_mean_residual": round(total, 4), "warning": warn}
+        if warn:
+            warnings.append(f"WNBA {len(sample)}-game residual drift exceeds {DRIFT_WARN}: margin={margin:.3f}, total={total:.3f}")
+    return {
+        "definition": "adjusted_projected_minus_actual",
+        "warning_threshold_abs_points": DRIFT_WARN,
+        "matched_games": len(residuals),
+        "windows": windows,
+        "warnings": warnings,
+        "report_path": str(WNBA_DRIFT_REPORT),
+    }
+
+
+def write_wnba_drift_report(drift: dict, generated_at_utc: str) -> None:
+    WNBA_DRIFT_REPORT.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = ["generated_at_utc", "matched_games", "window_games", "sample_games", "margin_mean_residual", "total_mean_residual", "threshold_points", "warning"]
+    tmp = WNBA_DRIFT_REPORT.with_suffix(WNBA_DRIFT_REPORT.suffix + ".tmp")
+    with tmp.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for n in DRIFT_WINDOWS:
+            values = drift.get("windows", {}).get(str(n), {})
+            writer.writerow({
+                "generated_at_utc": generated_at_utc,
+                "matched_games": drift.get("matched_games", 0),
+                "window_games": n,
+                "sample_games": values.get("games", 0),
+                "margin_mean_residual": values.get("margin_mean_residual"),
+                "total_mean_residual": values.get("total_mean_residual"),
+                "threshold_points": drift.get("warning_threshold_abs_points"),
+                "warning": bool(values.get("warning", False)),
+            })
+    tmp.replace(WNBA_DRIFT_REPORT)
 
 
 def main() -> None:
@@ -377,21 +483,27 @@ def main() -> None:
     except Exception as exc:
         seasons = {league: {"start_month": 1, "start_day": 1, "end_month": 12, "end_day": 31} for league in LEAGUES}
         errors.append(f"season config failure: {exc}")
-    stages, stage_errors = stage_health()
+    stages, stage_errors, stage_warnings = stage_health()
     errors.extend(stage_errors)
     leagues = {}
     for league in LEAGUES:
         info, fatal = current_league_health(league, now, seasons)
         leagues[league] = info
         errors.extend(fatal)
-    sdv, sdv_errors = sdv_health(now, seasons, leagues)
+    sdv, sdv_errors = sdv_health(now, seasons)
     errors.extend(sdv_errors)
     grading, grading_errors = locked_grading_health(now)
     errors.extend(grading_errors)
     errors = list(dict.fromkeys(errors))
     now_utc = datetime.now(UTC).isoformat()
-    drift = wnba_bias_drift()
-    payload = {"schema_version": 1, "generated_at_utc": now_utc, "game_date_new_york": now.strftime("%Y_%m_%d"), "season_config_path": str(SEASON_CONFIG), "status": "failed" if errors else "healthy", "fatal_errors": errors, "stage_status": stages, "leagues": leagues, "sdv_health": sdv, "locked_grading_health": grading, "wnba_bias_drift": drift}
+    drift_notes = []
+    try:
+        drift = wnba_bias_drift()
+        write_wnba_drift_report(drift, now_utc)
+    except (OSError, ValueError, KeyError, csv.Error) as exc:
+        drift = {"windows": {str(n): {"games": 0, "margin_mean_residual": None, "total_mean_residual": None, "warning": False} for n in DRIFT_WINDOWS}, "warnings": [], "report_path": str(WNBA_DRIFT_REPORT)}
+        drift_notes.append(f"WNBA drift unavailable: {type(exc).__name__}: {exc}")
+    payload = {"schema_version": 1, "generated_at_utc": now_utc, "game_date_new_york": now.strftime("%Y_%m_%d"), "season_config_path": str(SEASON_CONFIG), "status": "failed" if errors else "healthy", "fatal_errors": errors, "stage_status": stages, "leagues": leagues, "sdv_health": sdv, "locked_grading_health": grading, "wnba_bias_drift": drift, "stage_warnings": stage_warnings}
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     lines = [f"=== basketball pipeline health {now_utc} ===", f"game_date_new_york: {payload['game_date_new_york']}", f"season_config: {SEASON_CONFIG}", f"status: {payload['status']}"]
@@ -402,8 +514,18 @@ def main() -> None:
             lines.append(f"WARN: {warning}")
     for warning in sdv["warnings"]:
         lines.append(f"WARN: {warning}")
+    for warning in stage_warnings:
+        lines.append(f"WARN: {warning}")
+    for note in drift_notes:
+        lines.append(f"WARN: {note}")
+    lines.append(f"WNBA drift report: {WNBA_DRIFT_REPORT} matched_games={drift.get('matched_games', 0)}")
+    for n, values in drift["windows"].items():
+        lines.append(f"WNBA drift {n}: games={values['games']} margin={values['margin_mean_residual']} total={values['total_mean_residual']} warning={values['warning']}")
+    for warning in drift["warnings"]:
+        lines.append(f"WARN: {warning}")
     for error in errors:
         lines.append(f"FATAL: {error}")
+    lines.append("STATUS: FAILED" if errors else "STATUS: SUCCESS")
     LOG.parent.mkdir(parents=True, exist_ok=True)
     LOG.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
@@ -412,4 +534,19 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:
+        crash = (
+            f"=== basketball pipeline health {datetime.now(UTC).isoformat()} ===\n"
+            f"FATAL: unhandled {type(exc).__name__}: {exc}\n"
+            f"{traceback.format_exc()}"
+            "STATUS: FAILED\n"
+        )
+        try:
+            LOG.parent.mkdir(parents=True, exist_ok=True)
+            LOG.write_text(crash, encoding="utf-8")
+        except OSError:
+            pass
+        print(crash, file=sys.stderr)
+        sys.exit(1)

@@ -4,6 +4,11 @@
 Capture is run after model generation; selection is checked after bet selection.
 Proof is limited to in-run immutable evidence; provider availability and actual tipoff
 cannot be independently certified from this repository alone.
+
+Evidence output (kept): docs/win/basketball/pit_audit/runs/<run_id>/capture.json
+and selection.json. Log: docs/win/basketball/errors/99_validation/pit_provenance.txt
+(the capture phase starts a new log; the selection phase appends to it).
+After each phase, only the 5 newest run folders in pit_audit/runs are kept.
 """
 from __future__ import annotations
 
@@ -13,6 +18,9 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import traceback
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -20,10 +28,56 @@ from zoneinfo import ZoneInfo
 NY = ZoneInfo('America/New_York')
 LEAGUES = ('nba', 'ncaam', 'wnba')
 MARKET = {'moneyline': 'moneyline', 'spread': 'spread', 'total': 'total'}
+LOG_RELATIVE = 'docs/win/basketball/errors/99_validation/pit_provenance.txt'
+LOG_PATH = [None]
+KEEP_RUNS = 5
 
 
 def now_utc():
     return datetime.now(timezone.utc)
+
+
+def start_log(root, phase, truncate):
+    path = root / LOG_RELATIVE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('w' if truncate else 'a', encoding='utf-8') as f:
+        f.write(f"=== pit_provenance {phase} RUN {datetime.now(timezone.utc).isoformat()} ===\n")
+    LOG_PATH[0] = path
+
+
+def log(message, level='INFO'):
+    if LOG_PATH[0] is None:
+        return
+    with LOG_PATH[0].open('a', encoding='utf-8') as f:
+        f.write(f"{datetime.now(timezone.utc).isoformat()} | {level:<5} | {message.rstrip()}\n")
+
+
+def run_time(folder):
+    try:
+        with (folder / 'capture.json').open('r', encoding='utf-8') as f:
+            return json.load(f)['observed_at_utc']
+    except (OSError, ValueError, KeyError):
+        return datetime.fromtimestamp(folder.stat().st_mtime, timezone.utc).isoformat()
+
+
+def prune_runs(runs_dir, current):
+    """Keep only the KEEP_RUNS newest run folders (by capture time); the current run is always kept."""
+    try:
+        folders = [p for p in runs_dir.iterdir() if p.is_dir() and not p.is_symlink()]
+        folders.sort(key=lambda p: (run_time(p), p.name), reverse=True)
+        keep = set(folders[:KEEP_RUNS]) | {current}
+        for p in folders:
+            if p not in keep:
+                shutil.rmtree(p)
+                log(f'PRUNED old run folder {p.name}')
+        log(f'PRUNE kept={len(keep)} deleted={len(folders) - len([p for p in folders if p in keep])}')
+    except OSError as exc:
+        log(f'prune failed: {type(exc).__name__}: {exc}', 'WARN')
+
+
+def emit(message, level='INFO'):
+    print(message)
+    log(message, level)
 
 
 def utc_iso(dt):
@@ -304,7 +358,13 @@ def evaluate(selection, league, forecasts, quotes, root):
 
 def write_once(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open('x', encoding='utf-8', newline='\n') as f:
+    try:
+        handle = path.open('x', encoding='utf-8', newline='\n')
+    except FileExistsError as exc:
+        raise FileExistsError(
+            f'Evidence file already exists and is immutable; use a new --run-id: {path}'
+        ) from exc
+    with handle as f:
         json.dump(data, f, sort_keys=True, indent=2)
         f.write('\n')
 
@@ -320,6 +380,8 @@ def run(args):
         raise ValueError('Invalid run id')
     folder = root / 'docs/win/basketball/pit_audit/runs' / run_id
     phase = args.phase
+    start_log(root, phase, truncate=(phase == 'capture'))
+    log(f'ARGS | phase={phase} | date={date} | run_id={run_id} | repository={root}')
     if phase == 'capture':
         observed = now_utc()
         schedule_index, schedule_sources = load_active_schedule(root, date)
@@ -336,7 +398,9 @@ def run(args):
                 'orphan_quote_rows': len(quotes) - active_quotes,
                 'warning': 'Schedule membership is based on a captured daily slate, not independent actual tipoff or provider proof. Orphaned records are retained for audit but cannot verify wagers.'}
         write_once(folder / 'capture.json', data)
-        print(f'PIT CAPTURE: active_forecasts={active_forecasts} orphan_forecasts={len(forecasts)-active_forecasts} active_quotes={active_quotes} orphan_quotes={len(quotes)-active_quotes} file={folder / "capture.json"}')
+        emit(f'PIT CAPTURE: active_forecasts={active_forecasts} orphan_forecasts={len(forecasts)-active_forecasts} active_quotes={active_quotes} orphan_quotes={len(quotes)-active_quotes} file={folder / "capture.json"}')
+        prune_runs(folder.parent, folder)
+        log('STATUS: SUCCESS')
     elif phase == 'selection':
         input_path = folder / 'capture.json'
         with input_path.open('r', encoding='utf-8') as f:
@@ -363,7 +427,12 @@ def run(args):
                   'not_verified': len(outcomes)-passed, 'selections': outcomes,
                   'warning': 'Provisional status checks recorded scheduled tipoff, not independent actual tipoff or sportsbook execution.'}
         write_once(folder / 'selection.json', output)
-        print(f'PIT SELECTION AUDIT: {passed}/{len(outcomes)} provisional matches; no picks changed.')
+        emit(f'PIT SELECTION AUDIT: {passed}/{len(outcomes)} provisional matches; no picks changed.')
+        if len(outcomes) - passed:
+            reasons = Counter(r for x in outcomes if x['status'] != 'PROVISIONAL_PRETIPOFF_MATCH' for r in x['reasons'])
+            log(f'NOT_VERIFIED selections={len(outcomes) - passed} reasons={dict(reasons)}', 'WARN')
+        prune_runs(folder.parent, folder)
+        log('STATUS: SUCCESS')
     else:
         raise ValueError('Unknown phase')
 
@@ -374,7 +443,20 @@ def main():
     p.add_argument('--phase', choices=('capture', 'selection'), required=True)
     p.add_argument('--date', default=None)
     p.add_argument('--run-id', default=os.getenv('GITHUB_RUN_ID', 'local') + '_' + os.getenv('GITHUB_RUN_ATTEMPT', '1') if os.getenv('GITHUB_RUN_ID') else None)
-    run(p.parse_args())
+    args = p.parse_args()
+    try:
+        run(args)
+    except Exception as exc:
+        try:
+            root = args.repository.resolve()
+            if LOG_PATH[0] is None and (root / 'docs/win/basketball').is_dir():
+                start_log(root, args.phase, truncate=False)
+            log(f'FATAL: {type(exc).__name__}: {exc}', 'ERROR')
+            log(traceback.format_exc(), 'ERROR')
+            log('STATUS: FAILED', 'ERROR')
+        except OSError:
+            pass
+        raise
 
 
 if __name__ == '__main__':

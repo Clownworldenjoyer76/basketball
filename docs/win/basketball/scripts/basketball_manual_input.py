@@ -4,6 +4,7 @@
 Accepts copied DRatings tables in Markdown, HTML, TSV, or line-oriented text.
 This module also provides parsing/upsert helpers for basketball_manual_final_scores.py.
 Run from the basketball repository root.
+Log: docs/win/basketball/errors/99_validation/basketball_manual_input.txt
 """
 from __future__ import annotations
 
@@ -15,12 +16,16 @@ import json
 import re
 import sys
 import tempfile
+import traceback
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 BASE = Path("docs/win/basketball/00_intake/drat_raw")
+ERROR_DIR = Path("docs/win/basketball/errors/99_validation")
+LOG_FILE = ERROR_DIR / "basketball_manual_input.txt"
+NY = ZoneInfo("America/New_York")
 LEAGUE_SPORT = {"nba": "nba", "ncaam": "ncaa", "wnba": "wnba"}
 FIELDS = (
     "sport", "date_time", "team1", "team2", "team1_win_pct", "team2_win_pct",
@@ -78,6 +83,19 @@ class _Tables(HTMLParser):
     def handle_data(self, data):
         if self.cell is not None:
             self.cell.append(data)
+
+
+def init_log(path: Path, name: str) -> None:
+    """Start a new log (overwrites the previous run's log)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        f.write(f"=== {name} RUN {datetime.now(NY).isoformat()} ===\n")
+
+
+def log(path: Path, message: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(f"{datetime.now(NY).isoformat()} | {message}\n")
 
 
 def plain_markup(value: str) -> str:
@@ -416,71 +434,91 @@ def load_existing(path: Path, league: str) -> list[dict[str, str]]:
     return rows
 
 
+def _blank(value: object) -> bool:
+    return not str(value if value is not None else "").strip()
+
+
 def _merge(old: dict[str, str], incoming: dict[str, str], source: str) -> dict[str, str]:
+    """Merge one incoming row into an existing game. Blank incoming values never overwrite."""
     updated = dict(old)
+    finalized = not (_blank(old.get("score1")) and _blank(old.get("score2")))
     if source == "predictions":
-        if old.get("score1", "").strip() or old.get("score2", "").strip():
+        if finalized:
             # Never alter pregame projections on a finalized game.
-            if any(old.get(key, "") != incoming[key] for key in PREDICTION_FIELDS):
+            if any(not _blank(incoming[key]) and old.get(key, "") != incoming[key] for key in PREDICTION_FIELDS):
                 raise ValueError(f"Cannot replace predictions for finalized game: {match_key(old)}")
             return updated
         for key in PREDICTION_FIELDS:
-            updated[key] = incoming[key]
+            if not _blank(incoming[key]):
+                updated[key] = incoming[key]
     else:
-        if (old.get("score1", "").strip() or old.get("score2", "").strip()) and (
-            old.get("score1") != incoming["score1"] or old.get("score2") != incoming["score2"]
-        ):
-            raise ValueError(f"Conflicting final scores for {match_key(old)}; refusing overwrite")
+        if _blank(incoming["score1"]) and _blank(incoming["score2"]):
+            return updated
+        for key in ("score1", "score2"):
+            if not _blank(old.get(key)) and not _blank(incoming[key]) and old[key] != incoming[key]:
+                raise ValueError(f"Conflicting final scores for {match_key(old)}; refusing overwrite")
         # Preserve all previously captured pregame numbers and game identity.
-        updated["score1"] = incoming["score1"]
-        updated["score2"] = incoming["score2"]
+        for key in ("score1", "score2"):
+            if not _blank(incoming[key]):
+                updated[key] = incoming[key]
         updated["game_status"] = "Final"
     return updated
 
 
 def merge_into_files(rows: list[dict[str, str]], league: str, source: str, root: Path = BASE) -> list[tuple[Path, int, int]]:
-    """Validate and stage all affected date files before any writes."""
-    grouped: dict[str, list[dict[str, str]]] = {}
+    """Update every existing file that holds each game; add new games to the file named for the game date.
+
+    All files are validated and staged before any write. Only changed files are written.
+    """
+    league_dir = root / league
+    files: dict[Path, list[dict[str, str]]] = {}
+    original: dict[Path, list[dict[str, str]]] = {}
+    index: dict[tuple[str, str, str], list[tuple[Path, int]]] = {}
+    if league_dir.is_dir():
+        for path in sorted(league_dir.glob(f"*_{league}_raw.json")):
+            games = load_existing(path, league)
+            files[path] = [dict(g) for g in games]
+            original[path] = games
+            for position, game in enumerate(files[path]):
+                try:
+                    index.setdefault(match_key(game), []).append((path, position))
+                except ValueError:
+                    # Preserve postponed/TBD raw records unchanged.
+                    pass
+    counts: dict[Path, list[int]] = {}
     for row in rows:
-        grouped.setdefault(_date(row), []).append(row)
-    staged = []
-    for date, new_rows in sorted(grouped.items()):
-        path = root / league / f"{date}_{league}_raw.json"
-        existing = load_existing(path, league)
-        merged = [dict(row) for row in existing]
-        by_key = {}
-        for index, game in enumerate(merged):
-            try:
-                by_key[match_key(game)] = index
-            except ValueError:
-                # Preserve postponed/TBD raw records unchanged.
-                pass
-        added = updated = 0
-        for row in new_rows:
-            key = match_key(row)
-            if key in by_key:
-                idx = by_key[key]
-                replacement = _merge(merged[idx], row, source)
-                if merged[idx] != replacement:
-                    merged[idx] = replacement
-                    updated += 1
-            else:
-                by_key[key] = len(merged)
-                merged.append(row)
-                added += 1
+        key = match_key(row)
+        holders = index.get(key)
+        if holders:
+            for path, position in holders:
+                counts.setdefault(path, [0, 0])
+                replacement = _merge(files[path][position], row, source)
+                if files[path][position] != replacement:
+                    files[path][position] = replacement
+                    counts[path][1] += 1
+        else:
+            path = league_dir / f"{_date(row)}_{league}_raw.json"
+            if path not in files:
+                files[path] = []
+                original[path] = []
+            files[path].append(dict(row))
+            index[key] = [(path, len(files[path]) - 1)]
+            counts.setdefault(path, [0, 0])
+            counts[path][0] += 1
+    for path in counts:
         # Scraper also rejects duplicates using exact ET date/time/team identity.
         exact = set()
-        for game in merged:
+        for game in files[path]:
             identity = (game["sport"], game["date_time"], strip_record(game["team1"]), strip_record(game["team2"]))
             if identity in exact:
                 raise ValueError(f"Duplicate raw identity in {path}: {identity}")
             exact.add(identity)
-        staged.append((path, merged, added, updated))
     results = []
-    for path, merged, added, updated in staged:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        serialized = json.dumps(merged, ensure_ascii=False, indent=2) + "\n"
-        if not path.exists() or path.read_text(encoding="utf-8-sig") != serialized:
+    for path in sorted(counts):
+        added, updated = counts[path]
+        if files[path] != original[path] or not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            serialized = json.dumps(files[path], ensure_ascii=False, indent=2) + "\n"
             with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, prefix=".manual_", suffix=".tmp", delete=False) as f:
                 temp = Path(f.name)
                 f.write(serialized)
@@ -496,12 +534,22 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--time-basis", choices=["et", "utc"], required=True,
                     help="Whether pasted times are already Eastern or are UTC, like the scraper's webpage input")
     args = ap.parse_args(argv)
-    text = args.raw_file.read_text(encoding="utf-8-sig")
-    rows = parse_text(text, args.league, "predictions", args.time_basis)
-    paths = merge_into_files(rows, args.league, "predictions")
+    init_log(LOG_FILE, "basketball_manual_input")
+    log(LOG_FILE, f"ARGS | league={args.league} | raw_file={args.raw_file} | time_basis={args.time_basis}")
+    try:
+        text = args.raw_file.read_text(encoding="utf-8-sig")
+        rows = parse_text(text, args.league, "predictions", args.time_basis)
+        paths = merge_into_files(rows, args.league, "predictions")
+    except Exception as exc:
+        log(LOG_FILE, f"ERROR: {exc}\n{traceback.format_exc()}")
+        log(LOG_FILE, "STATUS: FAILED")
+        raise
     for path, added, updated in paths:
         print(f"WROTE/VERIFIED {path}: added={added} updated={updated}")
+        log(LOG_FILE, f"WROTE/VERIFIED {path}: added={added} updated={updated}")
     print(f"SUCCESS: parsed={len(rows)} league={args.league} files={len(paths)}")
+    log(LOG_FILE, f"SUMMARY | parsed={len(rows)} | league={args.league} | files={len(paths)}")
+    log(LOG_FILE, "STATUS: SUCCESS")
     return 0
 
 

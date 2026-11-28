@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
+"""Shared staking / uncertainty rules.
+
+Error log (appended; written only when an error or warning occurs):
+  docs/win/basketball/errors/99_validation/staking_runtime.txt
+"""
 from __future__ import annotations
 
 import math
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -10,19 +16,39 @@ import pandas as pd
 import yaml
 
 BASKETBALL_ROOT = Path(__file__).resolve().parents[1]
+ERROR_LOG_PATH = BASKETBALL_ROOT / 'errors' / '99_validation' / 'staking_runtime.txt'
 STAKING_CONFIG_PATH = BASKETBALL_ROOT / 'config' / 'staking.yaml'
 MODEL_CONFIG_PATH = BASKETBALL_ROOT / 'config' / 'model_config.yaml'
 LEAGUES = ('nba', 'ncaam', 'wnba')
 MARKETS = ('moneyline', 'spread', 'total')
 
 
+def _log_error(message: str, level: str = 'ERROR') -> None:
+    """Append one line to the error log. Never raises."""
+    try:
+        ERROR_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(ERROR_LOG_PATH, 'a', encoding='utf-8') as handle:
+            handle.write(
+                f"{datetime.now(timezone.utc).isoformat()} | {level:<5} | "
+                f"{message.rstrip()}\n"
+            )
+    except OSError:
+        pass
+
+
+def _logged(exc: Exception) -> Exception:
+    """Log an exception that is about to be raised and return it."""
+    _log_error(f'{type(exc).__name__}: {exc}')
+    return exc
+
+
 def _read_yaml(path: Path) -> dict:
     if not path.exists():
-        raise FileNotFoundError(path)
+        raise _logged(FileNotFoundError(path))
     with open(path, 'r', encoding='utf-8') as f:
         payload = yaml.safe_load(f) or {}
     if not isinstance(payload, dict):
-        raise ValueError(f'YAML root must be a mapping: {path}')
+        raise _logged(ValueError(f'YAML root must be a mapping: {path}'))
     return payload
 
 
@@ -32,18 +58,23 @@ MODEL_CONFIG = _read_yaml(MODEL_CONFIG_PATH)
 KELLY_CFG = STAKING_CONFIG.get('kelly') or {}
 UNCERTAINTY_CFG = STAKING_CONFIG.get('uncertainty_adjustment') or {}
 
-KELLY_FRACTION = float(KELLY_CFG['fractional_multiplier'])
+try:
+    KELLY_FRACTION = float(KELLY_CFG['fractional_multiplier'])
+except (KeyError, TypeError, ValueError) as _exc:
+    raise _logged(
+        ValueError(f'staking.yaml kelly.fractional_multiplier missing or invalid: {_exc!r}')
+    ) from _exc
 UNCERTAINTY_METHOD = str(UNCERTAINTY_CFG.get('method', '')).strip()
 UNCERTAINTY_VERSION = str(UNCERTAINTY_CFG.get('version', '')).strip()
 UNCERTAINTY_SOURCE = str(UNCERTAINTY_CFG.get('uncertainty_source', '')).strip()
 STAKE_SCALING = str(UNCERTAINTY_CFG.get('stake_scaling', '')).strip()
 
 if not math.isfinite(KELLY_FRACTION) or KELLY_FRACTION < 0 or KELLY_FRACTION > 1:
-    raise ValueError('staking.yaml kelly.fractional_multiplier must be between 0 and 1')
+    raise _logged(ValueError('staking.yaml kelly.fractional_multiplier must be between 0 and 1'))
 if UNCERTAINTY_METHOD != 'signal_to_noise_market_shrink':
-    raise ValueError(f'Unsupported uncertainty method={UNCERTAINTY_METHOD!r}')
+    raise _logged(ValueError(f'Unsupported uncertainty method={UNCERTAINTY_METHOD!r}'))
 if STAKE_SCALING not in {'uncertainty_multiplier', 'none', 'raw'}:
-    raise ValueError(f'Unsupported uncertainty stake_scaling={STAKE_SCALING!r}')
+    raise _logged(ValueError(f'Unsupported uncertainty stake_scaling={STAKE_SCALING!r}'))
 
 
 def fv(value: Any) -> float | None:
@@ -70,10 +101,10 @@ def _league_key(df: pd.DataFrame, explicit: str | None = None) -> str:
                 )
         unique = sorted(set(values))
         if len(unique) != 1:
-            raise ValueError(f'Cannot resolve one league for staking uncertainty; values={unique}')
+            raise _logged(ValueError(f'Cannot resolve one league for staking uncertainty; values={unique}'))
         league = unique[0]
     if league not in LEAGUES:
-        raise ValueError(f'Unsupported league={league!r}')
+        raise _logged(ValueError(f'Unsupported league={league!r}'))
     return league
 
 
@@ -81,15 +112,15 @@ def _oos_uncertainty_points(league: str, market: str) -> float:
     sources = UNCERTAINTY_CFG.get('market_std_source') or {}
     std_market = str(sources.get(market, '')).strip().lower()
     if std_market not in {'spread', 'total'}:
-        raise ValueError(f'Invalid market_std_source.{market}={std_market!r}')
+        raise _logged(ValueError(f'Invalid market_std_source.{market}={std_market!r}'))
     try:
         value = float(MODEL_CONFIG['leagues'][league]['std'][std_market]['value'])
     except Exception as exc:
-        raise ValueError(
+        raise _logged(ValueError(
             f'Missing OOS uncertainty: model_config.leagues.{league}.std.{std_market}.value'
-        ) from exc
+        )) from exc
     if not math.isfinite(value) or value <= 0:
-        raise ValueError(f'Invalid OOS uncertainty {league}.{std_market}={value!r}')
+        raise _logged(ValueError(f'Invalid OOS uncertainty {league}.{std_market}={value!r}'))
     return value
 
 
@@ -107,7 +138,7 @@ def _signal_points(df: pd.DataFrame, market: str) -> pd.Series:
         return (margin + _numeric(df, 'home_spread')).abs()
     if market == 'total':
         return (_numeric(df, 'total_projected_points') - _numeric(df, 'total')).abs()
-    raise ValueError(f'Unsupported market={market!r}')
+    raise _logged(ValueError(f'Unsupported market={market!r}'))
 
 
 def add_uncertainty_adjusted_ev(
@@ -120,15 +151,30 @@ def add_uncertainty_adjusted_ev(
     league_key = _league_key(out, league)
     uncertainty_points = _oos_uncertainty_points(league_key, market)
     signal = _signal_points(out, market)
-    denom = np.sqrt(np.square(signal.to_numpy(float)) + uncertainty_points ** 2)
+    signal_values = signal.to_numpy(float)
+    signal_valid = np.isfinite(signal_values)
+    denom = np.sqrt(np.square(signal_values) + uncertainty_points ** 2)
+    # A missing/non-finite projection signal gives NaN (invalid), not 0.0:
+    # a 0.0 multiplier would silently turn the adjusted probability into the
+    # market probability and look like a valid candidate.
     multiplier = np.divide(
-        signal.to_numpy(float),
+        signal_values,
         denom,
-        out=np.zeros(len(out), dtype=float),
-        where=np.isfinite(denom) & (denom > 0),
+        out=np.full(len(out), np.nan, dtype=float),
+        where=signal_valid & np.isfinite(denom) & (denom > 0),
     )
-    if not bool(UNCERTAINTY_CFG.get('enabled', True)):
+    adjustment_enabled = bool(UNCERTAINTY_CFG.get('enabled', True))
+    if not adjustment_enabled:
         multiplier = np.ones(len(out), dtype=float)
+    else:
+        missing_signal = int((~signal_valid).sum())
+        if missing_signal:
+            _log_error(
+                f'{league_key}.{market}: {missing_signal} of {len(out)} rows have a '
+                'missing/non-finite projection signal; uncertainty multiplier and '
+                'adjusted probability set to NaN (candidate invalid)',
+                'WARN',
+            )
 
     for prefix, raw_prob_col, market_prob_col, decimal_col, raw_kelly_col in side_specs:
         raw_prob = _numeric(out, raw_prob_col)
@@ -141,6 +187,8 @@ def add_uncertainty_adjusted_ev(
             adjusted_prob = (
                 market_prob + multiplier * (raw_prob - market_prob)
             ).clip(0.001, 0.999)
+        if adjustment_enabled:
+            adjusted_prob = adjusted_prob.where(signal_valid)
 
         adjusted_ev = adjusted_prob * decimal - 1.0
         raw_ev_col = f'{prefix}_ev'
@@ -211,26 +259,6 @@ def attach_candidate_uncertainty(row: Any, market: str, candidate: dict) -> dict
         'signal_points': fv(row.get(f'{prefix}_signal_points')),
         'probability_basis': 'uncertainty_adjusted',
     })
-    return out
-
-
-def enforce_exposure_limits(df: pd.DataFrame) -> pd.DataFrame:
-    """Legacy compatibility wrapper: preserve every selected row.
-
-    Exposure limits are not part of bet selection. Any stake field is an
-    informational Kelly-based estimate only; missing or zero stakes never
-    exclude a qualifying pick. The historical function name is retained for
-    callers that have not yet migrated to a direct pass-through.
-    """
-    out = df.copy()
-    if 'bet_requested_stake_pct' in out.columns:
-        stake = pd.to_numeric(out['bet_requested_stake_pct'], errors='coerce')
-    elif 'bet_stake_pct' in out.columns:
-        stake = pd.to_numeric(out['bet_stake_pct'], errors='coerce')
-    else:
-        stake = pd.Series(0.0, index=out.index, dtype=float)
-    out['bet_stake_pct'] = stake.fillna(0.0).clip(lower=0.0)
-    out['bet_stake_allocation'] = 'informational_only'
     return out
 
 

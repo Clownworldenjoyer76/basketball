@@ -11,12 +11,17 @@ Writes:
 Slate rows: one row per game; a game with selected bets gets one row per bet
 instead, with the bet columns filled. Games without a bet have blank bet columns.
 Source files are never modified.
+
+Log (overwritten each run):
+    docs/win/basketball/errors/99_validation/frontend.txt
 """
 
 from __future__ import annotations
 
 import csv
 import re
+import traceback
+from datetime import datetime, timezone
 from pathlib import Path
 
 LEAGUES = ("nba", "wnba", "ncaam")
@@ -39,6 +44,25 @@ BB = ROOT / "docs/win/basketball"
 OUT = ROOT / "frontend"
 SLATE_DEST = OUT / "basketball_slate.csv"
 FINAL_DEST = OUT / "basketball_final.csv"
+LOG_FILE = BB / "errors/99_validation/frontend.txt"
+DUPLICATE_GAME_IDS = [0]
+
+
+def init_log() -> None:
+    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    LOG_FILE.write_text(
+        f"=== frontend RUN {datetime.now(timezone.utc).isoformat()} ===\n",
+        encoding="utf-8",
+    )
+
+
+def log(message: str, level: str = "INFO") -> None:
+    print(f"WARNING: {message}" if level == "WARN" else message)
+    with LOG_FILE.open("a", encoding="utf-8") as handle:
+        handle.write(
+            f"{datetime.now(timezone.utc).isoformat()} | {level:<5} | "
+            f"{message.rstrip()}\n"
+        )
 
 
 def clean(value: str | None) -> str:
@@ -78,10 +102,11 @@ def index_by_game_id(rows: list[dict[str, str]], source: Path) -> dict[str, dict
     for row in rows:
         game_id = row.get("game_id", "")
         if not game_id:
-            print(f"WARNING: Skipping row with blank game_id in {rel(source)}")
+            log(f"Skipping row with blank game_id in {rel(source)}", "WARN")
             continue
         if game_id in result:
-            print(f"WARNING: Duplicate game_id={game_id} in {rel(source)}; using the last one")
+            DUPLICATE_GAME_IDS[0] += 1
+            log(f"Duplicate game_id={game_id} in {rel(source)}; using the last one", "WARN")
         result[game_id] = row
     return result
 
@@ -152,7 +177,7 @@ def build_slate() -> int:
         league_up = league.upper()
         dates = odds_dates(league)
         if not dates:
-            print(f"WARNING: No odds files found for {league_up}; skipping")
+            log(f"No odds files found for {league_up}; skipping", "WARN")
             continue
         for date in dates:
             odds_path = find_file(odds_dir(league), f"{date}_{league_up}_odds.csv")
@@ -166,7 +191,7 @@ def build_slate() -> int:
 
             odds_headers, odds_rows = read_csv(odds_path)
             if not odds_rows:
-                print(f"WARNING: Empty odds file {rel(odds_path)}; skipping")
+                log(f"Empty odds file {rel(odds_path)}; skipping", "WARN")
                 continue
             pred_headers, pred_rows = read_csv(pred_path)
             pick_headers, pick_rows = read_csv(picks_path)
@@ -184,7 +209,7 @@ def build_slate() -> int:
             for game_id, row in preds.items():
                 game = games.get(game_id)
                 if game is None:
-                    print(f"WARNING: Skipping unmatched game_id={game_id} in {rel(pred_path)}")
+                    log(f"Skipping unmatched game_id={game_id} in {rel(pred_path)}", "WARN")
                     continue
                 fill_missing(game, row)
 
@@ -192,7 +217,7 @@ def build_slate() -> int:
             for pick in pick_rows:
                 game_id = pick.get("game_id", "")
                 if game_id not in games:
-                    print(f"WARNING: Selected bet has unmatched game_id={game_id} in {rel(picks_path)}")
+                    log(f"Selected bet has unmatched game_id={game_id} in {rel(picks_path)}", "WARN")
                 picks_by_game.setdefault(game_id, []).append(pick)
 
             for game_id, game in games.items():
@@ -217,7 +242,7 @@ def build_slate() -> int:
                         row["game_date"] = date
                     all_rows.append(row)
                     total_picks += 1
-            print(f"{league_up} {date}: {len(games)} games, {len(pick_rows)} selected bets")
+            log(f"{league_up} {date}: {len(games)} games, {len(pick_rows)} selected bets")
 
     if not all_rows:
         raise FileNotFoundError("No basketball games found; slate not written")
@@ -227,7 +252,7 @@ def build_slate() -> int:
         for field in headers:
             row.setdefault(field, "")
     write_csv(SLATE_DEST, headers, all_rows)
-    print(f"WROTE {rel(SLATE_DEST)}: {len(all_rows)} rows ({total_games} games, {total_picks} selected bets)")
+    log(f"WROTE {rel(SLATE_DEST)}: {len(all_rows)} rows ({total_games} games, {total_picks} selected bets)")
     return len(all_rows)
 
 
@@ -241,7 +266,7 @@ def build_final() -> int:
         )
         headers, rows = read_csv(path)
         if not rows:
-            print(f"WARNING: No final rows for {league_up} ({rel(path)}); skipping")
+            log(f"No final rows for {league_up} ({rel(path)}); skipping", "WARN")
             continue
         for field in headers:
             if field not in columns:
@@ -252,7 +277,7 @@ def build_final() -> int:
             if not row.get("league"):
                 row["league"] = league_up
             all_rows.append(row)
-        print(f"{league_up} final: {len(rows)} rows")
+        log(f"{league_up} final: {len(rows)} rows")
 
     if not all_rows:
         raise FileNotFoundError("No basketball final rows found; final file not written")
@@ -262,14 +287,24 @@ def build_final() -> int:
         for field in headers:
             row.setdefault(field, "")
     write_csv(FINAL_DEST, headers, all_rows)
-    print(f"WROTE {rel(FINAL_DEST)}: {len(all_rows)} rows")
+    log(f"WROTE {rel(FINAL_DEST)}: {len(all_rows)} rows")
     return len(all_rows)
 
 
 def main() -> None:
-    build_slate()
-    build_final()
-    print("Export complete: 2 CSV files (slate, final)")
+    init_log()
+    log(f"root={ROOT}")
+    try:
+        build_slate()
+        build_final()
+    except Exception as exc:
+        log(f"FATAL: {type(exc).__name__}: {exc}", "ERROR")
+        log(traceback.format_exc(), "ERROR")
+        log("STATUS: FAILED", "ERROR")
+        raise
+    log(f"SUMMARY | duplicate_game_ids_keep_last={DUPLICATE_GAME_IDS[0]}")
+    log("Export complete: 2 CSV files (slate, final)")
+    log("STATUS: SUCCESS")
 
 
 if __name__ == "__main__":

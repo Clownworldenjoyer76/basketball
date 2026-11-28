@@ -121,6 +121,15 @@ REQUIRED_INPUT_COLUMNS = {
 
 DEBUG_COUNTS: Counter = Counter()
 
+ERROR_LOG_PATH = (
+    BASKETBALL_ROOT
+    / "errors"
+    / "99_validation"
+    / "basketball_backtest.txt"
+)
+
+LOGGER = None
+
 
 def now_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -3239,6 +3248,56 @@ def reconcile_ml_vs_spread(
     )
 
 
+def qualifying_candidate(
+    row,
+    league,
+    market,
+    game_date,
+    side_cfg,
+    settings,
+    raw,
+):
+    # Same order as production (basketball_select_bets_core._qualifying_candidate):
+    # uncertainty-adjust first, then qualify on the adjusted values.
+    adjusted = attach_candidate_uncertainty(
+        row,
+        market,
+        raw,
+    )
+
+    if adjusted is None:
+        DEBUG_COUNTS[
+            f"invalid_adjusted_{market}"
+        ] += 1
+        return None
+
+    if not passes_model_edge(
+        adjusted["ev"],
+        settings,
+        league,
+        market,
+    ):
+        return None
+
+    values = {
+        "odds": adjusted["odds"],
+        "line": adjusted["line"],
+        "ev": adjusted["ev"],
+        "kelly": adjusted["kelly"],
+        "model_prob": adjusted["model_prob"],
+        "edge_vs_market_pct": adjusted["edge_vs_market"],
+    }
+
+    if passes_filters(
+        values,
+        side_cfg,
+        game_date,
+    ):
+        return adjusted
+
+    return None
+
+
 def build_moneyline_sides(
     row,
     league,
@@ -3272,18 +3331,6 @@ def build_moneyline_sides(
             )
         )
 
-        ev = fv(
-            row.get(
-                f"{side}_ml_ev"
-            )
-        )
-
-        kelly = fv(
-            row.get(
-                f"{side}_ml_kelly"
-            )
-        )
-
         mp = fv(
             row.get(
                 f"{side}_model_prob"
@@ -3297,45 +3344,38 @@ def build_moneyline_sides(
                 )
             )
 
-        evm = fv(
-            row.get(
-                f"{side}_ml_edge_vs_market_pct"
-            )
-        )
-
-        if not passes_model_edge(
-            ev,
-            settings,
+        candidate = qualifying_candidate(
+            row,
             league,
             "moneyline",
-        ):
-            DEBUG_COUNTS[
-                "rejected_ml"
-            ] += 1
-            continue
-
-        vals = {
-            "odds": odds,
-            "ev": ev,
-            "kelly": kelly,
-            "model_prob": mp,
-            "edge_vs_market_pct": evm,
-        }
-
-        if passes_filters(
-            vals,
-            scfg,
             game_date,
-        ):
-            sides.append({
+            scfg,
+            settings,
+            {
                 "side": side,
                 "line": odds,
                 "odds": odds,
-                "ev": ev,
-                "kelly": kelly,
+                "ev": fv(
+                    row.get(
+                        f"{side}_ml_ev"
+                    )
+                ),
+                "kelly": fv(
+                    row.get(
+                        f"{side}_ml_kelly"
+                    )
+                ),
                 "model_prob": mp,
-                "edge_vs_market": evm,
-            })
+                "edge_vs_market": fv(
+                    row.get(
+                        f"{side}_ml_edge_vs_market_pct"
+                    )
+                ),
+            },
+        )
+
+        if candidate is not None:
+            sides.append(candidate)
         else:
             DEBUG_COUNTS[
                 "rejected_ml"
@@ -3371,76 +3411,50 @@ def build_spread_sides(
         ):
             continue
 
-        line = fv(
-            row.get(
-                f"{side}_spread"
-            )
-        )
-
-        odds = fv(
-            row.get(
-                f"{side}_dk_spread_american"
-            )
-        )
-
-        ev = fv(
-            row.get(
-                f"{side}_spread_ev"
-            )
-        )
-
-        kelly = fv(
-            row.get(
-                f"{side}_spread_kelly"
-            )
-        )
-
-        mp = fv(
-            row.get(
-                f"{side}_spread_model_prob"
-            )
-        )
-
-        evm = fv(
-            row.get(
-                f"{side}_spread_edge_vs_market_pct"
-            )
-        )
-
-        if not passes_model_edge(
-            ev,
-            settings,
+        candidate = qualifying_candidate(
+            row,
             league,
             "spread",
-        ):
-            DEBUG_COUNTS[
-                "rejected_spread"
-            ] += 1
-            continue
-
-        vals = {
-            "odds": odds,
-            "line": line,
-            "ev": ev,
-            "kelly": kelly,
-            "model_prob": mp,
-            "edge_vs_market_pct": evm,
-        }
-
-        if passes_filters(
-            vals,
-            scfg,
             game_date,
-        ):
-            sides.append({
+            scfg,
+            settings,
+            {
                 "side": side,
-                "line": line,
-                "odds": odds,
-                "ev": ev,
-                "kelly": kelly,
-                "model_prob": mp,
-                "edge_vs_market": evm,
-            })
+                "line": fv(
+                    row.get(
+                        f"{side}_spread"
+                    )
+                ),
+                "odds": fv(
+                    row.get(
+                        f"{side}_dk_spread_american"
+                    )
+                ),
+                "ev": fv(
+                    row.get(
+                        f"{side}_spread_ev"
+                    )
+                ),
+                "kelly": fv(
+                    row.get(
+                        f"{side}_spread_kelly"
+                    )
+                ),
+                "model_prob": fv(
+                    row.get(
+                        f"{side}_spread_model_prob"
+                    )
+                ),
+                "edge_vs_market": fv(
+                    row.get(
+                        f"{side}_spread_edge_vs_market_pct"
+                    )
+                ),
+            },
+        )
+
+        if candidate is not None:
+            sides.append(candidate)
         else:
             DEBUG_COUNTS[
                 "rejected_spread"
@@ -3480,70 +3494,46 @@ def build_total_sides(
         ):
             continue
 
-        odds = fv(
-            row.get(
-                f"dk_total_{side}_american"
-            )
-        )
-
-        ev = fv(
-            row.get(
-                f"{side}_ev"
-            )
-        )
-
-        kelly = fv(
-            row.get(
-                f"{side}_kelly"
-            )
-        )
-
-        mp = fv(
-            row.get(
-                f"{side}_model_prob"
-            )
-        )
-
-        evm = fv(
-            row.get(
-                f"{side}_edge_vs_market_pct"
-            )
-        )
-
-        if not passes_model_edge(
-            ev,
-            settings,
+        candidate = qualifying_candidate(
+            row,
             league,
             "total",
-        ):
-            DEBUG_COUNTS[
-                "rejected_total"
-            ] += 1
-            continue
-
-        vals = {
-            "odds": odds,
-            "line": line,
-            "ev": ev,
-            "kelly": kelly,
-            "model_prob": mp,
-            "edge_vs_market_pct": evm,
-        }
-
-        if passes_filters(
-            vals,
-            scfg,
             game_date,
-        ):
-            sides.append({
+            scfg,
+            settings,
+            {
                 "side": side,
                 "line": line,
-                "odds": odds,
-                "ev": ev,
-                "kelly": kelly,
-                "model_prob": mp,
-                "edge_vs_market": evm,
-            })
+                "odds": fv(
+                    row.get(
+                        f"dk_total_{side}_american"
+                    )
+                ),
+                "ev": fv(
+                    row.get(
+                        f"{side}_ev"
+                    )
+                ),
+                "kelly": fv(
+                    row.get(
+                        f"{side}_kelly"
+                    )
+                ),
+                "model_prob": fv(
+                    row.get(
+                        f"{side}_model_prob"
+                    )
+                ),
+                "edge_vs_market": fv(
+                    row.get(
+                        f"{side}_edge_vs_market_pct"
+                    )
+                ),
+            },
+        )
+
+        if candidate is not None:
+            sides.append(candidate)
         else:
             DEBUG_COUNTS[
                 "rejected_total"
@@ -3611,7 +3601,6 @@ def select_bets_for_market(
             cfg,
             settings,
         )
-        sides = [attach_candidate_uncertainty(row, market, side) for side in sides]
 
         if not sides:
             continue
@@ -3649,16 +3638,19 @@ def select_bets_for_market(
                 "bet_kelly": sel["kelly"],
                 "bet_raw_kelly": sel["raw_kelly"],
                 "bet_model_prob": sel["model_prob"],
+                "bet_raw_model_prob": sel["raw_model_prob"],
+                "bet_raw_edge_vs_market": sel["raw_edge_vs_market"],
+                "bet_probability_basis": sel["probability_basis"],
                 "bet_adjusted_model_prob": sel["adjusted_model_prob"],
                 "bet_edge_vs_market": sel["edge_vs_market"],
                 "bet_uncertainty_multiplier": sel["uncertainty_multiplier"],
                 "bet_uncertainty_points": sel["uncertainty_points"],
                 "bet_signal_points": sel["signal_points"],
                 "bet_requested_stake_pct": stake_pct(
-                    sel["raw_kelly"], sel["uncertainty_multiplier"]
+                    sel["kelly"], sel["uncertainty_multiplier"]
                 ),
                 "bet_stake_pct": stake_pct(
-                    sel["raw_kelly"], sel["uncertainty_multiplier"]
+                    sel["kelly"], sel["uncertainty_multiplier"]
                 ),
                 "market_type": market,
                 "league_lower": league,
@@ -4033,10 +4025,19 @@ def summarize_group(
             wins + losses
         )
 
-        graded_stakes = (
-            wins
-            + losses
-            + pushes
+        # Same rows feed profit and stake denominators:
+        # only bets with a computed profit (Win/Loss/Push with valid odds).
+        graded_mask = (
+            pd.to_numeric(
+                group[
+                    "profit_unit"
+                ],
+                errors="coerce",
+            ).notna()
+        )
+
+        graded_stakes = int(
+            graded_mask.sum()
         )
 
         profit_units = float(
@@ -4061,10 +4062,20 @@ def summarize_group(
             )
         )
 
-        kelly_staked = float(
+        kelly_mask = (
             pd.to_numeric(
                 group[
-                    "bet_stake_pct"
+                    "profit_kelly"
+                ],
+                errors="coerce",
+            ).notna()
+        )
+
+        kelly_staked = float(
+            pd.to_numeric(
+                group.loc[
+                    kelly_mask,
+                    "bet_stake_pct",
                 ],
                 errors="coerce",
             )
@@ -4464,6 +4475,50 @@ def run_production_parity_test(
     parity_rows: int,
     logger: RunLogger,
 ) -> None:
+    # The parity sample re-runs selection on the first rows of each file;
+    # its counters must not be added to the real run's filter counts.
+    saved_counts = Counter(DEBUG_COUNTS)
+
+    try:
+        _production_parity_checks(
+            feature_df,
+            league,
+            settings,
+            production_filter_cfg,
+            parity_rows,
+            logger,
+        )
+    finally:
+        DEBUG_COUNTS.clear()
+        DEBUG_COUNTS.update(saved_counts)
+
+
+def _numbers_match(
+    a: Any,
+    b: Any,
+) -> bool:
+    x = fv(a)
+    y = fv(b)
+
+    if x is None or y is None:
+        return x is None and y is None
+
+    return math.isclose(
+        x,
+        y,
+        rel_tol=0.0,
+        abs_tol=1e-9,
+    )
+
+
+def _production_parity_checks(
+    feature_df: pd.DataFrame,
+    league: str,
+    settings: dict,
+    production_filter_cfg: dict,
+    parity_rows: int,
+    logger: RunLogger,
+) -> None:
     import numpy as np
 
     sample = (
@@ -4620,6 +4675,8 @@ def run_production_parity_test(
                 prob_cols = [
                     "home_model_prob",
                     "away_model_prob",
+                    "home_market_prob",
+                    "away_market_prob",
                 ]
 
             elif market == "spread":
@@ -4650,6 +4707,8 @@ def run_production_parity_test(
                 prob_cols = [
                     "home_spread_model_prob",
                     "away_spread_model_prob",
+                    "home_spread_market_prob",
+                    "away_spread_market_prob",
                 ]
 
             else:
@@ -4680,6 +4739,8 @@ def run_production_parity_test(
                 prob_cols = [
                     "over_model_prob",
                     "under_model_prob",
+                    "over_market_prob",
+                    "under_market_prob",
                 ]
 
             back = back_frames[market]
@@ -4794,6 +4855,12 @@ def run_production_parity_test(
                         "bet_edge_vs_market": sel.get(
                             "edge_vs_market"
                         ),
+                        "bet_stake_pct": prod_select.stake_pct(
+                            sel.get("kelly"),
+                            sel.get(
+                                "uncertainty_multiplier"
+                            ),
+                        ),
                     })
 
             prod_selected = pd.DataFrame(
@@ -4847,6 +4914,54 @@ def run_production_parity_test(
                     f"backtest={sorted(back_keys)} | "
                     f"production={sorted(prod_keys)}"
                 )
+
+            if back_keys:
+                def value_map(frame):
+                    return {
+                        (
+                            str(r.get("game_id", "")).strip(),
+                            str(r.get("market_type", "")).lower(),
+                            str(r.get("bet_side", "")).lower(),
+                        ): r
+                        for _, r in frame.iterrows()
+                    }
+
+                back_values = value_map(back_selected)
+                prod_values = value_map(prod_selected)
+
+                for key in sorted(back_keys):
+                    for col in (
+                        "bet_ev",
+                        "bet_kelly",
+                        "bet_edge_vs_market",
+                        "bet_stake_pct",
+                    ):
+                        a_val = back_values[key].get(col)
+                        b_val = prod_values[key].get(col)
+
+                        if col == "bet_stake_pct":
+                            a_val = (
+                                0.0
+                                if fv(a_val) is None
+                                else a_val
+                            )
+                            b_val = (
+                                0.0
+                                if fv(b_val) is None
+                                else b_val
+                            )
+
+                        if not _numbers_match(
+                            a_val,
+                            b_val,
+                        ):
+                            raise AssertionError(
+                                "PARITY FAILED "
+                                f"{league}.{market}."
+                                f"{col} | key={key} | "
+                                f"backtest={a_val} | "
+                                f"production={b_val}"
+                            )
 
             if not back_selected.empty:
                 back_selected_parts.append(
@@ -5265,7 +5380,16 @@ def parse_args():
 
 
 def main():
+    global LOGGER
+
     args = parse_args()
+
+    # Error/run log is created first so every later failure is recorded.
+    logger = RunLogger(
+        ERROR_LOG_PATH
+    )
+
+    LOGGER = logger
 
     backtest_dir = Path(
         args.backtest_dir
@@ -5352,33 +5476,16 @@ def main():
             f"{run_dir}"
         )
 
-    clear_directory_contents(
-        working_dir
-    )
-
-    clear_directory_contents(
-        selections_dir
-    )
-
-    clear_directory_contents(
-        graded_dir
-    )
-
-    clear_directory_contents(
-        reports_dir
-    )
-
-    logger = RunLogger(
-        reports_dir
-        / "basketball_backtest.txt"
-    )
-
     logger.log(
         f"run_id={run_id}"
     )
 
     logger.log(
         f"backtest_dir={backtest_dir}"
+    )
+
+    logger.log(
+        f"error_log={ERROR_LOG_PATH}"
     )
 
     logger.log(
@@ -5474,175 +5581,229 @@ def main():
 
         input_files.extend(files)
 
-    all_selections = []
-    all_graded = []
-    total_rows = 0
-
-    for league in LEAGUES:
-        history_state = {
-            "margin_errors": [],
-            "total_errors": [],
-        }
-
-        paths = sorted(
-            input_dir.glob(
-                f"*_{league.upper()}.csv"
-            ),
-            key=lambda p, bound_league=league: (
-                season_from_input_filename(
-                    p,
-                    bound_league,
-                ),
-                p.name,
-            ),
+    # All outputs are built in a temporary staging area. The existing
+    # working/selections/graded/reports directories are replaced only after
+    # parity and the full run have succeeded, so a failed run changes nothing
+    # under the backtest directory.
+    with tempfile.TemporaryDirectory(
+        prefix="basketball_backtest_stage_",
+    ) as stage_name:
+        stage_dir = Path(
+            stage_name
         )
 
-        for path in paths:
-            (
-                selections,
-                graded,
-                row_count,
-            ) = process_historical_file(
-                path,
-                league,
-                settings,
-                filter_cfg,
-                production_filter_cfg,
-                model_cfg,
-                model_source,
-                history_state,
-                working_dir,
-                selections_dir,
-                graded_dir,
-                args.parity_rows,
-                logger,
+        stage_working = (
+            stage_dir
+            / "working"
+        )
+
+        stage_selections = (
+            stage_dir
+            / "selections"
+        )
+
+        stage_graded = (
+            stage_dir
+            / "graded"
+        )
+
+        stage_reports = (
+            stage_dir
+            / "reports"
+        )
+
+        for folder in (
+            stage_working,
+            stage_selections,
+            stage_graded,
+            stage_reports,
+        ):
+            folder.mkdir(
+                parents=True,
+                exist_ok=True,
             )
 
-            total_rows += row_count
+        all_selections = []
+        all_graded = []
+        total_rows = 0
 
-            if not selections.empty:
-                all_selections.append(
-                    selections
+        for league in LEAGUES:
+            history_state = {
+                "margin_errors": [],
+                "total_errors": [],
+            }
+
+            paths = sorted(
+                input_dir.glob(
+                    f"*_{league.upper()}.csv"
+                ),
+                key=lambda p, bound_league=league: (
+                    season_from_input_filename(
+                        p,
+                        bound_league,
+                    ),
+                    p.name,
+                ),
+            )
+
+            for path in paths:
+                (
+                    selections,
+                    graded,
+                    row_count,
+                ) = process_historical_file(
+                    path,
+                    league,
+                    settings,
+                    filter_cfg,
+                    production_filter_cfg,
+                    model_cfg,
+                    model_source,
+                    history_state,
+                    stage_working,
+                    stage_selections,
+                    stage_graded,
+                    args.parity_rows,
+                    logger,
                 )
 
-            if not graded.empty:
-                all_graded.append(
-                    graded
-                )
+                total_rows += row_count
 
-    if all_selections:
-        combined_selected = pd.concat(
-            all_selections,
-            ignore_index=True,
-        )
-    else:
-        combined_selected = (
-            pd.DataFrame()
-        )
+                if not selections.empty:
+                    all_selections.append(
+                        selections
+                    )
 
-    if all_graded:
-        combined_graded = pd.concat(
-            all_graded,
-            ignore_index=True,
-        )
-    else:
-        combined_graded = (
-            pd.DataFrame()
-        )
+                if not graded.empty:
+                    all_graded.append(
+                        graded
+                    )
 
-    # Keep every selection produced by the configured selection rules.
-    # Stake suggestions are informational and never remove a selected row.
-    atomic_write_csv(
-        combined_selected,
-        selections_dir
-        / "all_selected.csv",
-    )
-
-    atomic_write_csv(
-        combined_graded,
-        graded_dir
-        / "all_graded.csv",
-    )
-    logger.log(f"selection rows retained without exposure filtering: {len(combined_selected)}")
-
-    reports = build_reports(
-        combined_graded,
-        reports_dir,
-    )
-
-    write_manifest(
-        reports_dir
-        / "run_manifest.yaml",
-        run_id,
-        model_config_path,
-        filter_config_path,
-        production_markets_path,
-        model_source,
-        input_files,
-        settings,
-        config_warnings,
-        total_rows,
-        len(combined_selected),
-        len(combined_graded),
-    )
-
-    logger.log(
-        "--- FINAL SUMMARY ---"
-    )
-
-    logger.log(
-        f"historical_rows={total_rows}"
-    )
-
-    logger.log(
-        "selected_bets="
-        f"{len(combined_selected)}"
-    )
-
-    logger.log(
-        "graded_bets="
-        f"{len(combined_graded)}"
-    )
-
-    if not reports[
-        "overall"
-    ].empty:
-        row = reports[
-            "overall"
-        ].iloc[0]
-
-        roi = row["roi_units"]
-
-        if pd.notna(roi):
-            logger.log(
-                "W/L/P/U="
-                f"{int(row['wins'])}/"
-                f"{int(row['losses'])}/"
-                f"{int(row['pushes'])}/"
-                f"{int(row['unknown'])} "
-                "profit_units="
-                f"{float(row['profit_units']):+.4f} "
-                "roi_units="
-                f"{float(roi):+.4%}"
+        if all_selections:
+            combined_selected = pd.concat(
+                all_selections,
+                ignore_index=True,
             )
         else:
-            logger.log(
-                "W/L/P/U="
-                f"{int(row['wins'])}/"
-                f"{int(row['losses'])}/"
-                f"{int(row['pushes'])}/"
-                f"{int(row['unknown'])} "
-                "profit_units="
-                f"{float(row['profit_units']):+.4f} "
-                "roi_units=N/A"
+            combined_selected = (
+                pd.DataFrame()
+            )
+
+        if all_graded:
+            combined_graded = pd.concat(
+                all_graded,
+                ignore_index=True,
+            )
+        else:
+            combined_graded = (
+                pd.DataFrame()
+            )
+
+        # Keep every selection produced by the configured selection rules.
+        # Stake suggestions are informational and never remove a selected row.
+        atomic_write_csv(
+            combined_selected,
+            stage_selections
+            / "all_selected.csv",
+        )
+
+        atomic_write_csv(
+            combined_graded,
+            stage_graded
+            / "all_graded.csv",
+        )
+        logger.log(f"selection rows retained without exposure filtering: {len(combined_selected)}")
+
+        reports = build_reports(
+            combined_graded,
+            stage_reports,
+        )
+
+        write_manifest(
+            stage_reports
+            / "run_manifest.yaml",
+            run_id,
+            model_config_path,
+            filter_config_path,
+            production_markets_path,
+            model_source,
+            input_files,
+            settings,
+            config_warnings,
+            total_rows,
+            len(combined_selected),
+            len(combined_graded),
+        )
+
+        logger.log(
+            "--- FINAL SUMMARY ---"
+        )
+
+        logger.log(
+            f"historical_rows={total_rows}"
+        )
+
+        logger.log(
+            "selected_bets="
+            f"{len(combined_selected)}"
+        )
+
+        logger.log(
+            "graded_bets="
+            f"{len(combined_graded)}"
+        )
+
+        if not reports[
+            "overall"
+        ].empty:
+            row = reports[
+                "overall"
+            ].iloc[0]
+
+            roi = row["roi_units"]
+
+            if pd.notna(roi):
+                logger.log(
+                    "W/L/P/U="
+                    f"{int(row['wins'])}/"
+                    f"{int(row['losses'])}/"
+                    f"{int(row['pushes'])}/"
+                    f"{int(row['unknown'])} "
+                    "profit_units="
+                    f"{float(row['profit_units']):+.4f} "
+                    "roi_units="
+                    f"{float(roi):+.4%}"
+                )
+            else:
+                logger.log(
+                    "W/L/P/U="
+                    f"{int(row['wins'])}/"
+                    f"{int(row['losses'])}/"
+                    f"{int(row['pushes'])}/"
+                    f"{int(row['unknown'])} "
+                    "profit_units="
+                    f"{float(row['profit_units']):+.4f} "
+                    "roi_units=N/A"
+                )
+
+        # Run succeeded: replace the previous outputs with the staged ones.
+        for live_dir, staged_dir in (
+            (working_dir, stage_working),
+            (selections_dir, stage_selections),
+            (graded_dir, stage_graded),
+            (reports_dir, stage_reports),
+        ):
+            clear_directory_contents(
+                live_dir
+            )
+
+            copy_tree_contents(
+                staged_dir,
+                live_dir,
             )
 
     logger.log(
         f"run_snapshot={run_dir}"
-    )
-
-    logger.log(
-        "STATUS: SUCCESS"
     )
 
     run_dir.mkdir(
@@ -5698,6 +5859,17 @@ def main():
         reports["overall"],
     )
 
+    logger.log(
+        "STATUS: SUCCESS"
+    )
+
+    shutil.copy2(
+        ERROR_LOG_PATH,
+        run_dir
+        / "reports"
+        / ERROR_LOG_PATH.name,
+    )
+
     print(
         "basketball_backtest complete."
     )
@@ -5707,11 +5879,44 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as main_exc:
+        failure = f"STATUS: FAILED | {main_exc}"
+
         print(
-            f"STATUS: FAILED | {main_exc}",
+            failure,
             file=sys.stderr,
         )
 
         traceback.print_exc()
+
+        try:
+            failure_logger = (
+                LOGGER
+                if LOGGER is not None
+                else RunLogger(
+                    ERROR_LOG_PATH
+                )
+            )
+
+            failure_logger.log(
+                "FATAL: "
+                f"{type(main_exc).__name__}: "
+                f"{main_exc}",
+                "ERROR",
+            )
+
+            failure_logger.log(
+                traceback.format_exc(),
+                "ERROR",
+            )
+
+            failure_logger.log(
+                failure,
+                "ERROR",
+            )
+        except Exception as log_exc:
+            print(
+                f"ERROR LOG WRITE FAILED | {log_exc}",
+                file=sys.stderr,
+            )
 
         sys.exit(1)

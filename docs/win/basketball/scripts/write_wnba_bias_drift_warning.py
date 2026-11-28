@@ -2,23 +2,30 @@
 """Write a dedicated, always-fresh WNBA residual-drift status file.
 
 This reporter is informational only. It never changes the pipeline health decision.
+
+Log (overwritten each run):
+  docs/win/basketball/errors/99_validation/write_wnba_bias_drift_warning.txt
 """
 from __future__ import annotations
 
 import json
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
 BASE = Path("docs/win/basketball")
 HEALTH_FILE = BASE / "pipeline_health.json"
-OUTPUT_FILE = BASE / "errors/wnba_bias_drift.txt"
+OUTPUT_FILE = BASE / "errors/99_validation/write_wnba_bias_drift_warning.txt"
 
 
 def render(payload: dict) -> str:
     drift = payload.get("wnba_bias_drift") or {}
     windows = drift.get("windows") or {}
     warnings = drift.get("warnings") or []
-    status = "WARNING" if warnings else "OK"
+    # No drift section, no windows, or zero matched games means the drift
+    # calculation produced nothing: report that instead of a false "OK".
+    unavailable = not windows or not drift.get("matched_games")
+    status = "WARNING" if warnings else ("UNAVAILABLE" if unavailable else "OK")
     lines = [
         f"=== WNBA bias drift {datetime.now(timezone.utc).isoformat()} ===",
         f"pipeline_health_generated_at_utc: {payload.get('generated_at_utc', '')}",
@@ -37,8 +44,10 @@ def render(payload: dict) -> str:
     if warnings:
         for warning in warnings:
             lines.append(f"WARN: {warning}")
-    else:
+    elif not unavailable:
         lines.append("WARN: none")
+    if unavailable and not warnings:
+        lines.append("ERROR: WNBA drift data unavailable: pipeline_health.json has no drift windows or zero matched games")
     lines.append(f"STATUS: {status}")
     return "\n".join(lines) + "\n"
 
@@ -52,6 +61,7 @@ def main() -> None:
         text = (
             f"=== WNBA bias drift {datetime.now(timezone.utc).isoformat()} ===\n"
             f"ERROR: unable to read pipeline health: {type(exc).__name__}: {exc}\n"
+            f"{traceback.format_exc()}"
             "STATUS: UNAVAILABLE\n"
         )
     # Always overwrite: a resolved warning cannot linger from an older run.
