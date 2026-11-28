@@ -13,20 +13,45 @@ import sys
 import traceback
 from datetime import datetime, UTC
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
-
-from basketball_shared import resolve_repository_path
-
-SELECT_DIR = Path("docs/win/basketball/04_select")
+ROOT = SCRIPTS_DIR.parents[3]  # repository root (docs/win/basketball/scripts/04_select/ -> repo root)
+BASE = ROOT / "docs/win/basketball"
+SELECT_DIR = BASE / "04_select"
 DAILY_SLATE_DIR = SELECT_DIR / "daily_slate"
-ERROR_DIR = Path("docs/win/basketball/errors/04_select")
+ERROR_DIR = BASE / "errors/04_select"
 LOG_FILE = ERROR_DIR / "daily_slate.txt"
-NY = ZoneInfo("America/New_York")
 LEAGUES = ["nba", "wnba", "ncaam"]
+
+
+def now_iso() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def log(message: str, level: str = "INFO") -> None:
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(f"{now_iso()} | {level:<5} | {message.rstrip()}\n")
+
+
+def start_log() -> None:
+    ERROR_DIR.mkdir(parents=True, exist_ok=True)
+    with open(LOG_FILE, "w", encoding="utf-8") as f:
+        f.write(f"=== basketball daily_slate RUN {now_iso()} ===\n")
+
+
+try:
+    from zoneinfo import ZoneInfo
+
+    if str(SCRIPTS_DIR) not in sys.path:
+        sys.path.insert(0, str(SCRIPTS_DIR))
+    from basketball_shared import resolve_repository_path
+
+    NY = ZoneInfo("America/New_York")
+except Exception as exc:  # noqa: BLE001
+    start_log()
+    log(f"FATAL ERROR: import/setup failed: {exc}\n{traceback.format_exc()}", "ERROR")
+    log("STATUS: FAILED")
+    sys.exit(1)
 
 HEADERS = [
     "sport","league","game_id","game_date","game_time","home_team","away_team",
@@ -43,11 +68,10 @@ HEADERS = [
     "bet_side","bet_line","bet_odds_american","bet_ev","bet_raw_ev","bet_uncertainty_adjusted_ev",
     "bet_kelly","bet_raw_kelly","bet_model_prob","bet_adjusted_model_prob","bet_edge_vs_market",
     "bet_uncertainty_multiplier","bet_uncertainty_points","bet_signal_points",
-    "bet_fractional_kelly_pct","bet_individual_capped_stake_pct","bet_requested_stake_pct",
-    "bet_final_stake_pct","bet_stake_pct","exposure_rank","exposure_limited","exposure_limit_reason",
-    "game_exposure_after_pct","league_day_exposure_after_pct","total_day_exposure_after_pct",
-    "maximum_exposure_per_game","maximum_exposure_per_league_per_day","maximum_total_daily_exposure",
-    "maximum_individual_bet_kelly_fraction","uncertainty_adjustment_method","uncertainty_adjustment_version",
+    "bet_requested_stake_pct",
+    "bet_stake_pct",
+    
+    "uncertainty_adjustment_method","uncertainty_adjustment_version",
     "market_type","league_lower","home_spread","away_spread",
     "home_dk_spread_american","away_dk_spread_american","home_dk_spread_decimal","away_dk_spread_decimal",
     "home_spread_model_prob","away_spread_model_prob","fair_home_spread_decimal","fair_away_spread_decimal",
@@ -66,13 +90,9 @@ HEADERS = [
 CRITICAL = {"game_id", "game_date", "market_type", "bet_side"}
 
 
-def now_iso() -> str:
-    return datetime.now(UTC).isoformat()
-
-
-def log(message: str, level: str = "INFO") -> None:
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(f"{now_iso()} | {level:<5} | {message.rstrip()}\n")
+def normalize_date(value) -> str:
+    """Accept both 2026_11_27 and 2026-11-27."""
+    return str(value or "").strip().replace("-", "_")
 
 
 def write_output(path: Path, rows: list[dict]) -> None:
@@ -88,10 +108,8 @@ def write_output(path: Path, rows: list[dict]) -> None:
 
 
 def main() -> None:
+    start_log()
     DAILY_SLATE_DIR.mkdir(parents=True, exist_ok=True)
-    ERROR_DIR.mkdir(parents=True, exist_ok=True)
-    with open(LOG_FILE, "w", encoding="utf-8") as f:
-        f.write(f"=== basketball daily_slate RUN {now_iso()} ===\n")
 
     game_date = datetime.now(NY).strftime("%Y_%m_%d")
     errors = 0; total_rows = 0
@@ -112,8 +130,11 @@ def main() -> None:
                     extra = sorted(actual - set(HEADERS))
                     if extra:
                         log(f"[{league}] extra input headers ignored: {', '.join(extra)}", "WARN")
+                    missing = [h for h in HEADERS if h not in actual]
+                    if missing:
+                        log(f"[{league}] input is missing slate columns (written blank): {', '.join(missing)}", "WARN")
                     for row in reader:
-                        if str(row.get("game_date", "")).strip() != game_date:
+                        if normalize_date(row.get("game_date")) != game_date:
                             raise ValueError(f"row game_date {row.get('game_date')!r} does not equal {game_date}")
                         rows.append({h: row.get(h, "") for h in HEADERS})
                 log(f"[{league}] READ current daily picks: {source} ({len(rows)} rows)")
@@ -126,7 +147,10 @@ def main() -> None:
             errors += 1
             log(f"[{league}] FAILED: {exc}\n{traceback.format_exc()}", "ERROR")
             # Never leave yesterday's slate in place after a failed current build.
-            write_output(target, [])
+            try:
+                write_output(target, [])
+            except Exception as clear_exc:  # noqa: BLE001
+                log(f"[{league}] could not clear {target}: {clear_exc}\n{traceback.format_exc()}", "ERROR")
 
     log("--- SUMMARY ---")
     log(f"Current game date: {game_date}")
@@ -139,4 +163,15 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        try:
+            log(f"FATAL ERROR: {exc}\n{traceback.format_exc()}", "ERROR")
+            log("STATUS: FAILED")
+        except Exception:  # noqa: BLE001
+            pass
+        print(f"STATUS: FAILED | {exc}", file=sys.stderr)
+        sys.exit(1)

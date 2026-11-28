@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# docs/win/basketball/scripts/04_select/basketball_select_bets.py
+# docs/win/basketball/scripts/04_select/basketball_select_bets_core.py
 #
 # Reads stage-3 EV/Kelly outputs and applies the per-league market EDGE from
 # model_config.yaml first, then the per-league × per-market × per-side filters
@@ -27,11 +27,13 @@ from staking_runtime import (
     attach_candidate_uncertainty, requested_stake,
 )
 
-INPUT_DIR        = Path("docs/win/basketball/03_edges/ev_kelly")
-SELECT_DIR       = Path("docs/win/basketball/04_select")
-CONFIG_PATH      = Path("docs/win/basketball/config/markets.yaml")
-MODEL_CONFIG_PATH = Path("docs/win/basketball/config/model_config.yaml")
-ERROR_DIR        = Path("docs/win/basketball/errors/04_select")
+ROOT             = SCRIPTS_DIR.parents[3]  # repository root (docs/win/basketball/scripts -> repo root)
+BASE             = ROOT / "docs/win/basketball"
+INPUT_DIR        = BASE / "03_edges/ev_kelly"
+SELECT_DIR       = BASE / "04_select"
+CONFIG_PATH      = BASE / "config/markets.yaml"
+MODEL_CONFIG_PATH = BASE / "config/model_config.yaml"
+ERROR_DIR        = BASE / "errors/04_select"
 LOG_FILE         = ERROR_DIR / "select_bets.txt"
 
 SELECT_DIR.mkdir(parents=True, exist_ok=True)
@@ -57,6 +59,11 @@ LEAGUES = ["nba", "ncaam", "wnba"]
 MARKETS = ["moneyline", "spread", "total"]
 
 DEBUG_COUNTS = defaultdict(int)
+_UNPARSEABLE_LOGGED = set()
+
+
+class ConfigError(KeyError):
+    """Missing league/market/side configuration (markets.yaml or model_config.yaml)."""
 
 
 # =========================
@@ -99,7 +106,7 @@ def model_edge(league: str, market: str) -> float:
     try:
         return MODEL_EDGES[league.lower()][market]
     except KeyError as exc:
-        raise KeyError(f"No model EDGE: league={league!r} market={market!r}") from exc
+        raise ConfigError(f"No model EDGE: league={league!r} market={market!r}") from exc
 
 
 # =========================
@@ -128,7 +135,7 @@ def _write_summary(summary: dict, per_file: list) -> None:
         f"  ncaam_bets            : {summary['ncaam_bets']}",
         f"  wnba_bets             : {summary['wnba_bets']}",
         f"  ml_vs_spread_dropped  : {summary['ml_vs_spread_dropped']}",
-        f"  skipped               : {summary['skipped']}",
+        f"  skipped (empty/disabled, counted in files_processed): {summary['skipped']}",
         f"  errors                : {summary['errors']}",
         f"  kelly_fraction        : {KELLY_FRACTION}",
         f"  uncertainty_method    : {UNCERTAINTY_METHOD}",
@@ -187,7 +194,11 @@ def date_ok(game_date, months, exclude_dow):
         return True
     dt = parse_date(game_date) if isinstance(game_date, str) else None
     if dt is None:
-        return True
+        DEBUG_COUNTS["fail_date_unparseable"] += 1
+        if game_date not in _UNPARSEABLE_LOGGED:
+            _UNPARSEABLE_LOGGED.add(game_date)
+            _log(f"UNPARSEABLE game_date={game_date!r}; pick rejected", "WARN")
+        return False
     if months and dt.month not in months:
         DEBUG_COUNTS["fail_month"] += 1
         return False
@@ -256,6 +267,24 @@ def passes_model_edge(ev, league: str, market: str) -> bool:
     return True
 
 
+# Applied only when two sides tie on the markets.yaml pick metric. Higher value wins at every step.
+TIE_BREAK_KEYS = (
+    "model_prob",      # adjusted model prob
+    "raw_model_prob",
+    "market_prob",
+    "implied_prob",
+    "raw_ev",
+    "raw_kelly",
+)
+
+
+def _tie_key(candidate):
+    return tuple(
+        candidate[k] if candidate.get(k) is not None else float("-inf")
+        for k in TIE_BREAK_KEYS
+    )
+
+
 def pick(qualifying, preference):
     if not qualifying:
         return None
@@ -268,14 +297,26 @@ def pick(qualifying, preference):
             return float("-inf") if direction == "max" else float("inf")
         return v
 
-    return max(qualifying, key=key) if direction == "max" else min(qualifying, key=key)
+    best = max(qualifying, key=key) if direction == "max" else min(qualifying, key=key)
+    tied = [c for c in qualifying if key(c) == key(best)]
+    if len(tied) == 1:
+        return best
+    DEBUG_COUNTS["tie_break_applied"] += 1
+    return max(tied, key=_tie_key)  # first listed wins if every tie-break value is equal
 
 
 def market_cfg(league, market_type):
     try:
         return CONFIG["markets"][league.lower()][market_type]
     except KeyError as e:
-        raise KeyError(f"No config: league={league!r} market_type={market_type!r}") from e
+        raise ConfigError(f"No config: league={league!r} market_type={market_type!r}") from e
+
+
+def side_config(cfg, side):
+    try:
+        return cfg[side]
+    except KeyError as exc:
+        raise ConfigError(f"No config for side={side!r}") from exc
 
 
 def extract_date(filename):
@@ -353,6 +394,17 @@ def reconcile_ml_vs_spread(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
     group_cols = ['league_lower', 'game_date', 'game_id']
     if any(col not in df.columns for col in group_cols):
         raise ValueError('Cannot reconcile without league/date/game identity')
+    no_identity = (
+        df[group_cols].isna().any(axis=1)
+        & df["market_type"].isin(["moneyline", "spread"])
+    )
+    if no_identity.any():
+        DEBUG_COUNTS["ml_spread_missing_game_identity"] += int(no_identity.sum())
+        _log(
+            f"{int(no_identity.sum())} moneyline/spread pick(s) have no game_id, game_date "
+            "or league; ML vs spread not reconciled for them, all kept",
+            "WARN",
+        )
     ml_best     = df.loc[ml_mask].groupby(group_cols)["_tiebreak_metric"].max()
     spread_best = df.loc[spread_mask].groupby(group_cols)["_tiebreak_metric"].max()
 
@@ -396,6 +448,10 @@ def _qualifying_candidate(row, league, market, game_date, side_cfg, raw):
     if adjusted is None:
         DEBUG_COUNTS[f'invalid_adjusted_{market}'] += 1
         return None
+    side = raw['side']
+    stem = f'{side}_spread' if market == 'spread' else side
+    adjusted['market_prob'] = fv(row.get(f'{stem}_market_prob'))
+    adjusted['implied_prob'] = fv(row.get(f'{stem}_implied_prob'))
     if not passes_model_edge(adjusted['ev'], league, market):
         return None
     values = {'odds': adjusted['odds'], 'line': adjusted['line'],
@@ -408,7 +464,7 @@ def _qualifying_candidate(row, league, market, game_date, side_cfg, raw):
 def build_ml_sides(row, league, game_date, cfg):
     sides = []
     for side in ('home', 'away'):
-        scfg = cfg[side]
+        scfg = side_config(cfg, side)
         if not scfg.get('enabled', True):
             continue
         odds = fv(row.get(f'{side}_dk_moneyline_american'))
@@ -432,7 +488,7 @@ def build_ml_sides(row, league, game_date, cfg):
 def build_spread_sides(row, league, game_date, cfg):
     sides = []
     for side in ('home', 'away'):
-        scfg = cfg[side]
+        scfg = side_config(cfg, side)
         if not scfg.get('enabled', True):
             continue
         candidate = _qualifying_candidate(row, league, 'spread', game_date, scfg, {
@@ -455,7 +511,7 @@ def build_total_sides(row, league, game_date, cfg):
     sides = []
     line = fv(row.get('total'))
     for side in ('over', 'under'):
-        scfg = cfg[side]
+        scfg = side_config(cfg, side)
         if not scfg.get('enabled', True):
             continue
         candidate = _qualifying_candidate(row, league, 'total', game_date, scfg, {
@@ -485,16 +541,24 @@ SIDE_BUILDERS = {
 # FILE PROCESSOR
 # =========================
 
+def _row_game_date(row, file_date):
+    value = row.get("game_date")
+    if value is None or (not isinstance(value, str) and pd.isna(value)) or not str(value).strip():
+        return file_date
+    return value
+
+
 def process_file(file: Path, league: str, market_type: str):
+    """Return (selected_df, selected_count, status); status is ok, empty or disabled."""
     df = pd.read_csv(file)
     if df.empty:
         _log(f"EMPTY: {file.name}", "WARN")
-        return pd.DataFrame(), 0
+        return pd.DataFrame(), 0, "empty"
 
     cfg = market_cfg(league, market_type)
     if not cfg.get("enabled", True):
         _log(f"DISABLED in config: league={league} market={market_type}")
-        return pd.DataFrame(), 0
+        return pd.DataFrame(), 0, "disabled"
 
     selection_mode = cfg.get("selection_mode", "pick_one")
     preference     = cfg.get("pick_preference", {"metric": "ev", "direction": "max"})
@@ -508,7 +572,7 @@ def process_file(file: Path, league: str, market_type: str):
 
     out_rows = []
     for _, row in df.iterrows():
-        game_date = row.get("game_date") or file_date
+        game_date = _row_game_date(row, file_date)
         sides = builder(row, league, game_date, cfg)
 
         if not sides:
@@ -557,7 +621,7 @@ def process_file(file: Path, league: str, market_type: str):
 
     n = len(out_rows)
     _log(f"{file.name} | {n} selected from {len(df)} rows")
-    return pd.DataFrame(out_rows), n
+    return pd.DataFrame(out_rows), n, "ok"
 
 
 # =========================
@@ -591,13 +655,16 @@ def _collect_candidate_frames(summary, per_file):
                     "status": "ok",
                 }
                 try:
-                    df, selected = process_file(path, league, market)
+                    df, selected, file_status = process_file(path, league, market)
                     per_file_row["selected"] = selected
+                    if file_status != "ok":
+                        per_file_row["status"] = file_status
+                        summary["skipped"] += 1
                     summary["files_processed"] += 1
                     summary["total_candidates"] += selected
                     if not df.empty:
                         league_dfs[league].append(df)
-                except KeyError as exc:
+                except ConfigError as exc:
                     _log(
                         f"{path.name} CONFIG ERROR: {exc}",
                         "ERROR",
@@ -667,8 +734,6 @@ def main():
             f"=== basketball select_bets RUN {_now()} ===\n"
         )
 
-    clear_old_select_outputs()
-
     summary = {
         "files_processed": 0,
         "total_candidates": 0,
@@ -708,7 +773,15 @@ def main():
             league_dfs,
             summary,
         )
-        _write_final_pick_files(all_candidates, summary)
+        if summary["errors"] == 0:
+            clear_old_select_outputs()
+            _write_final_pick_files(all_candidates, summary)
+        else:
+            _log(
+                f"{summary['errors']} file error(s): existing daily pick files left "
+                "unchanged; no new daily pick files written",
+                "ERROR",
+            )
     except Exception as exc:
         _log(
             f"FATAL: {exc}\n{traceback.format_exc()}",
