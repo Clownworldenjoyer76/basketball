@@ -57,6 +57,7 @@
 
 from datetime import datetime, UTC
 from pathlib import Path
+import sys
 import traceback
 
 import numpy as np
@@ -68,9 +69,11 @@ import pandas as pd
 
 LEAGUES = ["nba", "ncaam", "wnba"]
 
-BASE = Path("docs/win/basketball/05_final_scores")
+SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+ROOT = SCRIPTS_DIR.parents[3]  # repository root (docs/win/basketball/scripts/05_final_scores/ -> repo root)
+BASE = ROOT / "docs/win/basketball/05_final_scores"
 REPORT_DIR = BASE / "reports"
-ERROR_DIR = Path("docs/win/basketball/errors/05_final_scores")
+ERROR_DIR = ROOT / "docs/win/basketball/errors/05_final_scores"
 LOG_FILE = ERROR_DIR / "03_basketball_results_reports.txt"
 
 WORK_FILES = {
@@ -149,6 +152,19 @@ def error(message: str) -> None:
         "ERROR",
         message,
     )
+
+
+def kelly_stake_total(df: pd.DataFrame) -> float:
+    """Sum of bet_stake_pct over rows that have a profit_kelly value.
+
+    roi_kelly = units_kelly / this total, so the numerator and denominator
+    cover the same rows.
+    """
+    if "bet_stake_pct" not in df.columns or "profit_kelly" not in df.columns:
+        return 0.0
+    stake = pd.to_numeric(df["bet_stake_pct"], errors="coerce")
+    kelly = pd.to_numeric(df["profit_kelly"], errors="coerce")
+    return float(stake[kelly.notna()].sum(skipna=True))
 
 
 def performance_rates(
@@ -537,15 +553,7 @@ def aggregate_block(
             else 0.0
         )
 
-        stake_total = (
-            float(
-                sub["bet_stake_pct"].sum(
-                    skipna=True
-                )
-            )
-            if "bet_stake_pct" in sub.columns
-            else 0.0
-        )
+        stake_total = kelly_stake_total(sub)
 
         (
             roi_flat,
@@ -1301,16 +1309,7 @@ def build_summary_grand_total(
         )
     )
 
-    stake_total = float(
-        to_num(
-            work_df.get(
-                "bet_stake_pct",
-                pd.Series(dtype=float),
-            )
-        ).sum(
-            skipna=True
-        )
-    )
+    stake_total = kelly_stake_total(work_df)
 
     (
         roi_flat,
@@ -1584,6 +1583,28 @@ def write_quality_reports(
 # RUN
 # =========================
 
+def remove_league_summaries(
+    league: str,
+) -> None:
+    """Delete the league's old summary, grand total and overview CSVs.
+
+    Called when there is no work data for the league, so old numbers
+    are not left in place as if they were current.
+    """
+    targets = [
+        BASE / f"{league}_summary_overall.csv",
+        BASE / f"{league}_summary_grand_total.csv",
+    ]
+    overview_dir = REPORT_DIR / league / "overview"
+    if overview_dir.exists():
+        targets.extend(sorted(overview_dir.glob("*.csv")))
+
+    for path in targets:
+        if path.exists():
+            path.unlink()
+            log("INFO", f"REMOVED_STALE_OUTPUT | file={path}")
+
+
 def run_one(
     league: str,
 ) -> None:
@@ -1611,6 +1632,7 @@ def run_one(
                 f"missing work file: {work_path}"
             )
         )
+        remove_league_summaries(league)
 
         return
 
@@ -1637,6 +1659,7 @@ def run_one(
                 "empty work file; skipping betting reports"
             )
         )
+        remove_league_summaries(league)
         return
 
     if "market_type" in work.columns:
@@ -1723,6 +1746,15 @@ def run_one(
     )
 
 
+class LeagueFailures(Exception):
+    def __init__(self, leagues):
+        super().__init__(
+            "league(s) failed: "
+            + ", ".join(l.upper() for l in leagues)
+        )
+        self.leagues = leagues
+
+
 def run() -> None:
     BASE.mkdir(
         parents=True,
@@ -1734,10 +1766,31 @@ def run() -> None:
         exist_ok=True,
     )
 
+    failed = []
+
     for league in LEAGUES:
-        run_one(
-            league
-        )
+        try:
+            run_one(
+                league
+            )
+        except Exception as exc:
+            failed.append(league)
+            error(
+                f"[{league}] FAILED: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            trace = traceback.format_exc()
+            with open(
+                LOG_FILE,
+                "a",
+                encoding="utf-8",
+            ) as log_handle:
+                log_handle.write(trace)
+                if not trace.endswith("\n"):
+                    log_handle.write("\n")
+
+    if failed:
+        raise LeagueFailures(failed)
 
     log(
         "INFO",
@@ -1747,10 +1800,16 @@ def run() -> None:
 
 def main() -> None:
     status = "FAILED"
+    exit_code = 0
 
     try:
         run()
         status = "SUCCESS"
+
+    except LeagueFailures as exc:
+        status = "COMPLETED WITH ERRORS"
+        log("ERROR", str(exc))
+        exit_code = 1
 
     except Exception as exc:
         error(
@@ -1782,6 +1841,9 @@ def main() -> None:
         finish(
             status
         )
+
+    if exit_code:
+        sys.exit(exit_code)
 
 
 if __name__ == "__main__":

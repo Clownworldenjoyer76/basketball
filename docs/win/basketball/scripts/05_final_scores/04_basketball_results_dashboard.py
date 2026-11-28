@@ -44,11 +44,13 @@ LEAGUE_DISPLAY = {
     "wnba": "WNBA",
 }
 
-BASE = Path("docs/win/basketball/05_final_scores")
+SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+ROOT = SCRIPTS_DIR.parents[3]  # repository root (docs/win/basketball/scripts/05_final_scores/ -> repo root)
+BASE = ROOT / "docs/win/basketball/05_final_scores"
 REPORTS = BASE / "reports"
 SEASONS_ROOT = BASE / "seasons"
 
-DASHBOARD_DIR = Path("frontend/data/dashboards")
+DASHBOARD_DIR = ROOT / "frontend/data/dashboards"
 MASTER_OUTPUT = DASHBOARD_DIR / "basketball.json"
 LEAGUE_OUTPUTS = {
     "nba": DASHBOARD_DIR / "nba.json",
@@ -56,7 +58,7 @@ LEAGUE_OUTPUTS = {
     "wnba": DASHBOARD_DIR / "wnba.json",
 }
 
-ERROR_DIR = Path("docs/win/basketball/errors/05_final_scores")
+ERROR_DIR = ROOT / "docs/win/basketball/errors/05_final_scores"
 LOG_FILE = ERROR_DIR / "04_basketball_results_dashboard.txt"
 
 ERROR_DIR.mkdir(parents=True, exist_ok=True)
@@ -481,7 +483,8 @@ def json_safe(value):
     return value
 
 
-def write_json(path: Path, data: dict) -> None:
+def stage_json(path: Path, data: dict) -> tuple[Path, Path, int]:
+    """Write the JSON to a .tmp file next to the target. Does not replace the target."""
     document = {
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "data": json_safe(data),
@@ -496,16 +499,36 @@ def write_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     staging = path.with_name(path.name + ".tmp")
     staging.write_text(content, encoding="utf-8")
-    os.replace(staging, path)
-    log_output(path, 1, len(content.encode("utf-8")))
-    log("INFO", f"dashboard data -> {path}")
+    return staging, path, len(content.encode("utf-8"))
 
 
 def run() -> None:
-    write_json(MASTER_OUTPUT, build_payload(LEAGUES, include_all=True))
-
+    # Build every payload and stage every file first. The live dashboard files
+    # are replaced only after all four were built and staged successfully.
+    jobs = [(MASTER_OUTPUT, lambda: build_payload(LEAGUES, include_all=True))]
     for league in LEAGUES:
-        write_json(LEAGUE_OUTPUTS[league], build_payload((league,), include_all=False))
+        jobs.append(
+            (
+                LEAGUE_OUTPUTS[league],
+                lambda league=league: build_payload((league,), include_all=False),
+            )
+        )
+
+    staged: list[tuple[Path, Path, int]] = []
+    try:
+        for path, build in jobs:
+            staged.append(stage_json(path, build()))
+    except Exception:
+        for staging, _, _ in staged:
+            staging.unlink(missing_ok=True)
+        for path, _ in jobs:
+            path.with_name(path.name + ".tmp").unlink(missing_ok=True)
+        raise
+
+    for staging, path, size in staged:
+        os.replace(staging, path)
+        log_output(path, 1, size)
+        log("INFO", f"dashboard data -> {path}")
 
 
 def main() -> None:

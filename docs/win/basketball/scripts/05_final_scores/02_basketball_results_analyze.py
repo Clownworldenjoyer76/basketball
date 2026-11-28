@@ -34,6 +34,7 @@
 
 from datetime import datetime, UTC
 from pathlib import Path
+import sys
 import traceback
 
 import numpy as np
@@ -45,7 +46,9 @@ import pandas as pd
 
 LEAGUES = ["nba", "ncaam", "wnba"]
 
-BASE       = Path("docs/win/basketball")
+SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+ROOT       = SCRIPTS_DIR.parents[3]  # repository root (docs/win/basketball/scripts/05_final_scores/ -> repo root)
+BASE       = ROOT / "docs/win/basketball"
 INPUT_DIR  = BASE / "05_final_scores/results"
 OUTPUT_DIR = BASE / "05_final_scores"
 ERROR_DIR  = BASE / "errors/05_final_scores"
@@ -959,6 +962,9 @@ def run_one(league: str) -> None:
     if not in_path.exists():
         log_input(in_path, 0, exists=False)
         warn(f"[{upper}] input missing: {in_path} — skipping")
+        if out_path.exists():
+            out_path.unlink()
+            log("INFO", f"REMOVED_STALE_OUTPUT | file={out_path}")
         pd.DataFrame(columns=QUALITY_COLUMNS).to_csv(quality_path, index=False)
         log_output(quality_path, 0)
         return
@@ -989,28 +995,41 @@ def run_one(league: str) -> None:
     log("INFO", f"[{upper}] wrote {len(quality)} quality rows -> {quality_path}")
 
 
-def run() -> None:
-    # Wipe basketball intermediate outputs before regenerating, matching the
-    # previous behavior but after the run log has been initialized.
-    for league in LEAGUES:
-        for out_path in [
-            OUTPUT_DIR / f"work_{league}.csv",
-            OUTPUT_DIR / f"quality_metrics_{league}.csv",
-        ]:
-            if out_path.exists():
-                out_path.unlink()
-                log("INFO", f"REMOVED_STALE_OUTPUT | file={out_path}")
+class LeagueFailures(Exception):
+    def __init__(self, leagues):
+        super().__init__("league(s) failed: " + ", ".join(l.upper() for l in leagues))
+        self.leagues = leagues
 
+
+def run() -> None:
+    # Each league runs on its own: a failure in one league is logged and the
+    # other leagues still run. A failed league keeps its previous output files.
+    failed = []
     for league in LEAGUES:
-        run_one(league)
+        try:
+            run_one(league)
+        except Exception as exc:
+            failed.append(league)
+            error(f"[{league.upper()}] FAILED: {type(exc).__name__}: {exc}")
+            with open(LOG_FILE, "a", encoding="utf-8") as f:
+                f.write(traceback.format_exc())
+                if not traceback.format_exc().endswith("\n"):
+                    f.write("\n")
+    if failed:
+        raise LeagueFailures(failed)
     log("INFO", "Analyze complete.")
 
 
 def main() -> None:
     status = "FAILED"
+    exit_code = 0
     try:
         run()
         status = "SUCCESS"
+    except LeagueFailures as exc:
+        status = "COMPLETED WITH ERRORS"
+        log("ERROR", str(exc))
+        exit_code = 1
     except Exception as exc:
         error(f"Unhandled exception: {type(exc).__name__}: {exc}")
         with open(LOG_FILE, "a", encoding="utf-8") as f:
@@ -1020,6 +1039,8 @@ def main() -> None:
         raise
     finally:
         finish(status)
+    if exit_code:
+        sys.exit(exit_code)
 
 
 if __name__ == "__main__":

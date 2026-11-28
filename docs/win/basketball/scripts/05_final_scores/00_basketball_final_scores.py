@@ -32,7 +32,9 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 
-BASE = Path("docs/win/basketball")
+SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+ROOT = SCRIPTS_DIR.parents[3]  # repository root (docs/win/basketball/scripts/05_final_scores/ -> repo root)
+BASE = ROOT / "docs/win/basketball"
 RESULTS_BASE = BASE / "05_final_scores/results"
 ERROR_DIR = BASE / "errors/05_final_scores"
 LOG_FILE = ERROR_DIR / "00_basketball_final_scores.txt"
@@ -57,6 +59,9 @@ LEAGUES = {
     },
 }
 
+# NOTE: in the final-score files, home_spread and away_spread hold the FINAL MARGIN
+# (home_score - away_score and its negative). In the selected-pick files the same
+# column names hold the betting line. They are different values.
 OUTPUT_COLUMNS = [
     "sport",
     "league",
@@ -867,12 +872,11 @@ def fetch_one(
     )
 
     existing = read_existing(output)
-    # Independently verify locked, completed games; even a full-size or
-    # successful ESPN scoreboard request can omit a Division I matchup.
-    if league_key == "ncaam":
-        fetched = _recover_missing_locked_finals(
-            league_key, game_date, fetched, existing
-        )
+    # Independently verify locked, completed games (all leagues); even a
+    # successful ESPN scoreboard request can omit a matchup.
+    fetched = _recover_missing_locked_finals(
+        league_key, game_date, fetched, existing
+    )
 
     if not fetched:
         log(f"[{cfg['label']}] {game_date}: no completed games")

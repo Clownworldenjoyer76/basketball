@@ -17,16 +17,38 @@ from functools import lru_cache
 import csv
 import importlib.util
 import sys
+import traceback
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 
-BASE = Path("docs/win/basketball")
+SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+ROOT = SCRIPTS_DIR.parents[3]  # repository root (docs/win/basketball/scripts/05_final_scores/ -> repo root)
+BASE = ROOT / "docs/win/basketball"
 SELECT_BASE = BASE / "04_select"
 RESULTS = BASE / "05_final_scores/results"
 ERROR_DIR = BASE / "errors/05_final_scores"
 CORE_PATH = Path(__file__).with_name("01_basketball_results_grade_core.py")
 LEAGUES = ["nba", "ncaam", "wnba"]
+LAUNCHER_LOG = ERROR_DIR / "01_basketball_results_grade_launcher.txt"
+
+
+def _init_log() -> None:
+    LAUNCHER_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with open(LAUNCHER_LOG, "w", encoding="utf-8") as handle:
+        handle.write(f"=== 01_basketball_results_grade launcher | {datetime.now().isoformat(timespec='seconds')} ===\n")
+
+
+def _log(msg: str, level: str = "INFO") -> None:
+    line = f"[{datetime.now().strftime('%H:%M:%S')}] [{level}] {msg}"
+    print(line)
+    try:
+        LAUNCHER_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with open(LAUNCHER_LOG, "a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+    except Exception:
+        pass
 
 
 def clean(v) -> str:
@@ -94,9 +116,16 @@ def validate_final_scores() -> None:
                     key = comp(row, league)
                     scores = score_sig(row)
                     gid = clean(row.get("game_id"))
-                    if not all(key) or not all(scores):
-                        continue
                     location = f"{path}:{n}"
+                    if not all(key) or not all(scores):
+                        _log(
+                            f"{league.upper()} skipped final-score row {location}: "
+                            f"date/home/away/score blank (date={clean(row.get('game_date'))!r}, "
+                            f"home={clean(row.get('home_team'))!r}, away={clean(row.get('away_team'))!r}, "
+                            f"home_score={clean(row.get('home_score'))!r}, away_score={clean(row.get('away_score'))!r})",
+                            "WARN",
+                        )
+                        continue
                     if gid:
                         prior = by_id.get(gid)
                         if prior and (prior[0] != key or prior[1] != scores):
@@ -245,16 +274,43 @@ def install_composite_score_fallback(core) -> None:
 
 
 def main() -> None:
-    clear_stale_diagnostics()
-    validate_final_scores()
+    _init_log()
+    core_exit = 0
+    try:
+        _log("Clearing stale diagnostics")
+        clear_stale_diagnostics()
+        _log("Validating final scores")
+        validate_final_scores()
 
-    core = load_core()
-    install_composite_score_fallback(core)
-    core.main()
-
-    text = core.LOG_FILE.read_text(encoding="utf-8", errors="replace")
-    if "STATUS: COMPLETED WITH ERRORS" in text or "STATUS: FAILED" in text:
+        _log("Loading grading core")
+        core = load_core()
+        install_composite_score_fallback(core)
+        _log("Running grading core")
+        try:
+            core.main()
+        except SystemExit as exc:
+            core_exit = exc.code if isinstance(exc.code, int) else (0 if exc.code is None else 1)
+    except Exception as exc:
+        _log(f"FATAL: {exc}\n{traceback.format_exc()}", "ERROR")
+        _log("STATUS: FAILED")
         sys.exit(1)
+
+    try:
+        text = core.LOG_FILE.read_text(encoding="utf-8", errors="replace")
+    except Exception as exc:
+        _log(f"Cannot read core log {core.LOG_FILE}: {exc}", "ERROR")
+        _log("STATUS: FAILED")
+        sys.exit(1)
+
+    if "STATUS: FAILED" in text:
+        _log(f"Core log reports FAILED: {core.LOG_FILE}", "ERROR")
+        _log("STATUS: FAILED")
+        sys.exit(1)
+    if "STATUS: COMPLETED WITH ERRORS" in text or core_exit:
+        _log(f"Core reports errors (exit code {core_exit}): {core.LOG_FILE}", "ERROR")
+        _log("STATUS: COMPLETED WITH ERRORS")
+        sys.exit(1)
+    _log("STATUS: SUCCESS")
 
 
 if __name__ == "__main__":

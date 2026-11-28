@@ -36,6 +36,7 @@
 #                 (None if bet_stake_pct is missing)
 
 import csv
+import math
 import os
 import sys
 import traceback
@@ -61,7 +62,9 @@ MODEL_METADATA_COLUMNS = [
 
 LOCK_TIMEZONE = ZoneInfo("America/New_York")
 
-BASE               = Path("docs/win/basketball")
+SCRIPTS_DIR        = Path(__file__).resolve().parents[1]
+ROOT               = SCRIPTS_DIR.parents[3]  # repository root (docs/win/basketball/scripts/05_final_scores/ -> repo root)
+BASE               = ROOT / "docs/win/basketball"
 SELECT_BASE        = BASE / "04_select"
 FINAL_SCORES_DIR   = BASE / "05_final_scores/results"
 CANONICAL_GAMES_DIR = BASE / "00_intake/sdv/canonical_games"
@@ -204,7 +207,7 @@ def american_to_decimal(odds):
         a = float(odds)
     except (TypeError, ValueError):
         return None
-    if not bool(a):
+    if not math.isfinite(a) or a == 0:
         return None
     return 1 + (a / 100.0) if a > 0 else 1 + (100.0 / abs(a))
 
@@ -228,6 +231,8 @@ def determine_outcome(row) -> str:
         return "Unknown"
 
     if market == "moneyline":
+        if side not in ("home", "away"):
+            return "Unknown"
         if home == away:
             return "Push"
         home_won = home > away
@@ -251,7 +256,7 @@ def determine_outcome(row) -> str:
 
     if market == "total":
         line = optional_float(row.get("bet_line"))
-        if line is None:
+        if line is None or side not in ("over", "under"):
             return "Unknown"
         total = home + away
         if abs(total - line) < 1e-9:
@@ -429,11 +434,17 @@ def grade_league(league: str, summary: dict, *, locked: bool = False) -> None:
         unmatched_path = ERROR_DIR / f"{league}_game_id_no_match.csv"
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    for stale in out_dir.glob("*.csv"):
-        stale.unlink(missing_ok=True)
+
+    def clear_stale() -> None:
+        # Old graded files are removed only when this run has a result for them
+        # (new output about to be written, or nothing to grade). An error or
+        # exception earlier in this function leaves the previous files in place.
+        for stale in out_dir.glob("*.csv"):
+            stale.unlink(missing_ok=True)
 
     picks = load_picks_for_league(league, locked=locked)
     if picks.empty:
+        clear_stale()
         _log(f"[{league} {label}] no picks; skipping")
         return
 
@@ -463,12 +474,12 @@ def grade_league(league: str, summary: dict, *, locked: bool = False) -> None:
             merged[col] = merged[side].combine_first(merged.get(col))
             merged = merged.drop(columns=[side])
 
-    # NCAAM_SCORE_ORIENTATION_FIX_V1: game_id alone does not establish team order.
+    # SCORE_ORIENTATION_FIX_V2 (all leagues): game_id alone does not establish team order.
     # Preserve the official score names and align scores with selected team's side.
-    if league == "ncaam" and not scores.empty:
+    if not scores.empty:
         needed = {"home_team", "away_team", "home_team_score", "away_team_score"}
         if not needed.issubset(merged.columns):
-            raise RuntimeError("NCAAM scorer cannot verify team orientation: missing names")
+            raise RuntimeError(f"{upper} scorer cannot verify team orientation: missing names")
 
         def _normalize_team(value):
             if pd.isna(value):
@@ -498,7 +509,16 @@ def grade_league(league: str, summary: dict, *, locked: bool = False) -> None:
             merged.loc[reversed_rows, ["home_score", "away_score"]] = (
                 merged.loc[reversed_rows, ["away_score", "home_score"]].to_numpy()
             )
-        unverified = int(merged["score_orientation"].eq("unverified").sum())
+        unverified_rows = merged[merged["score_orientation"].eq("unverified")]
+        for _, bad in unverified_rows.iterrows():
+            _log(
+                f"[{league} {label}] UNVERIFIED TEAM NAMES game_id={bad.get('game_id')} "
+                f"date={bad.get('game_date')} {bad.get('market_type')}/{bad.get('bet_side')} | "
+                f"pick={bad.get('home_team')} vs {bad.get('away_team')} | "
+                f"final={bad.get('home_team_score')} vs {bad.get('away_team_score')}",
+                "WARN",
+            )
+        unverified = len(unverified_rows)
         _log(
             f"[{league} {label}] score orientation: "
             f"reversed_rows={int(reversed_rows.sum())}, "
@@ -526,6 +546,7 @@ def grade_league(league: str, summary: dict, *, locked: bool = False) -> None:
         _audit_ungraded_locked(league, unmatched, summary)
 
     if matched.empty:
+        clear_stale()
         _log(f"[{league} {label}] no picks matched a final score; nothing to grade")
         return
 
@@ -549,6 +570,7 @@ def grade_league(league: str, summary: dict, *, locked: bool = False) -> None:
             _log(f"[{league} {label}] deduped {dropped} duplicate graded rows")
 
     out_path = out_dir / f"{upper}_final.csv"
+    clear_stale()
     matched.to_csv(out_path, index=False)
 
     n = len(matched)
@@ -618,10 +640,13 @@ def main():
         status = "SUCCESS" if summary["errors"] == 0 else "COMPLETED WITH ERRORS"
         _log(f"STATUS: {status}")
 
-        print("Grading complete.")
+        print("Grading complete." if summary["errors"] == 0 else "Grading completed with errors.")
 
     except Exception as e:
         _log(f"FATAL: {e}\n{traceback.format_exc()}", "ERROR")
+        sys.exit(1)
+
+    if summary["errors"]:
         sys.exit(1)
 
 
